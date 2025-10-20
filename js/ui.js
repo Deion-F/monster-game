@@ -17,6 +17,9 @@ class UI {
         this.redirectTargets = [];
         this._postSacrificeCallback = null; // optional callback to run after sacrifice dialog confirm
         
+        // Track message numbers - simply increment for each log entry
+        this.nextMessageNumber = 1;
+        
         this.setupEventListeners();
     }
 
@@ -351,6 +354,9 @@ class UI {
      * Initialize the UI
      */
     initialize() {
+        // Reset message counter for new game
+        this.nextMessageNumber = 1;
+        
         this.updateGameState();
         TutorialManager.initializeTutorial();
     }
@@ -2448,10 +2454,66 @@ class UI {
         const logContent = document.getElementById('log-content');
         const logEntry = document.createElement('div');
         logEntry.classList.add('log-entry');
-        logEntry.textContent = message;
+        
+        // Each log entry gets the next sequential number
+        const messageNumber = this.nextMessageNumber++;
+        
+        // Format: [#] message
+        logEntry.textContent = `[${messageNumber}] ${message}`;
         
         logContent.appendChild(logEntry);
         logContent.scrollTop = logContent.scrollHeight;
+    }
+
+    /**
+     * Highlight attacker and defender for attack visualization
+     * @param {number} attackerIndex - Attacker monster index
+     * @param {Player} attackerPlayer - Attacking player
+     * @param {number|null} defenderIndex - Defender monster index (null for direct)
+     * @param {Player} defenderPlayer - Defending player
+     */
+    highlightAttack(attackerIndex, attackerPlayer, defenderIndex, defenderPlayer) {
+        // Clear any existing highlights
+        this.clearAttackHighlights();
+        
+        // Highlight the attacking monster
+        const attackerSelector = attackerPlayer === this.game.player ? 
+            `#player-monster-${attackerIndex}` : 
+            `#bot-monster-${attackerIndex}`;
+        const attackerElement = document.querySelector(attackerSelector);
+        if (attackerElement) {
+            attackerElement.classList.add('attack-highlight', 'attacker-highlight');
+        }
+        
+        // Highlight the defender
+        if (defenderIndex !== null) {
+            // Monster target
+            const defenderSelector = defenderPlayer === this.game.player ?
+                `#player-monster-${defenderIndex}` :
+                `#bot-monster-${defenderIndex}`;
+            const defenderElement = document.querySelector(defenderSelector);
+            if (defenderElement) {
+                defenderElement.classList.add('attack-highlight', 'defender-highlight');
+            }
+        } else {
+            // Direct attack - highlight player area
+            const defenderAreaSelector = defenderPlayer === this.game.player ?
+                '.player-area-human .player-info' : 
+                '.bot-area .player-info';
+            const defenderArea = document.querySelector(defenderAreaSelector);
+            if (defenderArea) {
+                defenderArea.classList.add('attack-highlight', 'direct-attack-highlight');
+            }
+        }
+    }
+
+    /**
+     * Clear all attack highlights
+     */
+    clearAttackHighlights() {
+        document.querySelectorAll('.attack-highlight').forEach(el => {
+            el.classList.remove('attack-highlight', 'attacker-highlight', 'defender-highlight', 'direct-attack-highlight');
+        });
     }
 
     /**

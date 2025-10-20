@@ -139,6 +139,121 @@
   z-index: var(--z-cards);
 }
 
+/* Selectable cards (hover state) */
+.card.selectable {
+  cursor: pointer;
+  position: relative;
+}
+
+.card.selectable::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border: 2px dashed var(--md-primary);
+  border-radius: calc(var(--radius-md) + 2px);
+  opacity: 0;
+  transition: opacity var(--duration-fast) ease;
+  pointer-events: none;
+}
+
+.card.selectable:hover::before {
+  opacity: 0.6;
+}
+
+/* Sacrifice selection (for big monsters) - Red/Orange theme */
+#sacrifice-area .card.selected,
+.sacrifice-card-wrapper .card.selected {
+  box-shadow: 0 0 0 3px var(--md-error), 
+              0 0 16px 3px rgba(179, 38, 30, 0.5),
+              var(--elevation-4);
+  background: linear-gradient(135deg, 
+    rgba(179, 38, 30, 0.1) 0%, 
+    rgba(245, 124, 0, 0.1) 100%);
+  border-color: var(--md-error);
+  transform: translateY(-6px) scale(1.02);
+}
+
+#sacrifice-area .card.selectable,
+.sacrifice-card-wrapper .card.selectable {
+  cursor: pointer;
+}
+
+#sacrifice-area .card.selectable::before,
+.sacrifice-card-wrapper .card.selectable::before {
+  border-color: var(--md-error);
+  border-style: dashed;
+}
+
+/* Fusion candidate selection - Purple/Magenta theme */
+#fusion-monsters .card.selected {
+  box-shadow: 0 0 0 3px var(--md-tertiary), 
+              0 0 16px 3px rgba(127, 29, 175, 0.5),
+              var(--elevation-4);
+  background: linear-gradient(135deg, 
+    rgba(127, 29, 175, 0.15) 0%, 
+    rgba(176, 0, 160, 0.15) 100%);
+  border-color: var(--md-tertiary);
+  transform: translateY(-6px) scale(1.05);
+  animation: fusion-pulse 2s ease-in-out infinite;
+}
+
+#fusion-monsters .card.selectable::before {
+  border-color: var(--md-tertiary);
+  border-style: dashed;
+}
+
+@keyframes fusion-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 3px var(--md-tertiary), 
+                0 0 16px 3px rgba(127, 29, 175, 0.5),
+                var(--elevation-4);
+  }
+  50% {
+    box-shadow: 0 0 0 3px var(--md-tertiary), 
+                0 0 20px 5px rgba(127, 29, 175, 0.7),
+                var(--elevation-5);
+  }
+}
+
+/* Fusion upkeep selection - Yellow/Amber theme (warning/cost) */
+#fusion-upkeep-cards .card.selected,
+#fusion-upkeep-cards .sacrifice-card-wrapper .card.selected {
+  box-shadow: 0 0 0 3px var(--md-warning), 
+              0 0 16px 3px rgba(245, 124, 0, 0.5),
+              var(--elevation-4);
+  background: linear-gradient(135deg, 
+    rgba(245, 124, 0, 0.15) 0%, 
+    rgba(255, 193, 7, 0.15) 100%);
+  border-color: var(--md-warning);
+  transform: translateY(-6px) scale(1.02);
+}
+
+#fusion-upkeep-cards .card.selectable::before {
+  border-color: var(--md-warning);
+  border-style: dashed;
+}
+
+/* Field-selected monster in fusion (initial selection) - Green theme */
+.fusion-card-wrapper.field-selected .card.selected {
+  box-shadow: 0 0 0 3px var(--md-success), 
+              0 0 16px 3px rgba(16, 109, 32, 0.5),
+              var(--elevation-4);
+  background: linear-gradient(135deg, 
+    rgba(16, 109, 32, 0.15) 0%, 
+    rgba(46, 125, 50, 0.15) 100%);
+  border-color: var(--md-success);
+  animation: field-selected-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes field-selected-pulse {
+  0%, 100% {
+    transform: translateY(-4px) scale(1);
+  }
+  50% {
+    transform: translateY(-6px) scale(1.03);
+  }
+}
+
 /* Draw card animation */
 @keyframes draw {
   0% {

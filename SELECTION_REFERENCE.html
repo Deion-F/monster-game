@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Selection Styling Reference</title>
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            padding: 40px;
+            background: var(--md-surface);
+            color: var(--md-on-surface);
+        }
+        .section {
+            margin-bottom: 60px;
+            padding: 30px;
+            background: var(--md-surface-container);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--elevation-2);
+        }
+        .section h2 {
+            margin-top: 0;
+            color: var(--md-primary);
+            border-bottom: 2px solid var(--md-primary);
+            padding-bottom: 10px;
+        }
+        .section h3 {
+            color: var(--md-on-surface);
+            margin-top: 30px;
+        }
+        .demo-area {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+            padding: 20px;
+            background: var(--md-surface);
+            border-radius: var(--radius-md);
+        }
+        .card-demo {
+            width: 100px;
+            height: 140px;
+            border: 2px solid var(--md-outline);
+            border-radius: var(--radius-md);
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            font-weight: bold;
+            transition: all var(--duration-fast) ease;
+        }
+        .description {
+            background: var(--md-surface-variant);
+            padding: 15px;
+            border-radius: var(--radius-sm);
+            margin: 10px 0;
+            border-left: 4px solid var(--md-primary);
+        }
+        .color-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        .legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: var(--md-surface);
+            border-radius: var(--radius-sm);
+        }
+    </style>
+</head>
+<body>
+    <h1>🎴 Card Selection Styling Reference</h1>
+    
+    <div class="section">
+        <h2>Overview</h2>
+        <p>This document shows the different visual styles applied to cards during various selection contexts in the game. Each context uses a unique color theme to communicate the type of action being performed.</p>
+    </div>
+
+    <div class="section">
+        <h2>1. Sacrifice Selection (Red/Orange Theme) 🔴</h2>
+        <div class="description">
+            <strong>When:</strong> Selecting cards to sacrifice for big monsters (Kings, Aces)<br>
+            <strong>Purpose:</strong> Indicates cards being destroyed/sacrificed<br>
+            <strong>Visual:</strong> Red border, red glow, red-to-orange gradient background
+        </div>
+        <div id="sacrifice-area" class="demo-area">
+            <div class="card-demo selected">K♠</div>
+            <div class="card-demo selectable">Q♥</div>
+            <div class="card-demo">J♦</div>
+        </div>
+        <p><em>Try hovering over the middle card to see the selectable state</em></p>
+    </div>
+
+    <div class="section">
+        <h2>2. Fusion Candidate Selection (Purple/Magenta Theme) 💜</h2>
+        <div class="description">
+            <strong>When:</strong> Selecting a hand card to fuse with a field monster<br>
+            <strong>Purpose:</strong> Highlights fusion candidates, emphasizes magical fusion<br>
+            <strong>Visual:</strong> Purple border, purple glow, animated pulsing effect
+        </div>
+        <div id="fusion-monsters" class="demo-area">
+            <div class="card-demo selected">10♣</div>
+            <div class="card-demo selectable">9♠</div>
+            <div class="card-demo selectable">8♥</div>
+        </div>
+        <p><em>Selected cards pulse continuously to show the magical fusion energy</em></p>
+    </div>
+
+    <div class="section">
+        <h2>3. Fusion Upkeep Selection (Yellow/Amber Theme) ⚠️</h2>
+        <div class="description">
+            <strong>When:</strong> Selecting cards to sacrifice for fusion upkeep during End Phase<br>
+            <strong>Purpose:</strong> Warning indication of maintenance cost<br>
+            <strong>Visual:</strong> Yellow/amber border and glow
+        </div>
+        <div id="fusion-upkeep-cards" class="demo-area">
+            <div class="sacrifice-card-wrapper">
+                <div class="card-demo selected">7♦</div>
+            </div>
+            <div class="sacrifice-card-wrapper">
+                <div class="card-demo selectable">6♠</div>
+            </div>
+            <div class="card-demo">5♥</div>
+        </div>
+        <p><em>Yellow theme communicates cost/warning for maintaining fusions</em></p>
+    </div>
+
+    <div class="section">
+        <h2>4. Field Monster Selection (Green Theme) ✅</h2>
+        <div class="description">
+            <strong>When:</strong> Shows the base monster on field being used for fusion<br>
+            <strong>Purpose:</strong> Confirms the fusion target<br>
+            <strong>Visual:</strong> Green border, green glow, gentle pulsing animation
+        </div>
+        <div class="demo-area">
+            <div class="fusion-card-wrapper field-selected">
+                <div class="card-demo selected">A♣</div>
+            </div>
+            <div class="card-demo">K♥</div>
+            <div class="card-demo">Q♠</div>
+        </div>
+        <p><em>Green confirms which field monster is the fusion base</em></p>
+    </div>
+
+    <div class="section">
+        <h2>5. Generic Selection (Primary Purple Theme) 🟣</h2>
+        <div class="description">
+            <strong>When:</strong> Other selection contexts (trap cancellation, general selection)<br>
+            <strong>Purpose:</strong> Default selection indicator<br>
+            <strong>Visual:</strong> Primary purple border and glow
+        </div>
+        <div class="demo-area">
+            <div class="card-demo selected">4♦</div>
+            <div class="card-demo">3♣</div>
+            <div class="card-demo">2♠</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Color Legend</h2>
+        <div class="legend">
+            <div class="legend-item">
+                <span class="color-indicator" style="background: var(--md-error);"></span>
+                <strong>Red/Orange:</strong> Sacrifice (destruction)
+            </div>
+            <div class="legend-item">
+                <span class="color-indicator" style="background: var(--md-tertiary);"></span>
+                <strong>Purple/Magenta:</strong> Fusion candidates
+            </div>
+            <div class="legend-item">
+                <span class="color-indicator" style="background: var(--md-warning);"></span>
+                <strong>Yellow/Amber:</strong> Fusion upkeep (cost)
+            </div>
+            <div class="legend-item">
+                <span class="color-indicator" style="background: var(--md-success);"></span>
+                <strong>Green:</strong> Field selection (confirm)
+            </div>
+            <div class="legend-item">
+                <span class="color-indicator" style="background: var(--md-primary);"></span>
+                <strong>Primary Purple:</strong> Generic selection
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Interactive States</h2>
+        <div class="description">
+            All selectable cards show a dashed border hint on hover that matches their selection context color. This helps players identify which cards can be clicked.
+        </div>
+    </div>
+
+</body>
+</html>

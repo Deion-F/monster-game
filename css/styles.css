@@ -72,13 +72,32 @@ html, body {
 
 .game-board {
   display: grid;
-  grid-template-columns: minmax(200px, 1fr) 2fr minmax(200px, 1fr);
+  grid-template-columns: 220px 1fr 280px;
   grid-template-rows: 1fr;
   gap: var(--space-lg);
   padding: var(--space-md);
-  align-items: center;
+  align-items: stretch;
   height: 100%;
   overflow: hidden;
+}
+
+.left-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    justify-content: space-between;
+}
+
+.main-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.right-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
 }
 
 /* ============ PLAYER AREAS ============ */
@@ -86,8 +105,6 @@ html, body {
 .player-area {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  justify-content: center;
   gap: var(--space-md);
 }
 
@@ -96,7 +113,21 @@ html, body {
 }
 
 .player-area-human {
-  align-items: flex-end;
+  align-items: stretch;
+}
+
+.player-info {
+    grid-row: 1;
+    grid-column: 1;
+}
+
+.game-controls {
+    margin-top: auto;
+}
+
+.player-hand-container {
+    grid-row: 2;
+    grid-column: 1 / -1;
 }
 
 .player-info {
@@ -104,7 +135,7 @@ html, body {
   border-radius: var(--space-md);
   padding: var(--space-md);
   box-shadow: var(--elevation-1);
-  min-width: 180px;
+  width: 100%;
 }
 
 .player-name {
@@ -227,29 +258,86 @@ html, body {
   display: none;
 }
 
-/* ============ CENTER AREA ============ */
+/* ============ ATTACK HIGHLIGHTS ============ */
 
-.center-area {
+.monster-space.attack-highlight {
+  animation: attack-pulse 1s ease-in-out infinite;
+  z-index: 10;
+}
+
+.monster-space.attacker-highlight {
+  border: 3px solid var(--md-error);
+  box-shadow: 0 0 0 3px rgba(179, 38, 30, 0.3),
+              0 0 20px rgba(179, 38, 30, 0.5);
+  background: var(--md-error-container);
+}
+
+.monster-space.defender-highlight {
+  border: 3px solid var(--md-warning);
+  box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.3),
+              0 0 20px rgba(245, 124, 0, 0.5);
+  background: var(--md-warning-container);
+}
+
+.player-info.direct-attack-highlight {
+  border: 3px solid var(--md-error);
+  box-shadow: 0 0 0 3px rgba(179, 38, 30, 0.3),
+              0 0 20px rgba(179, 38, 30, 0.5);
+  background: var(--md-error-container);
+  animation: attack-pulse 1s ease-in-out infinite;
+}
+
+@keyframes attack-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+/* ============ CENTER PLAY AREA ============ */
+
+.center-play-area {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-lg);
-  height: 100%;
-  max-height: 85vh;
+  gap: var(--space-md);
+  flex-grow: 1;
 }
+
+.play-area-divider {
+  width: 100%;
+  height: 4px;
+  background: var(--md-outline);
+  border-radius: 2px;
+  margin: var(--space-sm) 0;
+}
+
+/* ============ RIGHT SIDEBAR ============ */
+.right-sidebar {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+/* ============ DECK & DISCARD ============ */
 
 .deck-container {
   display: flex;
-  gap: var(--space-xl);
-  align-items: center;
+  flex-direction: column;
+  gap: calc(var(--deck-card-h) + var(--space-md));
+  align-items: flex-start;
   justify-content: center;
 }
 
 .deck, .discard-pile {
   position: relative;
-  width: var(--card-w);
-  height: var(--card-h);
+  width: var(--deck-card-w);
+  height: var(--deck-card-h);
   cursor: pointer;
   transition: transform var(--duration-fast);
 }
@@ -285,7 +373,8 @@ html, body {
   display: flex;
   gap: var(--space-md);
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
+  width: 100%;
 }
 
 .action-button {
@@ -328,8 +417,8 @@ html, body {
   background: var(--md-surface-container);
   border-radius: var(--space-md);
   padding: var(--space-md);
-  width: min(600px, 90%);
-  height: clamp(200px, 30vh, 400px);
+  width: 100%;
+  flex-grow: 1;
   box-shadow: var(--elevation-2);
   display: flex;
   flex-direction: column;
@@ -349,6 +438,15 @@ html, body {
   overflow-y: auto;
   font-size: var(--font-body2);
   line-height: 1.6;
+}
+
+.log-entry {
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--md-surface-container-low);
+}
+
+.log-entry:last-child {
+  border-bottom: none;
 }
 
 .log-content::-webkit-scrollbar {
@@ -373,20 +471,21 @@ html, body {
 
 .player-hand-container {
   width: 100%;
-  max-width: 700px;
+  max-width: 100%;
 }
 
 .player-hand {
   display: flex;
   gap: var(--space-sm);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
   padding: var(--space-md);
   background: var(--md-surface-container-low);
   border-radius: var(--space-md);
   box-shadow: var(--elevation-1);
-  max-height: 200px;
+  height: calc(var(--card-h) + 2 * var(--space-md));
   overflow-x: auto;
+  overflow-y: hidden;
 }
 
 /* ============ CARDS ============ */
@@ -618,7 +717,7 @@ html, body {
   background: var(--md-surface-container-high);
   border-radius: var(--space-lg);
   box-shadow: var(--elevation-5);
-  z-index: var(--z-dialog);
+  z-index: var(--z-modal);
   max-width: min(600px, 90vw);
   max-height: 85vh;
   overflow: auto;
@@ -689,6 +788,69 @@ html, body {
 .dialog-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ============ TRAP COUNTDOWN ============ */
+
+#trap-countdown,
+.trap-countdown {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10001;
+  background: var(--md-error-container);
+  color: var(--md-on-error-container);
+  padding: var(--space-xl);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-5);
+  font-size: var(--font-headline3);
+  font-weight: bold;
+  text-align: center;
+  border: 3px solid var(--md-error);
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  animation: countdown-pulse 1s ease-in-out infinite;
+}
+
+#trap-countdown::before,
+.trap-countdown::before {
+  content: 'React with Trap!';
+  font-size: var(--font-subtitle1);
+  font-weight: 500;
+  display: block;
+  margin-bottom: var(--space-sm);
+  color: var(--md-error);
+}
+
+@keyframes countdown-pulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+
+@media (max-width: 600px) {
+  #trap-countdown,
+  .trap-countdown {
+    padding: var(--space-lg);
+    font-size: var(--font-headline4);
+    min-width: 150px;
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+  }
+  
+  #trap-countdown::before,
+  .trap-countdown::before {
+    font-size: var(--font-body1);
+  }
 }
 
 /* ============ SPECIFIC DIALOG STYLES ============ */
@@ -901,7 +1063,7 @@ html, body {
 
 @media (max-width: 1200px) {
   .game-board {
-    grid-template-columns: 1fr 1.5fr 1fr;
+    grid-template-columns: 200px 1fr 200px 250px;
     gap: var(--space-md);
   }
 }
@@ -909,27 +1071,35 @@ html, body {
 @media (max-width: 900px) {
   .game-board {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto 1fr;
+    grid-template-rows: auto auto 1fr auto;
     padding: var(--space-sm);
     gap: var(--space-sm);
   }
   
-  .bot-area, .player-area-human {
-    flex-direction: row;
-    height: auto;
+  .left-sidebar {
+      order: 1;
+      flex-direction: row;
+      justify-content: space-between;
   }
-  
-  .player-info {
-    min-width: 150px;
+
+  .main-content {
+      order: 2;
+  }
+
+  .right-sidebar {
+      order: 3;
+      flex-direction: row-reverse;
   }
   
   .game-log {
     width: 100%;
     height: 150px;
+    flex-grow: 1;
   }
   
   .player-hand {
     max-height: 150px;
+    flex-wrap: nowrap;
   }
 }
 

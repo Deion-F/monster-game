@@ -286,15 +286,18 @@ class Bot {
         if (this.game && this.game.gameOver) return;
 
         console.debug('Bot.takeTurn: starting setup phase');
+        this.game.ui.addLogMessage(`${this.name} ended Draw phase`);
         await this.handleSetupPhase();
         if (this.game && this.game.gameOver) return;
 
         console.debug('Bot.takeTurn: starting battle phase');
+        this.game.ui.addLogMessage(`${this.name} ended Setup phase`);
         await this.handleBattlePhase();
         if (this.game && this.game.gameOver) return;
 
 
         console.debug('Bot.takeTurn: starting end phase');
+        this.game.ui.addLogMessage(`${this.name} ended Battle phase`);
         await this.handleEndPhase();
 
         // Activate just-placed traps for bot at end of its End phase
@@ -303,6 +306,7 @@ class Bot {
         }
 
         // End bot's turn
+        this.game.ui.addLogMessage(`${this.name} ended their turn`);
         this.game.endTurn();
     }
 
@@ -1540,7 +1544,7 @@ class Bot {
                 // Make the decision
                 if (Math.random() < useAceProbability) {
                     this.game.ui.addLogMessage('Bot activates Ace trap!');
-                    const res = this.game.activateAceTrap(aceTraps[0], true);
+                    const res = await this.game.activateAceTrap(aceTraps[0], true);
                     this.recordTrapActivation(aceTraps[0], true);
                     return res;
                 } else if (resumeFunction) {
@@ -1783,7 +1787,7 @@ class Bot {
                 return res;
             } else if (selectedTrap.value === CARD_VALUES.JACK && selectedTarget) {
                 this.game.ui.addLogMessage('Bot activates Jack trap!');
-                const res = this.game.activateJackTrap(
+                const res = await this.game.activateJackTrap(
                     selectedTrap,
                     selectedTarget.index,
                     selectedTarget.player,
