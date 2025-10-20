@@ -348,16 +348,22 @@ class Player {
         }
         
         // Activate trap
-        this.trapSpaces[trapIndex].card = null;
         trap.flipFaceUp(); // Reveal trap
         
         // Mark trap type as used this turn
         this.usedTrapTypes.add(trap.value);
         
-        // Discard trap
-        deck.discard(trap);
-        
-        return { success: true, trapType: trap.value };
+        // For bot traps, add visual delay to show the revealed trap before discarding
+        if (this.type === PLAYER_TYPES.BOT) {
+            // Keep trap on field temporarily for visual effect
+            // The actual removal and discard will be handled after animation
+            return { success: true, trapType: trap.value, delayedDiscard: true, trap: trap, trapIndex: trapIndex };
+        } else {
+            // For human player, discard immediately as before
+            this.trapSpaces[trapIndex].card = null;
+            deck.discard(trap);
+            return { success: true, trapType: trap.value };
+        }
     }
 
     /**

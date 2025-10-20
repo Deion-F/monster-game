@@ -20,6 +20,8 @@ class Game {
 
         this.jokerPlayedThisTurn = false;
         this.botThinkingEnabled = true;
+        this.battlePhaseEnded = false; // Flag to indicate if Ace trap ended the battle phase
+        this.turnForcefullyEnded = false; // Flag to indicate if turn was ended by Ace trap
 
         // Initialize starting hands
         this.player.drawCards(this.deck, GAME_SETTINGS.STARTING_HAND_SIZE);
@@ -60,6 +62,8 @@ class Game {
         if (this.gameOver) return;
 
         this.jokerPlayedThisTurn = false;
+        this.battlePhaseEnded = false; // Reset battle phase ended flag for new turn
+        this.turnForcefullyEnded = false; // Reset forceful end flag for new turn
         if (!this.currentPlayer) this.currentPlayer = this.player;
 
         if (typeof this.currentPlayer.resetForNewTurn === 'function') {
@@ -333,6 +337,20 @@ class Game {
     async processAttack(attackerIndex, defenderIndex, isAttackerBot = false, options = {}) {
         const attacker = isAttackerBot ? this.bot : this.player;
         const defender = (attacker === this.player) ? this.bot : this.player;
+        
+        // Validate attack: direct attacks should not be allowed if defender has monsters
+        if (defenderIndex === null) {
+            // This is a direct attack - check if defender has monsters
+            const defenderHasMonsters = defender.monsterSpaces.some(space => 
+                space && space.card && isMonsterCard(space.card)
+            );
+            
+            if (defenderHasMonsters) {
+                console.warn('Invalid direct attack attempted - defender has monsters');
+                this.ui.addLogMessage('Invalid attack: cannot attack directly while opponent has monsters');
+                return { success: false, message: 'Direct attack blocked - opponent has monsters' };
+            }
+        }
 
         // Add attack target highlighting for better visibility
         if (this.ui && typeof this.ui.clearAttackHighlights === 'function') {
@@ -435,8 +453,23 @@ class Game {
                             }
 
                             // Otherwise a trap was activated that handled or modified flow (ACE/KING/QUEEN), so return reactive response
-                            if (this.ui) this.ui.updateGameState();
-                            return { success: true, trapActivated: true, trapResult: resp };
+                            // Check if Ace trap ended the battle phase - if so, prevent attack processing
+                            if (resp.result && resp.result.effect && resp.result.effect.endBattlePhase) {
+                                this.ui.addLogMessage('Attack prevented by Ace trap activation');
+                                if (this.ui) this.ui.updateGameState();
+                                return { success: false, trapActivated: true, trapResult: resp, attackPrevented: true };
+                            }
+                            
+                            // Check if King trap was activated - if so, continue attack with King effect
+                            if (resp.result && resp.result.type === 'KING' && resp.result.res && resp.result.res.kingActivated) {
+                                // Continue processing the attack with kingEffect applied
+                                options.kingEffect = true;
+                                // Fall through to normal attack resolution with King effect
+                            } else {
+                                // For other traps (Queen), return early
+                                if (this.ui) this.ui.updateGameState();
+                                return { success: true, trapActivated: true, trapResult: resp };
+                            }
                         }
                         // else fall through to normal resolution
                     } catch (e) {
@@ -447,8 +480,23 @@ class Game {
                     // This will call into game.activateKingTrap/Jack/Ace as implemented
                     try {
                         const botResp = await this.botPlayer.handleDefensiveTraps(attackerIndex, defenderIndex, null);
+                        
+                        // Check if Ace trap ended battle phase - if so, prevent attack processing
+                        if (botResp && botResp.effect && botResp.effect.endBattlePhase) {
+                            this.ui.addLogMessage('Attack prevented by Ace trap activation');
+                            if (this.ui) this.ui.updateGameState();
+                            return { success: false, trapActivated: true, trapResult: botResp, attackPrevented: true };
+                        }
+                        
+                        // Check if King trap was activated - if so, continue attack with King effect
+                        if (botResp && botResp.kingActivated) {
+                            // Continue processing the attack with kingEffect applied
+                            options.kingEffect = true;
+                            // Fall through to normal attack resolution with King effect
+                        }
+                        
                         // If botResp returned a redirect (activateJackTrap returns {success:true, redirect}), handle it similarly
-                        if (botResp && botResp.success && botResp.redirect) {
+                        else if (botResp && botResp.success && botResp.redirect) {
                             const redirect = botResp.redirect;
                             // Animate and resolve redirected attack immediately
                             try {
@@ -530,22 +578,15 @@ class Game {
     }
 
     /**
-     * End the game, show game over UI and the welcome dialog to start a new game
+     * End the game, show game over UI
      * @param {'player'|'bot'} winner
      */
     endGame(winner) {
         this.gameOver = true;
         if (this.ui && typeof this.ui.showGameOverDialog === 'function') this.ui.showGameOverDialog(winner);
 
-        // Show welcome dialog to allow starting a new game
-        const welcomeDialog = document.getElementById('welcome-dialog');
-        if (welcomeDialog) {
-            try {
-                if (typeof welcomeDialog.showModal === 'function') welcomeDialog.showModal(); else welcomeDialog.classList.add('visible');
-            } catch (e) {
-                welcomeDialog.classList.add('visible');
-            }
-        }
+        // Game over dialog now provides New Game button for starting a new game
+        // No need to show welcome dialog since player can use New Game button
     }
 
     /**
@@ -576,6 +617,12 @@ class Game {
         if (res && res.success) {
             // record last trap used
             this.lastTrapUsed = trap;
+            
+            // Handle bot trap reveal animation
+            if (res.delayedDiscard && isBot) {
+                await this.handleBotTrapReveal(res.trap, res.trapIndex, owner);
+            }
+            
             this.ui.addLogMessage(`${owner.name} activates Ace`);
             // Before applying Ace effect, allow the opponent to cancel using a Queen if available
             const opponent = (owner === this.player) ? this.bot : this.player;
@@ -596,10 +643,32 @@ class Game {
 
             const effect = this.board.handleAceTrap();
             if (effect && effect.endBattlePhase) {
-                // End battle phase immediately
-                this.currentPhase = PHASES.END;
+                // Ace ends the current player's battle phase
+                this.ui.addLogMessage('Ace trap ended the battle phase');
+                this.battlePhaseEnded = true;
+                
+                // Immediately transition to end phase
+                if (this.currentPhase === PHASES.BATTLE) {
+                    this.currentPhase = PHASES.END;
+                    
+                    // Mark that the turn was forcefully ended by Ace trap
+                    this.turnForcefullyEnded = true;
+                    
+                    // Process end phase logic (including fusion upkeep) when Ace forces phase transition
+                    this.handleEndPhase();
+                }
+                
                 this.resetAttackedFlags();
-                this.handleEndPhase();
+                // Clear king-weakened flags from all monsters (they only last until end of battle)
+                [this.player, this.bot].forEach(p => {
+                    p.monsterSpaces.forEach(space => {
+                        if (space.card) {
+                            space.card.kingWeakened = false;
+                        }
+                    });
+                });
+                this.ui.updateGameState();
+                this.ui.updateTurnAndPhase();
             }
             // Attach effect to the result so callers can observe special effects (e.g., endBattlePhase)
             try { res.effect = effect; } catch (e) { /* ignore */ }
@@ -622,20 +691,31 @@ class Game {
         if (res && res.success) {
             // record last trap used
             this.lastTrapUsed = trap;
+            
+            // Handle bot trap reveal animation
+            if (res.delayedDiscard && isBot) {
+                await this.handleBotTrapReveal(res.trap, res.trapIndex, owner);
+            }
+            
             this.ui.addLogMessage(`${owner.name} activates King`);
 
-            // If context provides attacker info, mark the attacking monster as king-weakened and re-process the attack with king effect
+            // If context provides attacker info, mark the attacking monster as king-weakened
             if (context && typeof context.attackerIndex === 'number') {
-                const attackerIsBot = (context.attacker === this.bot);
                 try {
-                    const attackerPlayer = attackerIsBot ? this.bot : this.player;
+                    const attackerPlayer = context.attacker;
                     const atkCard = attackerPlayer.monsterSpaces[context.attackerIndex].card;
-                    if (atkCard) atkCard.kingWeakened = true;
+                    if (atkCard) {
+                        atkCard.kingWeakened = true;
+                        // Calculate the reduced strength
+                        const originalStrength = calculateMonsterStrength(atkCard);
+                        const reducedStrength = applyKingEffect(originalStrength);
+                        this.ui.addLogMessage(`${attackerPlayer.name}'s monster strength reduced from ${originalStrength} to ${reducedStrength}`);
+                    }
                 } catch (err) { /* ignore */ }
-
-                await this.processAttack(context.attackerIndex, context.defenderIndex, attackerIsBot, { kingEffect: true });
-                // Indicate to caller that this activation re-processed the attack
-                try { res.handledAttack = true; } catch (e) {}
+                
+                // Don't reprocess the attack - let the caller know King trap was activated
+                // The caller should continue with kingEffect: true option
+                try { res.kingActivated = true; } catch (e) {}
             }
 
             this.ui.updateGameState();
@@ -651,7 +731,7 @@ class Game {
      * @param {Player} targetPlayer
      * @param {boolean} isBot
      */
-    activateJackTrap(trap, targetIndex, targetPlayer, isBot = false) {
+    async activateJackTrap(trap, targetIndex, targetPlayer, isBot = false) {
         const owner = this.findTrapOwner(trap);
         if (!owner) return { success: false };
 
@@ -659,6 +739,12 @@ class Game {
         if (res && res.success) {
             // record last trap used
             this.lastTrapUsed = trap;
+            
+            // Handle bot trap reveal animation
+            if (res.delayedDiscard && isBot) {
+                await this.handleBotTrapReveal(res.trap, res.trapIndex, owner);
+            }
+            
             this.ui.addLogMessage(`${owner.name} activates Jack`);
 
             // Redirect handled by board; caller should resume attack with new target
@@ -676,7 +762,7 @@ class Game {
      * @param {Card} targetTrap
      * @param {boolean} isBot
      */
-    activateQueenTrap(trap, targetTrap, isBot = false) {
+    async activateQueenTrap(trap, targetTrap, isBot = false) {
         const owner = this.findTrapOwner(trap);
         if (!owner) return { success: false };
 
@@ -687,6 +773,12 @@ class Game {
         if (res && res.success) {
             // record last trap used
             this.lastTrapUsed = trap;
+            
+            // Handle bot trap reveal animation
+            if (res.delayedDiscard && isBot) {
+                await this.handleBotTrapReveal(res.trap, res.trapIndex, owner);
+            }
+            
             // Remove target trap from field (if present)
             const targetOwner = this.findTrapOwner(targetTrap);
             if (targetOwner) {
@@ -744,6 +836,48 @@ class Game {
         });
 
         if (this.ui) this.ui.updateGameState();
+    }
+
+    /**
+     * Handle bot trap reveal animation and delayed discard
+     * @param {Card} trap - The trap card to reveal
+     * @param {number} trapIndex - Index of the trap space  
+     * @param {Player} owner - The bot player who owns the trap
+     */
+    async handleBotTrapReveal(trap, trapIndex, owner) {
+        // Get the trap space element to animate
+        const trapSpaceEl = document.querySelector(`.bot-trap-space:nth-child(${trapIndex + 1}) .card`);
+        
+        if (trapSpaceEl) {
+            // Add flip animation to reveal the card
+            trapSpaceEl.classList.add('card-flipping');
+            
+            // Update the card display to show the actual trap
+            this.ui.addLogMessage(`Bot reveals ${trap.name}!`);
+            
+            // Wait for flip animation to complete
+            await new Promise(resolve => setTimeout(resolve, 600));
+            
+            // Add reveal highlight animation
+            trapSpaceEl.classList.remove('card-flipping');
+            trapSpaceEl.classList.add('trap-revealing');
+            
+            // Show the revealed trap for a moment
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Remove highlight and proceed with discard
+            trapSpaceEl.classList.remove('trap-revealing');
+        }
+        
+        // Now discard the trap (remove from field and add to discard pile)
+        const trapSpace = owner.trapSpaces[trapIndex];
+        if (trapSpace && trapSpace.card) {
+            this.deck.discard(trapSpace.card);
+            trapSpace.card = null;
+        }
+        
+        // Update the UI to reflect the trap removal
+        this.ui.updateGameState();
     }
 
     /**

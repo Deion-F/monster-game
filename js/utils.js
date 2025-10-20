@@ -111,17 +111,16 @@ function canPlayCard(card, game) {
     // so allow playing cards even if a Joker was played this turn.
     
     // Check space availability
-    if (cardType === CARD_TYPES.MONSTER_NORMAL || cardType === CARD_TYPES.MONSTER_BIG) {
+    if (cardType === CARD_TYPES.MONSTER_NORMAL) {
+        // Normal monsters require an empty space
         if (!player.hasAvailableMonsterSpace()) return false;
-    } else if (cardType === CARD_TYPES.TRAP) {
-        if (!player.hasAvailableTrapSpace()) return false;
-    }
-    
-    // Special case for big monsters - need to check if sacrifice is possible
-    if (cardType === CARD_TYPES.MONSTER_BIG) {
+    } else if (cardType === CARD_TYPES.MONSTER_BIG) {
+        // Big monsters can be played if there's enough sacrifice value, even if no empty spaces
         const requiredValue = getRequiredSacrificeValue(card);
         const availableSacrificeValue = getTotalPotentialSacrificeValue(player);
         return availableSacrificeValue >= requiredValue;
+    } else if (cardType === CARD_TYPES.TRAP) {
+        if (!player.hasAvailableTrapSpace()) return false;
     }
     
     return true;

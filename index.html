@@ -34,6 +34,18 @@
             </div>
         </div>
     </dialog>
+    
+    <!-- Bot Hand Viewing Dialog -->
+    <div id="bot-hand-dialog" class="dialog">
+        <div class="dialog-content">
+            <h2>Bot's Hand <span id="bot-hand-dialog-count">(5)</span></h2>
+            <div id="bot-hand-display" class="bot-hand-display"></div>
+            <div class="dialog-buttons">
+                <button id="close-bot-hand-btn" class="dialog-button primary">Close</button>
+            </div>
+        </div>
+    </div>
+    
     <div class="game-container">
         <!-- Game title and info -->
         <div class="game-header">
@@ -58,19 +70,22 @@
                         <div class="hand-count">
                             <span class="hand-icon material-icons">pan_tool</span>
                             <span id="bot-hand-count">5</span>
+                            <button id="view-bot-hand-btn" class="view-hand-btn" title="View Bot's Hand">
+                                <span class="material-icons">visibility</span>
+                            </button>
                         </div>
                     </div>
                 </div>
                 <div class="board-spaces">
-                    <div class="monster-row">
-                        <div class="monster-space" id="bot-monster-0" data-index="0"></div>
-                        <div class="monster-space" id="bot-monster-1" data-index="1"></div>
-                        <div class="monster-space" id="bot-monster-2" data-index="2"></div>
-                    </div>
                     <div class="trap-row">
                         <div class="trap-space" id="bot-trap-0" data-index="0"></div>
                         <div class="trap-space" id="bot-trap-1" data-index="1"></div>
                         <div class="trap-space" id="bot-trap-2" data-index="2"></div>
+                    </div>
+                    <div class="monster-row">
+                        <div class="monster-space" id="bot-monster-0" data-index="0"></div>
+                        <div class="monster-space" id="bot-monster-1" data-index="1"></div>
+                        <div class="monster-space" id="bot-monster-2" data-index="2"></div>
                     </div>
                 </div>
             </div>

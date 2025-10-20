@@ -41,6 +41,12 @@ class UI {
         // Delegated listener for monster and trap spaces (more robust when innerHTML changes)
         const boardEl = document.querySelector('.game-board') || document.body;
         boardEl.addEventListener('click', (e) => {
+            // Ignore clicks that occur inside a visible dialog or on a button to
+            // prevent dialog/button clicks from being mistaken for board interactions.
+            if (e.target.closest && (e.target.closest('.dialog') || e.target.closest('dialog') || e.target.closest('button'))) return;
+            // Also ignore if any dialog is currently visible/open
+            if (document.querySelector && (document.querySelector('.dialog.visible') || document.querySelector('dialog[open]'))) return;
+
             const spaceEl = e.target.closest('.monster-space');
             if (spaceEl) {
                 console.debug('monster-space clicked (delegated)', spaceEl.id);
@@ -172,6 +178,32 @@ class UI {
             document.getElementById('discard-list-dialog').classList.remove('visible');
         });
 
+        // Bot hand viewer button
+        const viewBotHandBtn = document.getElementById('view-bot-hand-btn');
+        if (viewBotHandBtn) {
+            viewBotHandBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.showBotHandDialog();
+            });
+        }
+
+        const closeBotHandBtn = document.getElementById('close-bot-hand-btn');
+        if (closeBotHandBtn) {
+            closeBotHandBtn.addEventListener('click', () => {
+                this.closeBotHandDialog();
+            });
+        }
+
+        // Close bot hand dialog when clicking outside
+        const botHandDialog = document.getElementById('bot-hand-dialog');
+        if (botHandDialog) {
+            botHandDialog.addEventListener('click', (e) => {
+                if (e.target === botHandDialog) {
+                    this.closeBotHandDialog();
+                }
+            });
+        }
+
         // Cancel redirect button for Jack trap (resumes reactive countdown if present)
         const cancelRedirectBtn = document.getElementById('cancel-redirect');
         if (cancelRedirectBtn) cancelRedirectBtn.addEventListener('click', () => {
@@ -244,6 +276,54 @@ class UI {
     }
 
     /**
+     * Show bot's hand in a dialog
+     */
+    showBotHandDialog() {
+        const dialog = document.getElementById('bot-hand-dialog');
+        const display = document.getElementById('bot-hand-display');
+        const countSpan = document.getElementById('bot-hand-dialog-count');
+        
+        if (!dialog || !display) return;
+
+        display.innerHTML = '';
+        const botHand = this.game.bot.hand;
+        countSpan.textContent = `(${botHand.length})`;
+
+        if (botHand.length === 0) {
+            display.textContent = 'Bot\'s hand is empty';
+        } else {
+            botHand.forEach(card => {
+                // Temporarily flip card face-up for display
+                const wasHidden = !card.faceUp;
+                if (wasHidden) {
+                    card.faceUp = true;
+                }
+                
+                const cardElement = card.getElement(true); // Get visible card element
+                cardElement.style.cursor = 'default';
+                display.appendChild(cardElement);
+                
+                // Restore face-down state after creating the element
+                if (wasHidden) {
+                    card.faceUp = false;
+                }
+            });
+        }
+
+        dialog.classList.add('visible');
+    }
+
+    /**
+     * Close bot's hand dialog
+     */
+    closeBotHandDialog() {
+        const dialog = document.getElementById('bot-hand-dialog');
+        if (dialog) {
+            dialog.classList.remove('visible');
+        }
+    }
+
+    /**
      * Show discard pile list dialog
      */
     showDiscardListDialog() {
@@ -305,12 +385,20 @@ class UI {
         this.game.player.hand.forEach(card => {
             const cardElement = card.getElement(true);
             
-            if (this.game.currentPhase === PHASES.SETUP) {
+            // Only disable cards when it's not the player's turn or when specific conditions apply
+            let shouldDisable = false;
+            
+            if (this.game.currentPlayer !== this.game.player || this.game.turnForcefullyEnded) {
+                // Disable all cards during bot's turn or when turn was forcefully ended
+                shouldDisable = true;
+            } else if (this.game.currentPhase === PHASES.SETUP) {
+                // During setup phase, disable cards that can't be played
                 const canPlay = canPlayCard(card, this.game);
-                if (!canPlay) {
-                    cardElement.classList.add('disabled');
-                }
-            } else {
+                shouldDisable = !canPlay;
+            }
+            // During other phases of player's turn (DRAW, BATTLE, END), keep cards enabled for interaction
+            
+            if (shouldDisable) {
                 cardElement.classList.add('disabled');
             }
             
@@ -545,13 +633,21 @@ class UI {
      * @param {string} cardId - Selected card ID
      */
     handleCardSelection(cardId) {
-        // Only allow selection during player's setup phase
-        if (this.game.currentPhase !== PHASES.SETUP || this.game.currentPlayer !== this.game.player) {
+        // Only allow interaction during player's turn and if turn wasn't forcefully ended
+        if (this.game.currentPlayer !== this.game.player || this.game.turnForcefullyEnded) {
             return;
         }
         
         const card = this.game.player.hand.find(c => c.id === cardId);
         if (!card) return;
+        
+        // During SETUP phase, allow full card playing functionality
+        if (this.game.currentPhase !== PHASES.SETUP) {
+            // During other phases, just select the card for viewing but don't allow playing
+            this.selectedCard = (this.selectedCard && this.selectedCard.id === card.id) ? null : card;
+            this.updatePlayerHand();
+            return;
+        }
         
         // Check if card can be played
         if (!canPlayCard(card, this.game)) {
@@ -631,8 +727,8 @@ class UI {
      * @param {number} spaceIndex - Space index
      */
     handlePlayerMonsterSpaceClick(spaceIndex) {
-        // If it's not player's turn, do nothing
-        if (this.game.currentPlayer !== this.game.player) {
+        // If it's not player's turn or turn was forcefully ended, do nothing
+        if (this.game.currentPlayer !== this.game.player || this.game.turnForcefullyEnded) {
             return;
         }
         
@@ -693,26 +789,15 @@ class UI {
                 // Check for Ace trap or other defensive traps on the bot
                 const activatableTraps = this.game.bot.getActivatableTraps({ type: 'battle-phase' });
 
-                if (activatableTraps.length > 0 && this.game.botThinkingEnabled) {
-                    // Let bot decide whether to activate Ace
-                    this.game.botPlayer.handleDefensiveTraps(
-                        this.selectedSpace,
-                        null,
-                        null
-                    );
-                } else {
-                    // No Ace trap, process direct attack
-                    this.game.processAttack(
-                        this.selectedSpace,
-                        null
-                    );
-                }
+                // No Ace trap, process direct attack
+                this.game.processAttack(
+                    this.selectedSpace,
+                    null
+                );
 
                 // Mark the monster as having attacked this turn
-                const attackingMonsterSpace = this.game.player.monsterSpaces[this.selectedSpace];
-                if (attackingMonsterSpace && attackingMonsterSpace.card) {
-                    attackingMonsterSpace.card.attackedThisTurn = true;
-                }
+                // Attack resolution will mark the attacking monster as having attacked;
+                // do not set attackedThisTurn here (avoid pre-emptive state changes).
 
                 // Clear selection and highlights
                 this.selectedSpace = null;
@@ -772,26 +857,15 @@ class UI {
                 // Check if opponent has activatable traps
                 const activatableTraps = this.game.bot.getActivatableTraps({ type: 'attack' });
                 
-                if (activatableTraps.length > 0 && this.game.botThinkingEnabled) {
-                    // Let bot decide whether to activate trap
-                    this.game.botPlayer.handleDefensiveTraps(
-                        this.selectedSpace, 
-                        spaceIndex, 
-                        null
-                    );
-                } else {
-                    // No traps, process attack directly
-                    this.game.processAttack(
-                        this.selectedSpace, 
-                        spaceIndex
-                    );
-                }
+                // No traps, process attack directly
+                this.game.processAttack(
+                    this.selectedSpace, 
+                    spaceIndex
+                );
                 
                 // Mark the monster as having attacked this turn
-                const attackingMonsterSpace = this.game.player.monsterSpaces[this.selectedSpace];
-                if (attackingMonsterSpace && attackingMonsterSpace.card) {
-                    attackingMonsterSpace.card.attackedThisTurn = true;
-                }
+                // Attack resolution will mark the attacking monster as having attacked;
+                // do not set attackedThisTurn here (avoid pre-emptive state changes).
                 
                 // Brief delay to show the attack target before clearing
                 setTimeout(() => {
@@ -836,20 +910,11 @@ class UI {
                 // Check if opponent has Ace trap
                 const activatableTraps = this.game.bot.getActivatableTraps({ type: 'battle-phase' });
                 
-                if (activatableTraps.length > 0 && this.game.botThinkingEnabled) {
-                    // Let bot decide whether to activate Ace
-                    this.game.botPlayer.handleDefensiveTraps(
-                        this.selectedSpace, 
-                        null, 
-                        null
-                    );
-                } else {
-                    // No Ace trap, process direct attack
-                    this.game.processAttack(
-                        this.selectedSpace, 
-                        null
-                    );
-                }
+                // No Ace trap, process direct attack
+                this.game.processAttack(
+                    this.selectedSpace, 
+                    null
+                );
                 
                 // Brief delay to show the attack target before clearing
                 setTimeout(() => {
@@ -994,6 +1059,12 @@ class UI {
             parent.insertBefore(hint, parent.firstChild);
         }
 
+        // Disable confirm button initially since no sacrifices are selected yet
+        const confirmBtn = document.getElementById('confirm-sacrifice');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+        }
+
         dialog.classList.add('visible');
     }
 
@@ -1028,19 +1099,23 @@ class UI {
         // Toggle selection
         const existingIndex = this.sacrificeCards.findIndex(c => c.id === cardId);
         if (existingIndex !== -1) {
+            // Deselecting a card
             this.sacrificeCards.splice(existingIndex, 1);
         } else {
+            // Selecting a new card
             this.sacrificeCards.push(card);
+            
+            // Optimize selection: if 3+ cards selected, check if we can reduce
+            const requiredValue = getRequiredSacrificeValue(this.selectedCard);
+            if (this.sacrificeCards.length >= 3) {
+                this.optimizeSacrificeSelection(requiredValue);
+            }
         }
         
-        // Update visual selection
-        document.querySelectorAll('.sacrifice-card-wrapper .card').forEach(element => {
-            if (element.dataset.cardId === cardId) {
-                element.classList.toggle('selected');
-            }
-        });
+        // Update visual selection for all cards
+        this.updateSacrificeVisuals();
         
-        // Update total value
+        // Update total value display
         const totalValue = getTotalCardValue(this.sacrificeCards);
         const requiredValue = getRequiredSacrificeValue(this.selectedCard);
         document.getElementById('sacrifice-total').textContent = 
@@ -1063,6 +1138,84 @@ class UI {
         if (confirmBtn) {
             confirmBtn.disabled = (totalValue < requiredValue) || (this._requireFieldSacrifice && !hasFieldSacrifice);
         }
+    }
+
+    /**
+     * Optimize sacrifice selection to use minimum cards required
+     * @param {number} requiredValue - Required sacrifice value
+     */
+    optimizeSacrificeSelection(requiredValue) {
+        // Sort selected cards by value (descending)
+        const sortedCards = [...this.sacrificeCards].sort((a, b) => {
+            const valA = a.isFusion ? a.fusionStrength : getCardNumericValue(a.value);
+            const valB = b.isFusion ? b.fusionStrength : getCardNumericValue(b.value);
+            return valB - valA;
+        });
+        
+        // Find minimum set of cards that meets requirement
+        let minimalSet = [];
+        let currentTotal = 0;
+        
+        // Try to find a 2-card combination first
+        for (let i = 0; i < sortedCards.length; i++) {
+            const val1 = sortedCards[i].isFusion ? sortedCards[i].fusionStrength : getCardNumericValue(sortedCards[i].value);
+            for (let j = i + 1; j < sortedCards.length; j++) {
+                const val2 = sortedCards[j].isFusion ? sortedCards[j].fusionStrength : getCardNumericValue(sortedCards[j].value);
+                if (val1 + val2 >= requiredValue) {
+                    // Found a valid 2-card combination, use the highest values
+                    minimalSet = [sortedCards[i], sortedCards[j]];
+                    currentTotal = val1 + val2;
+                    break;
+                }
+            }
+            if (minimalSet.length > 0) break;
+        }
+        
+        // If no 2-card combo found, use greedy approach (shouldn't happen if we got here with 3+ cards)
+        if (minimalSet.length === 0) {
+            for (const card of sortedCards) {
+                const val = card.isFusion ? card.fusionStrength : getCardNumericValue(card.value);
+                minimalSet.push(card);
+                currentTotal += val;
+                if (currentTotal >= requiredValue) break;
+            }
+        }
+        
+        // If field sacrifice is required, ensure at least one field card is in the minimal set
+        if (this._requireFieldSacrifice) {
+            const hasFieldCard = minimalSet.some(c => !this.game.player.hand.find(h => h.id === c.id));
+            if (!hasFieldCard) {
+                // Find a field card in the original selection
+                const fieldCard = this.sacrificeCards.find(c => !this.game.player.hand.find(h => h.id === c.id));
+                if (fieldCard && !minimalSet.includes(fieldCard)) {
+                    // Replace the lowest value card with the field card if needed
+                    minimalSet.sort((a, b) => {
+                        const valA = a.isFusion ? a.fusionStrength : getCardNumericValue(a.value);
+                        const valB = b.isFusion ? b.fusionStrength : getCardNumericValue(b.value);
+                        return valA - valB;
+                    });
+                    minimalSet[0] = fieldCard;
+                }
+            }
+        }
+        
+        // Update the sacrifice cards array
+        this.sacrificeCards = minimalSet;
+    }
+
+    /**
+     * Update visual selection for all sacrifice cards
+     */
+    updateSacrificeVisuals() {
+        document.querySelectorAll('.sacrifice-card-wrapper .card').forEach(element => {
+            const cardId = element.dataset.cardId;
+            const isSelected = this.sacrificeCards.some(c => c.id === cardId);
+            if (isSelected) {
+                element.classList.add('selected');
+            } else {
+                element.classList.remove('selected');
+            }
+        });
     }
 
     /**
@@ -1836,15 +1989,9 @@ class UI {
 
                                 if (trapCard.value === CARD_VALUES.KING) {
                                     const res = await this.game.activateKingTrap(trapCard, context);
-                                    // King reprocesses the attack; if it returns handledAttack flag, resolve and clear
-                                    if (res && res.handledAttack) {
-                                        if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard, result: { type: 'KING', res } });
-                                        this._clearReactiveState();
-                                        return;
-                                    }
-                                    // Otherwise, allow chaining (reset countdown)
-                                    this._restartReactiveCountdown();
+                                    // King affects the attack; return the result and let processAttack handle it
                                     if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard, result: { type: 'KING', res } });
+                                    this._clearReactiveState();
                                     return;
                                 }
 
@@ -2046,16 +2193,19 @@ class UI {
         titleElement.textContent = `Select ${needed} cards to sacrifice for fusion upkeep`;
         upkeepContainer.appendChild(titleElement);
         
-        // Add cards from hand
+        // Add monster cards from hand (exclude traps and jokers)
         this.game.player.hand.forEach(handCard => {
-            const cardWrapper = document.createElement('div');
-            cardWrapper.classList.add('sacrifice-card-wrapper');
-            
-            const cardElement = handCard.getElement();
-            cardElement.addEventListener('click', () => this.toggleUpkeepCard(handCard.id));
-            
-            cardWrapper.appendChild(cardElement);
-            upkeepContainer.appendChild(cardWrapper);
+            const cardType = getCardType(handCard.value);
+            if (cardType !== CARD_TYPES.TRAP && handCard.value !== CARD_VALUES.JOKER) {
+                const cardWrapper = document.createElement('div');
+                cardWrapper.classList.add('sacrifice-card-wrapper');
+                
+                const cardElement = handCard.getElement();
+                cardElement.addEventListener('click', () => this.toggleUpkeepCard(handCard.id));
+                
+                cardWrapper.appendChild(cardElement);
+                upkeepContainer.appendChild(cardWrapper);
+            }
         });
         
         // Add non-fusion monsters from field
@@ -2079,21 +2229,28 @@ class UI {
     counterElement.textContent = `Selected: 0/${needed}`;
     upkeepContainer.appendChild(counterElement);
         
-        // Add Skip button to allow breaking fusions
-        const buttons = document.createElement('div');
-        buttons.classList.add('dialog-buttons');
-        const skipBtn = document.createElement('button');
-        skipBtn.classList.add('dialog-button');
-        skipBtn.textContent = 'Skip Upkeep';
-        skipBtn.addEventListener('click', () => {
-            // Close and signal skip (empty sacrifices)
-            document.getElementById('fusion-upkeep-dialog').classList.remove('visible');
-            this.game.handleFusionUpkeep([], false);
-            this.sacrificeCards = [];
-        });
+        // Find existing button container and add Skip button to it
+        const existingButtons = dialog.querySelector('.dialog-buttons');
+        if (existingButtons) {
+            // Clear any existing skip button first
+            const existingSkip = existingButtons.querySelector('.skip-upkeep-btn');
+            if (existingSkip) {
+                existingSkip.remove();
+            }
+            
+            // Add Skip button to existing container
+            const skipBtn = document.createElement('button');
+            skipBtn.classList.add('dialog-button', 'skip-upkeep-btn');
+            skipBtn.textContent = 'Skip Upkeep';
+            skipBtn.addEventListener('click', () => {
+                // Close and signal skip (empty sacrifices)
+                document.getElementById('fusion-upkeep-dialog').classList.remove('visible');
+                this.game.handleFusionUpkeep([], false);
+                this.sacrificeCards = [];
+            });
 
-        buttons.appendChild(skipBtn);
-        dialog.querySelector('.dialog-content').appendChild(buttons);
+            existingButtons.appendChild(skipBtn);
+        }
 
         dialog.classList.add('visible');
     }
@@ -2118,12 +2275,22 @@ class UI {
         
         if (!card) return;
         
+        // Get required fusion count
+        const fusionCount = this.game.board.countActiveFusions(this.game.player);
+        
         // Toggle selection
         const existingIndex = this.sacrificeCards.findIndex(c => c.id === cardId);
         if (existingIndex !== -1) {
+            // Remove from selection
             this.sacrificeCards.splice(existingIndex, 1);
         } else {
-            this.sacrificeCards.push(card);
+            // Add to selection only if under the limit
+            if (this.sacrificeCards.length < fusionCount) {
+                this.sacrificeCards.push(card);
+            } else {
+                // At limit - can't select more
+                return;
+            }
         }
         
         // Update visual selection
@@ -2134,7 +2301,6 @@ class UI {
         });
         
         // Update counter
-        const fusionCount = this.game.board.countActiveFusions(this.game.player);
         document.getElementById('upkeep-counter').textContent = 
             `Selected: ${this.sacrificeCards.length}/${fusionCount}`;
         

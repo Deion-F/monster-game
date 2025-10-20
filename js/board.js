@@ -193,7 +193,15 @@ class Board {
     getValidAttackTargets(attacker, defender) {
         // If defender has monsters, they must be attacked
         const defenderMonsters = defender.monsterSpaces
-            .map((space, index) => space.card ? index : null)
+            .map((space, index) => {
+                // Additional validation: ensure space exists and has a valid card
+                if (!space || !space.card) return null;
+                
+                // Ensure the card is actually a monster (not destroyed/invalid)
+                if (!isMonsterCard(space.card)) return null;
+                
+                return index;
+            })
             .filter(index => index !== null);
         
         if (defenderMonsters.length > 0) {

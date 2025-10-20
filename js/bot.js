@@ -310,27 +310,8 @@ class Bot {
      * Handle bot's draw phase
      */
     async handleDrawPhase() {
-        // Draw appropriate number of cards
-        let drawnCards;
-        if (this.game.bot.hand.length === 0) {
-            drawnCards = this.game.bot.drawCards(this.game.deck, 5);
-            this.game.ui.addLogMessage('Bot draws 5 cards (empty hand)');
-        } else {
-            drawnCards = this.game.bot.drawCards(this.game.deck, 1);
-            this.game.ui.addLogMessage('Bot draws 1 card');
-        }
-        
-        // Update UI
-        this.game.ui.updateGameState();
-        
-        // Discard down to hand limit if necessary
-        if (this.game.bot.hand.length > GAME_SETTINGS.MAX_HAND_SIZE) {
-            const excess = this.game.bot.hand.length - GAME_SETTINGS.MAX_HAND_SIZE;
-            const cardsToDiscard = this.selectCardsToDiscard(excess);
-            
-            this.game.bot.discardDownToLimit(cardsToDiscard, this.game.deck);
-            this.game.ui.addLogMessage(`Bot discards ${excess} cards`);
-        }
+        // Drawing is handled by the main game's handleDrawPhase method
+        // This method only handles bot-specific logic after drawing
         
         // Update UI
         this.game.ui.updateGameState();
@@ -374,6 +355,13 @@ class Bot {
      * Handle bot's battle phase
      */
     async handleBattlePhase() {
+        // Skip battle phase if bot played a Joker this turn
+        if (this.game.bot.skipBattleThisTurn) {
+            this.game.ui.addLogMessage(`Bot's Battle phase is skipped due to Joker`);
+            this.game.bot.skipBattleThisTurn = false; // Clear the flag
+            return;
+        }
+        
         // Skip if this bot is not allowed to attack at this turn (first-player rule)
         if (!this.game.isAttackAllowedThisTurn(this.game.bot)) {
             this.game.ui.addLogMessage('Bot cannot attack on first turn');
@@ -410,7 +398,7 @@ class Bot {
         }
         
         // Get valid targets
-        const targets = this.game.board.getValidAttackTargets(
+        let targets = this.game.board.getValidAttackTargets(
             this.game.bot,
             this.game.player
         );
@@ -516,24 +504,7 @@ class Bot {
             const attackDelay = 300 + Math.floor(Math.random() * 500 * (1 - this.skillLevel));
             await delay(attackDelay);
             
-            // Log the attack with more informative message
-            const monsterValue = monster.isFusion ? 
-                `Fusion(${monster.fusionStrength})` : 
-                monster.value;
-                
-            if (targetIndex === null) {
-                this.game.ui.addLogMessage(`Bot attacks directly with ${monsterValue}`);
-            } else {
-                const targetSpace = this.game.player.monsterSpaces[targetIndex];
-                const targetValue = targetSpace && targetSpace.card ? 
-                    (targetSpace.card.isFusion ? 
-                        `Fusion(${targetSpace.card.fusionStrength})` : 
-                        targetSpace.card.value) : 
-                    'unknown';
-                this.game.ui.addLogMessage(`Bot attacks ${targetValue} with ${monsterValue}`);
-            }
-            
-            // Execute attack
+            // Execute attack (logging will be handled by processAttack)
             const attackRes = await this.game.processAttack(monsterIndex, targetIndex, true);
             
             // Track successful attacks
@@ -551,11 +522,15 @@ class Bot {
             // If a trap was activated and it returned an effect that ends the battle phase, stop attacking
             if (attackRes && attackRes.trapActivated && attackRes.trapResult && attackRes.trapResult.result) {
                 const tr = attackRes.trapResult.result;
-                // For ACE, we attach effect from game.activateAceTrap earlier; check for effect.endBattlePhase
-                if (tr.type === 'ACE' && tr.effect && tr.effect.endBattlePhase) {
-                    this.game.ui.addLogMessage('Ace trap ended the battle phase');
+                // For ACE, check if the battle phase was ended by the trap
+                if (tr.type === 'ACE' && this.game.battlePhaseEnded) {
                     break;
                 }
+            }
+            
+            // Also check for battle phase ended flag in case Ace was activated
+            if (this.game.battlePhaseEnded) {
+                break;
             }
             
             // Update targets (may have changed due to destruction)
@@ -565,6 +540,9 @@ class Bot {
             );
             
             if (newTargets.length === 0) break;
+            
+            // Update the targets variable for the next iteration
+            targets = newTargets;
             
             // Brief delay between attacks - vary based on personality
             const betweenAttackDelay = 400 + Math.floor(Math.random() * 300);
@@ -576,6 +554,13 @@ class Bot {
                 break;
             }
         }
+        
+        // If battle phase was ended by Ace trap, transition to end phase
+        if (this.game.battlePhaseEnded) {
+            this.game.currentPhase = PHASES.END;
+            this.game.ui.updateTurnAndPhase();
+        }
+        
         // Ensure attacked flags are reset visually at the end of bot's battle phase
         if (this.game && typeof this.game.resetAttackedFlags === 'function') {
             this.game.resetAttackedFlags();
@@ -822,6 +807,8 @@ class Bot {
         
         if (bigMonsters.length === 0) return;
         
+        console.log(`Bot: Found ${bigMonsters.length} big monster(s) in hand:`, bigMonsters.map(m => m.value));
+        
         // Sort by value (descending)
         bigMonsters.sort((a, b) => 
             getCardNumericValue(b.value) - getCardNumericValue(a.value)
@@ -832,23 +819,51 @@ class Bot {
             .map((space, index) => space.card === null ? index : -1)
             .filter(index => index !== -1);
         
-        if (emptyMonsterSpaces.length === 0) return;
+        // If no empty spaces, we'll need to sacrifice field monsters to make room
+        const hasEmptySpaces = emptyMonsterSpaces.length > 0;
+        
+        console.log(`Bot: Empty spaces: ${emptyMonsterSpaces.length}, hasEmptySpaces: ${hasEmptySpaces}`);
         
         // Try to summon each big monster
         for (const monster of bigMonsters) {
-            if (emptyMonsterSpaces.length === 0) break;
-            
             const requiredValue = getRequiredSacrificeValue(monster);
-            const sacrifices = this.selectSacrificesForBigMonster(requiredValue);
+            const sacrifices = this.selectSacrificesForBigMonster(requiredValue, !hasEmptySpaces);
             
-            if (sacrifices.length === 0) continue;
+            console.log(`Bot: Attempting to summon ${monster.value} (requires ${requiredValue})`);
+            console.log(`Bot: Found ${sacrifices.length} sacrifices with total value ${getTotalCardValue(sacrifices)}`);
+            
+            if (sacrifices.length === 0) {
+                console.log(`Bot: No valid sacrifices found for ${monster.value}`);
+                continue;
+            }
             
             const totalValue = getTotalCardValue(sacrifices);
-            if (totalValue < requiredValue) continue;
+            if (totalValue < requiredValue) {
+                console.log(`Bot: Insufficient sacrifice value (${totalValue} < ${requiredValue})`);
+                continue;
+            }
             
-            const targetSpace = emptyMonsterSpaces.shift();
+            let targetSpace = null;
+            
+            if (hasEmptySpaces && emptyMonsterSpaces.length > 0) {
+                // Use an empty space if available
+                targetSpace = emptyMonsterSpaces.shift();
+            } else {
+                // No empty spaces - find a field monster that's being sacrificed
+                for (let i = 0; i < this.game.bot.monsterSpaces.length; i++) {
+                    const space = this.game.bot.monsterSpaces[i];
+                    if (space.card && sacrifices.find(s => s.id === space.card.id)) {
+                        targetSpace = i;
+                        break;
+                    }
+                }
+                
+                // If no field monster is being sacrificed, we can't summon
+                if (targetSpace === null) continue;
+            }
             
             // Summon the monster (use playBigMonster if available, otherwise fallback)
+            // Logging will be handled by playBigMonster
             if (this.game && typeof this.game.playBigMonster === 'function') {
                 this.game.playBigMonster(monster, targetSpace, sacrifices, true);
             } else {
@@ -861,7 +876,6 @@ class Bot {
                 }
             }
             
-            this.game.ui.addLogMessage(`Bot summons a ${monster.value} by sacrificing cards`);
             this.game.ui.updateGameState();
             
             await delay(500);
@@ -954,9 +968,9 @@ class Bot {
             // Variable "thinking" delay
             await delay(250 + Math.random() * 250);
             
+            // Logging will be handled by playMonsterCard
             this.game.playMonsterCard(monster, targetSpace, true);
             
-            this.game.ui.addLogMessage(`Bot summons a ${monster.value}`);
             this.game.ui.updateGameState();
             
             await delay(300);
@@ -1000,9 +1014,10 @@ class Bot {
     /**
      * Select sacrifices for big monster
      * @param {number} requiredValue - Required sacrifice value
+     * @param {boolean} preferFieldSacrifice - Whether to prefer sacrificing field monsters
      * @returns {Array} - Selected sacrifices
      */
-    selectSacrificesForBigMonster(requiredValue) {
+    selectSacrificesForBigMonster(requiredValue, preferFieldSacrifice = false) {
         const sacrificeCandidates = [];
         
         // Add monsters from field (non-fusion)
@@ -1024,50 +1039,82 @@ class Bot {
         
         if (sacrificeCandidates.length === 0) return [];
         
-        // Sort by value (ascending)
+        // Sort candidates by value (descending) for optimal selection
         sacrificeCandidates.sort((a, b) => 
-            getCardNumericValue(a.value) - getCardNumericValue(b.value)
+            getCardNumericValue(b.value) - getCardNumericValue(a.value)
         );
         
-        // Simple greedy algorithm for sacrifices
+        // Try to find the most efficient 2-card combination first
+        let bestCombination = null;
+        let bestWaste = Infinity;
+        
+        for (let i = 0; i < sacrificeCandidates.length; i++) {
+            const val1 = getCardNumericValue(sacrificeCandidates[i].value);
+            for (let j = i + 1; j < sacrificeCandidates.length; j++) {
+                const val2 = getCardNumericValue(sacrificeCandidates[j].value);
+                const total = val1 + val2;
+                
+                if (total >= requiredValue) {
+                    const waste = total - requiredValue;
+                    
+                    // Check if this combination satisfies field sacrifice requirement
+                    if (preferFieldSacrifice) {
+                        const hasField = this.game.bot.monsterSpaces.some(space => 
+                            space.card && (space.card.id === sacrificeCandidates[i].id || space.card.id === sacrificeCandidates[j].id)
+                        );
+                        if (!hasField) continue; // Skip if no field card included
+                    }
+                    
+                    if (waste < bestWaste) {
+                        bestWaste = waste;
+                        bestCombination = [sacrificeCandidates[i], sacrificeCandidates[j]];
+                    }
+                }
+            }
+        }
+        
+        // If we found a good 2-card combination, use it
+        if (bestCombination) {
+            return bestCombination;
+        }
+        
+        // Otherwise, use greedy approach (minimum cards needed)
         const selected = [];
         let currentValue = 0;
         
         for (const card of sacrificeCandidates) {
             const cardValue = getCardNumericValue(card.value);
+            selected.push(card);
+            currentValue += cardValue;
             
-            if (currentValue + cardValue <= requiredValue) {
-                selected.push(card);
-                currentValue += cardValue;
-                
-                if (currentValue >= requiredValue) {
+            if (currentValue >= requiredValue) {
+                // Check field sacrifice requirement
+                if (preferFieldSacrifice) {
+                    const hasField = selected.some(c => 
+                        this.game.bot.monsterSpaces.some(space => space.card && space.card.id === c.id)
+                    );
+                    if (hasField) {
+                        break;
+                    }
+                    // Continue to find a combination with a field card
+                } else {
                     break;
                 }
             }
         }
         
-        // If we couldn't find exact match, try with highest value candidates
-        if (currentValue < requiredValue) {
-            selected.length = 0;
-            currentValue = 0;
-            
-            // Sort by value (descending)
-            sacrificeCandidates.sort((a, b) => 
-                getCardNumericValue(b.value) - getCardNumericValue(a.value)
+        // Verify we have enough value
+        const totalValue = selected.reduce((sum, card) => sum + getCardNumericValue(card.value), 0);
+        if (totalValue < requiredValue) {
+            return [];
+        }
+        
+        // Verify field sacrifice requirement if needed
+        if (preferFieldSacrifice) {
+            const hasField = selected.some(c => 
+                this.game.bot.monsterSpaces.some(space => space.card && space.card.id === c.id)
             );
-            
-            for (const card of sacrificeCandidates) {
-                const cardValue = getCardNumericValue(card.value);
-                selected.push(card);
-                currentValue += cardValue;
-                
-                if (currentValue >= requiredValue) {
-                    break;
-                }
-            }
-            
-            // If still not enough, return empty array
-            if (currentValue < requiredValue) {
+            if (!hasField) {
                 return [];
             }
         }
@@ -1280,12 +1327,14 @@ class Bot {
             
             // Don't attack monsters that are significantly stronger (safety threshold)
             // Skip targets that would cause the bot to lose more than 4 points of strength
+            // This check happens BEFORE bonuses to prevent emotional/personality modifiers from
+            // making objectively terrible attacks seem acceptable
+            const desperationFactor = this.emotion.frustration > 0.8 || this.emotion.fear > 0.8;
+            const extremeThreat = targetCard.isFusion && targetStrength > 10;
+            
             if (advantage < -4) {
                 // Only consider such a disadvantageous attack if the bot is desperate
                 // or the target is extremely threatening
-                const desperationFactor = this.emotion.frustration > 0.8 || this.emotion.fear > 0.8;
-                const extremeThreat = targetCard.isFusion && targetStrength > 10;
-                
                 if (!desperationFactor && !extremeThreat) {
                     continue; // Skip this unfavorable target
                 }
@@ -1319,6 +1368,17 @@ class Bot {
                 // Scale fear-based targeting by the target's strength
                 const fearBonus = Math.min(2.5, targetStrength / 4);
                 adjustedAdvantage += fearBonus;
+            }
+            
+            // Final safety check: Even with all bonuses applied, don't attack if the raw advantage
+            // is worse than -3 unless we're desperate or it's an extreme threat
+            // This prevents emotional/personality bonuses from overriding basic survival logic
+            if (advantage < -3 && !desperationFactor && !extremeThreat) {
+                // Only allow this attack if the adjusted advantage is significantly positive (>2)
+                // meaning the bonuses are strong enough to justify the risk
+                if (adjustedAdvantage <= 2) {
+                    continue; // Skip - the bonuses aren't enough to justify this bad trade
+                }
             }
             
             targetAdvantages.push({
@@ -1425,7 +1485,8 @@ class Bot {
         
         // Check if direct attack - use Ace trap if available
         if (targetIndex === null) {
-            const aceTraps = this.game.bot.getActivatableTraps({ type: 'battle-phase' });
+            const allTraps = this.game.bot.getActivatableTraps({ type: 'battle-phase' });
+            const aceTraps = allTraps.filter(trap => trap.value === CARD_VALUES.ACE);
 
             if (aceTraps.length > 0) {
                 // Human-like decision making for Ace trap activation
@@ -1567,11 +1628,8 @@ class Bot {
                 let redirectsToPlayer = false;
                 
                 if (target.player === this.game.player) {
-                    // Redirecting to player's monster - always good
-                    advantage = 100; // High arbitrary value
-                    redirectsToPlayer = true;
-                } else {
-                    // Redirecting to our own monster - only good if it's stronger
+                    // Redirecting to player's monster - causes player infighting
+                    // This is almost always beneficial, but consider the strength difference
                     const targetCard = target.player.monsterSpaces[target.index].card;
                     if (!targetCard) continue;
                     
@@ -1579,7 +1637,63 @@ class Bot {
                         targetCard.fusionStrength : 
                         getCardNumericValue(targetCard.value);
                     
-                    advantage = targetStrength - attackingStrength;
+                    // Base advantage for player infighting
+                    advantage = 50;
+                    
+                    // Bonus if player's stronger monster attacks player's weaker monster
+                    if (attackingStrength > targetStrength) {
+                        advantage += 20; // Favorable trade for bot
+                    }
+                    
+                    // Bonus if this prevents damage to a valuable bot monster  
+                    if (targetIndex !== null) {
+                        const originalTargetCard = this.game.bot.monsterSpaces[targetIndex].card;
+                        if (originalTargetCard) {
+                            const originalTargetStrength = originalTargetCard.isFusion ? 
+                                originalTargetCard.fusionStrength : 
+                                getCardNumericValue(originalTargetCard.value);
+                            
+                            if (originalTargetStrength > 6) {
+                                advantage += 15; // Save valuable monster
+                            }
+                        }
+                    }
+                    
+                    redirectsToPlayer = true;
+                } else {
+                    // Redirecting to our own monster - evaluate the trade-off
+                    const targetCard = target.player.monsterSpaces[target.index].card;
+                    if (!targetCard) continue;
+                    
+                    const targetStrength = targetCard.isFusion ? 
+                        targetCard.fusionStrength : 
+                        getCardNumericValue(targetCard.value);
+                    
+                    // Calculate value of what we're saving vs what we're sacrificing
+                    let originalTargetValue = 0;
+                    if (targetIndex !== null) {
+                        const originalTargetCard = this.game.bot.monsterSpaces[targetIndex].card;
+                        if (originalTargetCard) {
+                            originalTargetValue = originalTargetCard.isFusion ? 
+                                originalTargetCard.fusionStrength : 
+                                getCardNumericValue(originalTargetCard.value);
+                        }
+                    }
+                    
+                    // Value difference between original target and redirect target
+                    const valueDifference = originalTargetValue - targetStrength;
+                    
+                    // Strength difference (positive = redirect target survives)
+                    const strengthDifference = targetStrength - attackingStrength;
+                    
+                    // Calculate advantage based on both factors
+                    if (strengthDifference >= 0) {
+                        // Redirect target survives - good if we're saving something more valuable
+                        advantage = valueDifference + strengthDifference;
+                    } else {
+                        // Both monsters die - good if we're trading up in value
+                        advantage = valueDifference;
+                    }
                 }
                 
                 // Add to options
@@ -1601,7 +1715,7 @@ class Bot {
         }
         
         // If no good options found or small advantage, maybe don't use a trap
-        if (optimalTrapValue < 2 && targetIndex !== null) {
+        if (optimalTrapValue < 5 && targetIndex !== null) {
             // Calculate probability of saving the trap based on personality
             const saveTrapProbability = 0.3 + (this.personality.riskTolerance * 0.4);
             
