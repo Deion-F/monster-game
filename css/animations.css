@@ -138,6 +138,36 @@
   transition: all var(--duration-fast) ease;
   z-index: var(--z-cards);
 }
+/* Highlight for selected card in player's hand */
+.player-hand .card.selected {
+  box-shadow: 0 0 0 3px var(--md-secondary),
+              0 0 18px 4px rgba(25, 118, 210, 0.4),
+              var(--elevation-4);
+  background: linear-gradient(135deg, rgba(25, 118, 210, 0.10) 0%, rgba(98, 0, 238, 0.08) 100%);
+  border-color: var(--md-secondary);
+  transform: translateY(-8px) scale(1.04);
+  outline: 2px solid var(--md-secondary);
+  outline-offset: -2px;
+}
+
+/* Prevent hover effects overlay/transform for selected hand cards */
+.player-hand .card.selected::before {
+  /* ensure no dashed hover overlay appears */
+  opacity: 0 !important;
+}
+
+.player-hand .card.selected:hover {
+  /* keep the selected transform/static look and prevent the generic hover transform */
+  transform: translateY(-8px) scale(1.04) !important;
+  box-shadow: 0 0 0 3px var(--md-secondary),
+              0 0 18px 4px rgba(25, 118, 210, 0.4),
+              var(--elevation-4) !important;
+}
+
+/* Disable dashed-border hint for selectable cards when already selected */
+.player-hand .card.selectable.selected::before {
+  opacity: 0 !important;
+}
 
 /* Selectable cards (hover state) */
 .card.selectable {

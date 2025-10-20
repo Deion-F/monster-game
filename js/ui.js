@@ -243,10 +243,17 @@ class UI {
 
             // Activate Queen with the selected target
             if (this.activatingTrap && this.activatingTrap.trap) {
-                const queen = this.activatingTrap.trap;
-                this.game.activateQueenTrap(queen, targetTrap);
-                if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: queen, result: { type: 'QUEEN', target: targetTrap } });
-                this._clearReactiveState();
+                (async () => {
+                    const queen = this.activatingTrap.trap;
+                    try {
+                        const res = await this.game.activateQueenTrap(queen, targetTrap);
+                        if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: queen, result: { type: 'QUEEN', target: targetTrap, res } });
+                        this._clearReactiveState();
+                    } catch (err) {
+                        console.warn('Failed to activate Queen via confirm dialog', err);
+                        this._resumeReactiveAfterCancel();
+                    }
+                })();
             } else {
                 this._resumeReactiveAfterCancel();
             }
@@ -742,9 +749,23 @@ class UI {
         
         // Setup phase - place monster
         if (this.game.currentPhase === PHASES.SETUP) {
+            // If the clicked space already has a monster, treat this as a fusion attempt.
+            if (space.card) {
+                // If a card in hand is currently selected, deselect it so the user can pick the field monster for fusion
+                if (this.selectedCard) {
+                    this.selectedCard = null;
+                    this.updatePlayerHand();
+                }
+
+                // Open fusion dialog for the monster at this field index
+                this.handlePotentialFusion(spaceIndex);
+                return;
+            }
+
+            // Otherwise, handle playing the currently selected hand card into this empty space (if any)
             if (this.selectedCard) {
                 const cardType = getCardType(this.selectedCard.value);
-                
+
                 if (cardType === CARD_TYPES.MONSTER_NORMAL) {
                     // Normal monster - place directly if space empty
                     if (!space.card) {
@@ -760,13 +781,10 @@ class UI {
                     if (!space.card) {
                         this.showSacrificeDialog(this.selectedCard, spaceIndex);
                     } else {
-                        // No free space here; allow showing sacrifice dialog that forces at least one field sacrifice
+                        // No free space here: require at least one field sacrifice
                         this.showSacrificeDialog(this.selectedCard, null, null, true);
                     }
                 }
-            } else if (space.card) {
-                // Check for potential fusion
-                this.handlePotentialFusion(spaceIndex);
             }
         }
         // Battle phase - select attacker
@@ -1791,9 +1809,22 @@ class UI {
             delete el._reactiveClickHandler;
         });
 
-        // Clear countdown UI if present
+        // Clear countdown UI if present (inline container-aware)
         const cd = document.getElementById('trap-countdown');
-        if (cd && cd.parentNode) cd.parentNode.removeChild(cd);
+        if (cd && cd.parentNode) {
+            cd.parentNode.removeChild(cd);
+        }
+        const inlineArea = document.getElementById('reactive-trap-area');
+        if (inlineArea) {
+            inlineArea.innerHTML = '';
+        }
+
+        // Also remove any temporary queen cancel dialog that may have been injected
+        const qdlg = document.getElementById('queen-cancel-temp');
+        if (qdlg && qdlg.parentNode) qdlg.parentNode.removeChild(qdlg);
+
+        // Remove any other lightweight temp dialogs if present
+        document.querySelectorAll('.temp-dialog').forEach(td => { if (td && td.parentNode) td.parentNode.removeChild(td); });
 
         // Clear resolver
         this._reactiveResolve = null;
@@ -1844,12 +1875,15 @@ class UI {
                         const queen = space.card;
                         // Remove dialog first
                         if (dlg && dlg.parentNode) dlg.parentNode.removeChild(dlg);
-                        const res = this.game.activateQueenTrap(queen, trap);
-                        // Update UI
+                        const res = await this.game.activateQueenTrap(queen, trap);
+                        // Update UI and clear reactive state
                         if (this.game && this.game.ui) this.game.ui.updateGameState();
-                        resolve({ canceled: true, queen });
+                        this._clearReactiveState();
+                        resolve({ canceled: true, queen, result: res });
                     } catch (err) {
                         console.warn('Failed to activate Queen', err);
+                        // Ensure reactive state resumes/clears
+                        this._resumeReactiveAfterCancel();
                         resolve({ canceled: false });
                     }
                 });
@@ -1887,7 +1921,13 @@ class UI {
                     return;
                 }
                 const el = dlg.querySelector('.trap-countdown');
-                if (el) el.firstChild && (el.firstChild.textContent = String(remaining));
+                if (el) {
+                    if (el.firstChild && typeof el.firstChild.textContent !== 'undefined') {
+                        el.firstChild.textContent = String(remaining);
+                    } else {
+                        el.textContent = String(remaining);
+                    }
+                }
             }, 1000);
         });
     }
@@ -1907,7 +1947,14 @@ class UI {
         this._reactivePaused = false;
         let remainingSeconds = typeof remaining === 'number' ? remaining : (this._reactiveRemaining || 5);
         const el = document.getElementById('trap-countdown');
-        if (el) el.textContent = String(remainingSeconds);
+        // Update the text without clobbering child nodes (cancel button etc.)
+        if (el) {
+            if (el.firstChild && typeof el.firstChild.textContent !== 'undefined') {
+                el.firstChild.textContent = String(remainingSeconds);
+            } else {
+                el.textContent = String(remainingSeconds);
+            }
+        }
 
         const interval = setInterval(() => {
             remainingSeconds -= 1;
@@ -1918,7 +1965,13 @@ class UI {
                 return;
             }
             const e = document.getElementById('trap-countdown');
-            if (e) e.textContent = String(remainingSeconds);
+            if (e) {
+                if (e.firstChild && typeof e.firstChild.textContent !== 'undefined') {
+                    e.firstChild.textContent = String(remainingSeconds);
+                } else {
+                    e.textContent = String(remainingSeconds);
+                }
+            }
             this._reactiveRemaining = remainingSeconds;
         }, 1000);
 
@@ -2066,20 +2119,20 @@ class UI {
                     el.addEventListener('click', handler);
             }
 
-            // Show countdown element next to player's area for visibility
-            const playerArea = document.querySelector('.player-area-human') || document.getElementById('player-hand') || document.body;
+            // Show countdown element inside the inline reactive-trap-area container
+            const container = document.getElementById('reactive-trap-area') || document.body;
+            // Ensure container is cleared first
+            if (container && container.id === 'reactive-trap-area') container.innerHTML = '';
             const countdown = document.createElement('div');
             countdown.id = 'trap-countdown';
-            countdown.classList.add('trap-countdown');
+            countdown.classList.add('trap-countdown', 'inline');
             countdown.textContent = '5';
             // Add a small cancel button so the player can explicitly cancel the reactive window.
-            // When clicked we must resolve the awaiting promise to avoid leaving callers (bot or game flows) hanging.
             const cancelBtn = document.createElement('button');
             cancelBtn.classList.add('dialog-button');
             cancelBtn.textContent = 'Cancel';
             cancelBtn.style.marginLeft = '0.5rem';
             cancelBtn.addEventListener('click', () => {
-                // User explicitly cancels trap activation stage; resolve the reactive prompt as not activated
                 try {
                     if (this._reactiveResolve) this._reactiveResolve({ activated: false });
                 } catch (e) { console.warn('Error resolving reactive prompt on countdown cancel', e); }
@@ -2087,9 +2140,9 @@ class UI {
             });
             countdown.appendChild(cancelBtn);
 
-            // Insert next to player area
+            // Insert into inline area
             try {
-                if (playerArea && playerArea.parentNode) playerArea.parentNode.insertBefore(countdown, playerArea.nextSibling);
+                if (container) container.appendChild(countdown);
                 else document.body.appendChild(countdown);
             } catch (e) { document.body.appendChild(countdown); }
 
@@ -2104,7 +2157,13 @@ class UI {
                     resolve({ activated: false });
                 } else {
                     const el = document.getElementById('trap-countdown');
-                    if (el) el.firstChild && (el.firstChild.textContent = String(remaining));
+                    if (el) {
+                        if (el.firstChild && typeof el.firstChild.textContent !== 'undefined') {
+                            el.firstChild.textContent = String(remaining);
+                        } else {
+                            el.textContent = String(remaining);
+                        }
+                    }
                 }
             };
 
@@ -2136,7 +2195,13 @@ class UI {
                 return;
             }
             const el = document.getElementById('trap-countdown');
-            if (el) el.firstChild && (el.firstChild.textContent = String(remaining));
+            if (el) {
+                if (el.firstChild && typeof el.firstChild.textContent !== 'undefined') {
+                    el.firstChild.textContent = String(remaining);
+                } else {
+                    el.textContent = String(remaining);
+                }
+            }
         };
 
         const interval = setInterval(tick, 1000);
@@ -2525,46 +2590,40 @@ class UI {
      * @returns {Promise} - Animation completion promise
      */
     async animateAttack(attackerIndex, attackerPlayer, defenderIndex, defenderPlayer) {
-        // Get elements
-        const attackerSelector = attackerPlayer === this.game.player ? 
-            `#player-monster-${attackerIndex}` : 
-            `#bot-monster-${attackerIndex}`;
-            
-        const attackerElement = document.querySelector(attackerSelector);
-        
-        // Add attacking animation
-        attackerElement.classList.add('attacking');
-        
+        // Get attacker space and its card element
+        const attackerSelector = attackerPlayer === this.game.player ? `#player-monster-${attackerIndex}` : `#bot-monster-${attackerIndex}`;
+        const attackerSpace = document.querySelector(attackerSelector);
+        const attackerCard = attackerSpace ? attackerSpace.querySelector('.card') : null;
+
+        // Add attacking animation on the card element only
+        if (attackerCard) attackerCard.classList.add('anim-attack');
+
         // Wait for animation
         await delay(ANIMATION_DURATION);
-        
+
         // Remove animation class
-        attackerElement.classList.remove('attacking');
+        if (attackerCard) attackerCard.classList.remove('anim-attack');
         
         // If direct attack, animate defending player area
         if (defenderIndex === null) {
-            const defenderAreaSelector = defenderPlayer === this.game.player ?
-                '.player-area-human' : 
-                '.bot-area';
-                
-            const defenderElement = document.querySelector(defenderAreaSelector);
-            defenderElement.classList.add('taking-damage');
-            
-            await delay(ANIMATION_DURATION);
-            
-            defenderElement.classList.remove('taking-damage');
+            // Direct damage: animate the defender area container
+            const defenderAreaSelector = defenderPlayer === this.game.player ? '.player-area-human' : '.bot-area';
+            const defenderArea = document.querySelector(defenderAreaSelector);
+            if (defenderArea) {
+                defenderArea.classList.add('anim-damage');
+                await delay(ANIMATION_DURATION);
+                defenderArea.classList.remove('anim-damage');
+            }
         } else {
-            // Monster vs monster attack
-            const defenderSelector = defenderPlayer === this.game.player ?
-                `#player-monster-${defenderIndex}` :
-                `#bot-monster-${defenderIndex}`;
-                
-            const defenderElement = document.querySelector(defenderSelector);
-            defenderElement.classList.add('taking-damage');
-            
-            await delay(ANIMATION_DURATION);
-            
-            defenderElement.classList.remove('taking-damage');
+            // Monster vs monster: animate defender card
+            const defenderSelector = defenderPlayer === this.game.player ? `#player-monster-${defenderIndex}` : `#bot-monster-${defenderIndex}`;
+            const defenderSpace = document.querySelector(defenderSelector);
+            const defenderCard = defenderSpace ? defenderSpace.querySelector('.card') : null;
+            if (defenderCard) {
+                defenderCard.classList.add('anim-damage');
+                await delay(ANIMATION_DURATION);
+                defenderCard.classList.remove('anim-damage');
+            }
         }
     }
 

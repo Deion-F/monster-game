@@ -286,18 +286,18 @@ class Bot {
         if (this.game && this.game.gameOver) return;
 
         console.debug('Bot.takeTurn: starting setup phase');
-        this.game.ui.addLogMessage(`${this.name} ended Draw phase`);
+    this.game.ui.addLogMessage(`${this.game.bot.name} ended Draw phase`);
         await this.handleSetupPhase();
         if (this.game && this.game.gameOver) return;
 
         console.debug('Bot.takeTurn: starting battle phase');
-        this.game.ui.addLogMessage(`${this.name} ended Setup phase`);
+    this.game.ui.addLogMessage(`${this.game.bot.name} ended Setup phase`);
         await this.handleBattlePhase();
         if (this.game && this.game.gameOver) return;
 
 
         console.debug('Bot.takeTurn: starting end phase');
-        this.game.ui.addLogMessage(`${this.name} ended Battle phase`);
+    this.game.ui.addLogMessage(`${this.game.bot.name} ended Battle phase`);
         await this.handleEndPhase();
 
         // Activate just-placed traps for bot at end of its End phase
@@ -306,7 +306,7 @@ class Bot {
         }
 
         // End bot's turn
-        this.game.ui.addLogMessage(`${this.name} ended their turn`);
+    this.game.ui.addLogMessage(`${this.game.bot.name} ended their turn`);
         this.game.endTurn();
     }
 
@@ -337,7 +337,10 @@ class Bot {
             this.game.ui.addLogMessage('Bot activates Joker!');
             this.game.playJoker(joker, true);
             this.game.ui.updateGameState();
-            return; // No other actions after Joker
+            // After Joker resets the board and hands, the bot should continue its setup
+            // with the newly dealt cards during the same Setup phase. Add a short delay
+            // to simulate thinking and then proceed with normal setup actions.
+            await delay(300);
         }
         
         // Place traps first (strategic advantage)
@@ -474,6 +477,12 @@ class Bot {
                 // Get potential targets with human-like consideration
                 targetIndex = this.findHumanLikeAttackTarget(monster, targets);
                 
+                // If no favorable monster target was found, do not attempt invalid direct attacks
+                if (targetIndex === null) {
+                    this.game.ui.addLogMessage(`Bot skips attacking with ${monster.value} — no favorable target`);
+                    continue;
+                }
+
                 // Additional check to prevent attacks that would be disadvantageous
                 if (targetIndex !== null) {
                     const attackingStrength = monster.isFusion ? 
@@ -485,6 +494,14 @@ class Bot {
                         const targetStrength = targetSpace.card.isFusion ? 
                             targetSpace.card.fusionStrength : 
                             getCardNumericValue(targetSpace.card.value);
+                        
+                        // Hard safety rule: NEVER attack a stronger or equal-strength monster
+                        // with a weaker or equal-strength monster. Skip this attacker if no
+                        // favorable target exists.
+                        if (attackingStrength <= targetStrength) {
+                            this.game.ui.addLogMessage(`Bot skips attacking with ${monster.value} — unfavorable matchup`);
+                            continue;
+                        }
                         
                         // If the target is significantly stronger and the bot is skilled
                         // and not emotional, reconsider the attack
@@ -1031,11 +1048,10 @@ class Bot {
             }
         });
         
-        // Add cards from hand (except big monsters and traps)
+        // Add cards from hand (allow big monsters as sacrifices too; exclude traps and jokers)
         this.game.bot.hand.forEach(card => {
             const cardType = getCardType(card.value);
-            if (cardType !== CARD_TYPES.MONSTER_BIG && 
-                cardType !== CARD_TYPES.TRAP &&
+            if (cardType !== CARD_TYPES.TRAP &&
                 card.value !== CARD_VALUES.JOKER) {
                 sacrificeCandidates.push(card);
             }
@@ -1048,7 +1064,7 @@ class Bot {
             getCardNumericValue(b.value) - getCardNumericValue(a.value)
         );
         
-        // Try to find the most efficient 2-card combination first
+    // Try to find the most efficient 2-card combination first
         let bestCombination = null;
         let bestWaste = Infinity;
         
@@ -1082,7 +1098,7 @@ class Bot {
             return bestCombination;
         }
         
-        // Otherwise, use greedy approach (minimum cards needed)
+    // Otherwise, use greedy approach (minimum cards needed)
         const selected = [];
         let currentValue = 0;
         

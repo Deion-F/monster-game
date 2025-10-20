@@ -358,6 +358,22 @@ class Game {
         const attacker = isAttackerBot ? this.bot : this.player;
         const defender = (attacker === this.player) ? this.bot : this.player;
         
+        // Log the attack attempt
+        try {
+            const attackingCard = attacker.monsterSpaces[attackerIndex] ? attacker.monsterSpaces[attackerIndex].card : null;
+            const atkName = attackingCard ? (attackingCard.isFusion ? `Fusion(${attackingCard.fusionStrength})` : attackingCard.value) : 'Unknown';
+            let targetDesc = '';
+            if (defenderIndex === null) targetDesc = `${defender.name} (direct)`;
+            else {
+                const defCard = defender.monsterSpaces[defenderIndex] ? defender.monsterSpaces[defenderIndex].card : null;
+                const defName = defCard ? (defCard.isFusion ? `Fusion(${defCard.fusionStrength})` : defCard.value) : 'Unknown';
+                targetDesc = `${defender.name}'s ${defName}`;
+            }
+            if (this.ui && typeof this.ui.addLogMessage === 'function') {
+                this.ui.addLogMessage(`${attacker.name}'s ${atkName} attempts to attack ${targetDesc}`);
+            }
+        } catch (e) { /* non-fatal logging error */ }
+
         // Validate attack: direct attacks should not be allowed if defender has monsters
         if (defenderIndex === null) {
             // This is a direct attack - check if defender has monsters

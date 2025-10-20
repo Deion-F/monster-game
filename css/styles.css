@@ -298,6 +298,59 @@ html, body {
   }
 }
 
+/* ============ BATTLE PHASE ATTACK STATUS STYLES ============ */
+/* Visual cues for monsters that can still attack (ready) and those that have already attacked.
+   Scoped to the BATTLE phase so these decorations don't show during other phases. */
+
+/* Ready to attack: glowing outline and small indicator */
+.game-board.phase-player-BATTLE .monster-space .card.can-attack,
+.game-board.phase-bot-BATTLE .monster-space .card.can-attack {
+  transform: translateY(-6px);
+  transition: transform 180ms var(--duration-fast), box-shadow 180ms var(--duration-fast);
+  box-shadow: 0 0 0 4px rgba(16, 108, 200, 0.08), 0 0 12px rgba(16, 108, 200, 0.18);
+  border: 2px solid rgba(16, 108, 200, 0.22);
+}
+
+.game-board.phase-player-BATTLE .monster-space .card.can-attack::after,
+.game-board.phase-bot-BATTLE .monster-space .card.can-attack::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--md-primary);
+  box-shadow: 0 0 6px rgba(0,0,0,0.2);
+}
+
+/* Already attacked: desaturated and show a small check badge */
+.game-board.phase-player-BATTLE .monster-space .card.attacked,
+.game-board.phase-bot-BATTLE .monster-space .card.attacked {
+  opacity: 0.75;
+  filter: grayscale(0.35) contrast(0.9);
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.game-board.phase-player-BATTLE .monster-space .card.attacked::after,
+.game-board.phase-bot-BATTLE .monster-space .card.attacked::after {
+  content: '✓';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 14px;
+  padding: 2px 6px;
+  border-radius: 12px;
+}
+
+/* Make sure these status badges don't appear outside battle phase */
+
+
 /* ============ CENTER PLAY AREA ============ */
 
 .center-play-area {
@@ -319,9 +372,13 @@ html, body {
 
 /* ============ RIGHT SIDEBAR ============ */
 .right-sidebar {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  justify-content: flex-start;
+  /* allow children to shrink inside the viewport so internal scrolling works */
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ============ DECK & DISCARD ============ */
@@ -422,6 +479,8 @@ html, body {
   box-shadow: var(--elevation-2);
   display: flex;
   flex-direction: column;
+  /* ensure the log container can shrink inside the right sidebar */
+  min-height: 0;
 }
 
 .log-header {
@@ -438,6 +497,8 @@ html, body {
   overflow-y: auto;
   font-size: var(--font-body2);
   line-height: 1.6;
+  /* allow the scrollable area to shrink properly inside flex parents */
+  min-height: 0;
 }
 
 .log-entry {
@@ -853,6 +914,45 @@ html, body {
   }
 }
 
+/* Inline reactive trap area container */
+.reactive-trap-area {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 0;
+  margin-bottom: var(--space-md);
+}
+
+/* When trap countdown is rendered inline, remove fixed positioning and pulse */
+.trap-countdown.inline {
+  position: static;
+  transform: none;
+  z-index: auto;
+  animation: none;
+  box-shadow: var(--elevation-2);
+}
+
+/* Lock the game log to the right side on larger screens */
+@media (min-width: 900px) {
+
+
+  .game-log {
+    /* keep the log visible while the main area scrolls */
+    position: sticky;
+    top: var(--space-md);
+    align-self: start;
+    /* cap the height to the viewport so internal scrolling is used */
+    max-height: calc(100vh - (2 * var(--space-md)));
+    overflow: hidden;
+  }
+
+  .log-content {
+    /* internal scroll area for entries */
+    max-height: calc(100vh - (4 * var(--space-md)));
+    overflow-y: auto;
+  }
+}
+
 /* ============ SPECIFIC DIALOG STYLES ============ */
 
 .sacrifice-cards, .fusion-cards, .redirect-targets, .discard-selection, .card-list {
@@ -1063,7 +1163,8 @@ html, body {
 
 @media (max-width: 1200px) {
   .game-board {
-    grid-template-columns: 200px 1fr 200px 250px;
+    /* Three-column layout: left sidebar, main content, right sidebar */
+    grid-template-columns: 200px 1fr 250px;
     gap: var(--space-md);
   }
 }
