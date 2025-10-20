@@ -1,0 +1,148 @@
+/**
+ * Material Design 3 Design Tokens
+ * Monster Card Battle Game
+ */
+
+:root {
+  /* Color Palette - Material You inspired */
+  --md-primary: #6200EE;
+  --md-primary-container: #E8DDFF;
+  --md-on-primary: #FFFFFF;
+  --md-on-primary-container: #21005E;
+  
+  --md-secondary: #625B71;
+  --md-secondary-container: #E8DEF8;
+  --md-on-secondary: #FFFFFF;
+  --md-on-secondary-container: #1E192B;
+  
+  --md-error: #B3261E;
+  --md-error-container: #F9DEDC;
+  --md-on-error: #FFFFFF;
+  --md-on-error-container: #410E0B;
+  
+  --md-success: #2E7D32;
+  --md-success-container: #C8E6C9;
+  
+  --md-warning: #F57C00;
+  --md-warning-container: #FFE0B2;
+  
+  --md-surface: #FFFBFE;
+  --md-surface-dim: #DED8E1;
+  --md-surface-bright: #FFFBFE;
+  --md-surface-container-lowest: #FFFFFF;
+  --md-surface-container-low: #F7F2FA;
+  --md-surface-container: #F3EDF7;
+  --md-surface-container-high: #ECE6F0;
+  --md-surface-container-highest: #E6E0E9;
+  
+  --md-on-surface: #1C1B1F;
+  --md-on-surface-variant: #49454F;
+  --md-outline: #79747E;
+  --md-outline-variant: #CAC4D0;
+  
+  --md-background: #FFFBFE;
+  --md-on-background: #1C1B1F;
+  
+  /* Card Type Colors */
+  --card-monster-normal: #4CAF50;
+  --card-monster-big: #FF9800;
+  --card-trap: #2196F3;
+  --card-fusion: #9C27B0;
+  --card-joker: #E91E63;
+  --card-back: var(--md-primary);
+  
+  /* Spacing Scale */
+  --space-xs: clamp(4px, 0.5vw, 6px);
+  --space-sm: clamp(8px, 1vw, 12px);
+  --space-md: clamp(12px, 1.5vw, 16px);
+  --space-lg: clamp(16px, 2vw, 24px);
+  --space-xl: clamp(24px, 3vw, 32px);
+  
+  /* Card Dimensions */
+  --card-w: clamp(64px, 9vw, 120px);
+  --card-h: calc(var(--card-w) * 1.4);
+  --card-radius: clamp(6px, 0.8vw, 12px);
+  --gap: clamp(6px, 1.2vw, 14px);
+  
+  /* Elevation */
+  --elevation-1: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px 1px rgba(0,0,0,0.15);
+  --elevation-2: 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px 2px rgba(0,0,0,0.15);
+  --elevation-3: 0 4px 8px 3px rgba(0,0,0,0.15), 0 1px 3px rgba(0,0,0,0.3);
+  --elevation-4: 0 6px 10px 4px rgba(0,0,0,0.15), 0 2px 3px rgba(0,0,0,0.3);
+  --elevation-5: 0 8px 12px 6px rgba(0,0,0,0.15), 0 4px 4px rgba(0,0,0,0.3);
+  
+  /* Typography */
+  --font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: clamp(1.5rem, 4vw, 2.5rem);
+  --font-headline: clamp(1.25rem, 3vw, 2rem);
+  --font-title: clamp(1rem, 2vw, 1.25rem);
+  --font-body: clamp(0.875rem, 1.5vw, 1rem);
+  --font-label: clamp(0.75rem, 1.2vw, 0.875rem);
+  
+  /* Animation Durations */
+  --duration-instant: 100ms;
+  --duration-fast: 200ms;
+  --duration-medium: 300ms;
+  --duration-slow: 500ms;
+  
+  /* Z-Index Scale */
+  --z-base: 1;
+  --z-cards: 10;
+  --z-floating: 50;
+  --z-overlay: 100;
+  --z-modal: 200;
+  --z-toast: 300;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --md-primary: #D0BCFF;
+    --md-primary-container: #4F378B;
+    --md-on-primary: #381E72;
+    --md-on-primary-container: #EADDFF;
+    
+    --md-secondary: #CCC2DC;
+    --md-secondary-container: #4A4458;
+    --md-on-secondary: #332D41;
+    --md-on-secondary-container: #E8DEF8;
+    
+    --md-error: #F2B8B5;
+    --md-error-container: #8C1D18;
+    --md-on-error: #601410;
+    --md-on-error-container: #F9DEDC;
+    
+    --md-success: #81C784;
+    --md-success-container: #1B5E20;
+    
+    --md-warning: #FFB74D;
+    --md-warning-container: #E65100;
+    
+    --md-surface: #1C1B1F;
+    --md-surface-dim: #1C1B1F;
+    --md-surface-bright: #3B383E;
+    --md-surface-container-lowest: #0F0D13;
+    --md-surface-container-low: #1C1B1F;
+    --md-surface-container: #201F26;
+    --md-surface-container-high: #2B2930;
+    --md-surface-container-highest: #36343B;
+    
+    --md-on-surface: #E6E1E5;
+    --md-on-surface-variant: #CAC4D0;
+    --md-outline: #938F99;
+    --md-outline-variant: #49454F;
+    
+    --md-background: #1C1B1F;
+    --md-on-background: #E6E1E5;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-instant: 0ms;
+    --duration-fast: 0ms;
+    --duration-medium: 0ms;
+    --duration-slow: 0ms;
+  }
+}

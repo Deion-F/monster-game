@@ -655,7 +655,7 @@ class Bot {
             await delay(200 + Math.random() * 300);
             
             this.game.playTrapCard(trapCard, spaceIndex, true);
-            this.game.ui.addLogMessage('Bot sets a trap');
+            // Note: logging is handled in game.playTrapCard()
             this.game.ui.updateGameState();
             
             // Brief delay between placements

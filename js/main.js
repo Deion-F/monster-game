@@ -21,7 +21,7 @@ function initializeGame() {
     document.getElementById('welcome-dialog').showModal();
     
     // Set default game settings
-    document.getElementById('player-name').value = 'Player';
+    // Note: player-name input uses placeholder text, not a default value
     document.getElementById('difficulty-medium').checked = true;
 }
 
@@ -86,16 +86,6 @@ function setupEventListeners() {
             return;
         }
     });
-
-    // Close tutorial (top-right X)
-    const closeTutorialBtn = document.getElementById('close-tutorial');
-    if (closeTutorialBtn) {
-        closeTutorialBtn.addEventListener('click', () => {
-            const tutorialDialog = document.getElementById('tutorial-dialog');
-            if (tutorialDialog && typeof tutorialDialog.close === 'function') tutorialDialog.close();
-            else if (tutorialDialog) tutorialDialog.classList.remove('visible');
-        });
-    }
 
     // Back to welcome screen (guarded)
     const backToWelcomeBtn = document.getElementById('back-to-welcome');

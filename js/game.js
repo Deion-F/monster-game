@@ -219,11 +219,21 @@ class Game {
 
     playTrapCard(card, spaceIndex, isBot = false) {
         const player = isBot ? this.bot : this.player;
+        const opponent = isBot ? this.player : this.bot;
+        
         // Player API uses playCard for both monsters and traps
         const res = (typeof player.playCard === 'function') ? player.playCard(card, spaceIndex) : { success: false };
         if (res && res.success) {
             this.ui.addLogMessage(`${player.name} sets a trap`);
             this.ui.updateGameState();
+            
+            // After a trap is set, give the opponent a chance to react (e.g., with a Queen)
+            if (isBot && opponent === this.player && this.ui && typeof this.ui.promptTrapResponse === 'function') {
+                const trapContext = { trapValue: card.value, trapCard: card, attacker: player, defender: opponent };
+                this.ui.promptTrapResponse(trapContext).catch(err => {
+                    console.warn('Trap response prompt error (non-critical)', err);
+                });
+            }
         }
         return res && res.success;
     }

@@ -1940,8 +1940,15 @@ class UI {
             if (!context || !context.defender) return resolve({ activated: false });
 
             const defender = context.defender;
-            // Determine type
-            const ttype = (context.defenderIndex === null) ? 'battle-phase' : 'attack';
+            // Determine type: 'trap' for trap-to-trap response, 'attack'/'battle-phase' for attack responses
+            let ttype = 'attack'; // Default
+            if (context.defenderIndex === null) {
+                ttype = 'battle-phase';
+            } else if (context.trapValue !== undefined && !context.defenderIndex) {
+                // This is a trap response (opponent just set a trap)
+                ttype = 'trap';
+            }
+            
             const activatable = defender.getActivatableTraps({ type: ttype, trapValue: context.trapValue });
             if (!activatable || activatable.length === 0) return resolve({ activated: false });
 
@@ -1996,20 +2003,27 @@ class UI {
                                 }
 
                                 if (trapCard.value === CARD_VALUES.QUEEN) {
-                                    // Queen: prefer to cancel the opponent's last used trap automatically
+                                    // Queen: cancel an opponent's trap
                                     this.activatingTrap = { trap: trapCard, context };
-                                    const last = this.game.lastTrapUsed;
                                     let autoTarget = null;
-                                    try {
-                                        if (last) {
-                                            const lastOwner = this.game.findTrapOwner(last);
-                                            const queenOwner = this.game.findTrapOwner(trapCard);
-                                            // Auto-target only if last trap belongs to opponent
-                                            if (lastOwner && queenOwner && lastOwner !== queenOwner) {
-                                                autoTarget = last;
+                                    
+                                    // If this is a trap response (opponent just set a trap), auto-target that trap
+                                    if (context.trapCard && ttype === 'trap') {
+                                        autoTarget = context.trapCard;
+                                    } else {
+                                        // Otherwise, prefer to cancel the last used trap
+                                        const last = this.game.lastTrapUsed;
+                                        try {
+                                            if (last) {
+                                                const lastOwner = this.game.findTrapOwner(last);
+                                                const queenOwner = this.game.findTrapOwner(trapCard);
+                                                // Auto-target only if last trap belongs to opponent
+                                                if (lastOwner && queenOwner && lastOwner !== queenOwner) {
+                                                    autoTarget = last;
+                                                }
                                             }
-                                        }
-                                    } catch (err) { console.warn('Error checking lastTrapUsed', err); }
+                                        } catch (err) { console.warn('Error checking lastTrapUsed', err); }
+                                    }
 
                                     if (autoTarget) {
                                         const res = await this.game.activateQueenTrap(trapCard, autoTarget);
@@ -2028,7 +2042,7 @@ class UI {
                                 }
 
                                 // Fallback activation (shouldn't normally reach here)
-                                const res = await this.game.activateQueenTrap(trapCard, context.targetTrap);
+                                const res = await this.game.activateQueenTrap(trapCard, context.targetTrap || context.trapCard);
                                 if (res && res.success) {
                                     this._restartReactiveCountdown();
                                     if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard });
