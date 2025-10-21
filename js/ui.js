@@ -1818,6 +1818,13 @@ class UI {
         if (inlineArea) {
             inlineArea.innerHTML = '';
         }
+        
+        // Clear sidebar trap-reaction-container
+        const sidebarContainer = document.getElementById('trap-reaction-container');
+        if (sidebarContainer) {
+            sidebarContainer.innerHTML = '';
+            sidebarContainer.classList.remove('active');
+        }
 
         // Also remove any temporary queen cancel dialog that may have been injected
         const qdlg = document.getElementById('queen-cancel-temp');
@@ -1880,11 +1887,7 @@ class UI {
                     // Activate the trap to respond
                     try {
                         const responseTrap = card;
-                        // Clear interval and container first
-                        if (this._cancelTrapInterval) {
-                            clearInterval(this._cancelTrapInterval);
-                            this._cancelTrapInterval = null;
-                        }
+                        // Clear container first
                         container.innerHTML = '';
                         container.classList.remove('active');
                         
@@ -1912,110 +1915,46 @@ class UI {
 
             container.appendChild(list);
 
-            // Countdown and cancel button
+            // Cancel button (no countdown)
             const footer = document.createElement('div');
             footer.classList.add('reaction-footer');
-            
-            const countdown = document.createElement('div');
-            countdown.classList.add('reaction-countdown');
-            countdown.textContent = '5';
             
             const cancelBtn = document.createElement('button');
             cancelBtn.classList.add('dialog-button');
             cancelBtn.textContent = 'Do not respond';
             cancelBtn.addEventListener('click', () => {
-                if (this._cancelTrapInterval) {
-                    clearInterval(this._cancelTrapInterval);
-                    this._cancelTrapInterval = null;
-                }
                 container.innerHTML = '';
                 container.classList.remove('active');
                 resolve({ canceled: false });
             });
             
-            footer.appendChild(countdown);
             footer.appendChild(cancelBtn);
             container.appendChild(footer);
-
-            // Simple countdown
-            let remaining = 5;
-            const interval = setInterval(() => {
-                remaining -= 1;
-                if (remaining <= 0) {
-                    clearInterval(interval);
-                    if (this._cancelTrapInterval === interval) this._cancelTrapInterval = null;
-                    container.innerHTML = '';
-                    container.classList.remove('active');
-                    resolve({ canceled: false });
-                    return;
-                }
-                countdown.textContent = String(remaining);
-            }, 1000);
-            
-            // Store interval reference for potential cleanup
-            this._cancelTrapInterval = interval;
         });
     }
 
-    /** Pause the reactive countdown timer */
+    /** Deprecated - no longer using countdown timer */
     _pauseReactiveTimer() {
-        if (this._reactiveTimer) {
-            clearInterval(this._reactiveTimer);
-            this._reactiveTimer = null;
-            this._reactivePaused = true;
-        }
+        // No-op: countdown removed
     }
 
-    /** Resume the reactive countdown timer after a pause */
+    /** Deprecated - no longer using countdown timer */
     _resumeReactiveTimer(remaining) {
-        if (!this._reactivePaused) return;
-        this._reactivePaused = false;
-        let remainingSeconds = typeof remaining === 'number' ? remaining : (this._reactiveRemaining || 5);
-        const el = document.getElementById('trap-countdown');
-        // Update the text without clobbering child nodes (cancel button etc.)
-        if (el) {
-            if (el.firstChild && typeof el.firstChild.textContent !== 'undefined') {
-                el.firstChild.textContent = String(remainingSeconds);
-            } else {
-                el.textContent = String(remainingSeconds);
-            }
-        }
-
-        const interval = setInterval(() => {
-            remainingSeconds -= 1;
-            if (remainingSeconds <= 0) {
-                clearInterval(interval);
-                this._clearReactiveState();
-                if (this._reactiveResolve) this._reactiveResolve({ activated: false });
-                return;
-            }
-            const e = document.getElementById('trap-countdown');
-            if (e) {
-                if (e.firstChild && typeof e.firstChild.textContent !== 'undefined') {
-                    e.firstChild.textContent = String(remainingSeconds);
-                } else {
-                    e.textContent = String(remainingSeconds);
-                }
-            }
-            this._reactiveRemaining = remainingSeconds;
-        }, 1000);
-
-        this._reactiveTimer = interval;
+        // No-op: countdown removed
     }
 
-    /** Called when user cancels a redirect/trap dialog to resume the countdown */
+    /** Deprecated - no longer using countdown timer */
     _resumeReactiveAfterCancel() {
-        // If there is an active reactive window paused, resume it
-        if (this._reactivePaused) {
-            this._resumeReactiveTimer(this._reactiveRemaining || 5);
-            return;
-        }
-        // Otherwise, ensure clear reactive state
-        this._clearReactiveState();
+        // No-op: countdown removed
+    }
+
+    /** Deprecated - no longer using countdown timer */
+    _restartReactiveCountdown() {
+        // No-op: countdown removed
     }
 
     /**
-     * Prompt the human defender to react to an action with traps for up to 5 seconds.
+     * Prompt the human defender to react to an action with traps.
      * Returns a promise that resolves to {activated: boolean, trap?, result?}
      * The context should include attackerIndex, attacker, defenderIndex, defender
      */
@@ -2047,14 +1986,12 @@ class UI {
                 if (!el) continue;
                 el.classList.add('reactive-highlight');
 
-                    // Attach click handler that pauses the countdown while a trap activation UI/dialog is shown
+                    // Attach click handler for trap activation
                     const handler = (e) => {
                         e.stopPropagation();
                         (async () => {
                             try {
                                 const trapCard = space.card;
-                                // Pause the countdown while the trap activation/resolution occurs
-                                this._pauseReactiveTimer();
 
                                 // Handle trap activations and wait for result
                                 if (trapCard.value === CARD_VALUES.JACK) {
@@ -2072,8 +2009,7 @@ class UI {
                                         this._clearReactiveState();
                                         return;
                                     }
-                                    // Otherwise, reset the countdown so player can chain
-                                    this._restartReactiveCountdown();
+                                    // Ace activated successfully, allow player to continue reacting
                                     if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard, result: { type: 'ACE', effect: res && res.effect } });
                                     return;
                                 }
@@ -2112,8 +2048,7 @@ class UI {
                                     if (autoTarget) {
                                         const res = await this.game.activateQueenTrap(trapCard, autoTarget);
                                         if (res && res.success) {
-                                            // Queen cancelled a trap; reset countdown to allow further chaining
-                                            this._restartReactiveCountdown();
+                                            // Queen cancelled a trap, allow player to continue reacting
                                             if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard, result: { type: 'QUEEN', target: autoTarget } });
                                             return;
                                         }
@@ -2128,14 +2063,13 @@ class UI {
                                 // Fallback activation (shouldn't normally reach here)
                                 const res = await this.game.activateQueenTrap(trapCard, context.targetTrap || context.trapCard);
                                 if (res && res.success) {
-                                    this._restartReactiveCountdown();
                                     if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard });
                                     return;
                                 }
                             } catch (err) {
                                 console.warn('Reactive trap handler error', err);
-                                // Attempt to resume countdown if something goes wrong
-                                this._resumeReactiveAfterCancel();
+                                // Attempt to clear state if something goes wrong
+                                this._clearReactiveState();
                             }
                         })();
                     };
@@ -2144,93 +2078,52 @@ class UI {
                     el.addEventListener('click', handler);
             }
 
-            // Show countdown element inside the inline reactive-trap-area container
-            const container = document.getElementById('reactive-trap-area') || document.body;
-            // Ensure container is cleared first
-            if (container && container.id === 'reactive-trap-area') container.innerHTML = '';
-            const countdown = document.createElement('div');
-            countdown.id = 'trap-countdown';
-            countdown.classList.add('trap-countdown', 'inline');
-            countdown.textContent = '5';
-            // Add a small cancel button so the player can explicitly cancel the reactive window.
+            // Show reaction UI in the trap-reaction-container in the left sidebar
+            const container = document.getElementById('trap-reaction-container');
+            if (!container) {
+                console.warn('trap-reaction-container not found');
+                return resolve({ activated: false });
+            }
+            
+            // Clear any existing content
+            container.innerHTML = '';
+            container.classList.add('active');
+            
+            const title = document.createElement('div');
+            title.classList.add('reaction-title');
+            title.textContent = 'Opponent is attacking!';
+            container.appendChild(title);
+            
+            const message = document.createElement('div');
+            message.classList.add('reaction-message');
+            message.textContent = 'Click a trap to respond';
+            message.style.fontSize = 'var(--font-body2)';
+            message.style.color = 'var(--md-on-surface-variant)';
+            message.style.marginBottom = 'var(--space-sm)';
+            message.style.textAlign = 'center';
+            container.appendChild(message);
+            
+            // Add cancel button in the footer
+            const footer = document.createElement('div');
+            footer.classList.add('reaction-footer');
+            
             const cancelBtn = document.createElement('button');
             cancelBtn.classList.add('dialog-button');
-            cancelBtn.textContent = 'Cancel';
-            cancelBtn.style.marginLeft = '0.5rem';
+            cancelBtn.textContent = 'Do not respond';
             cancelBtn.addEventListener('click', () => {
                 try {
                     if (this._reactiveResolve) this._reactiveResolve({ activated: false });
-                } catch (e) { console.warn('Error resolving reactive prompt on countdown cancel', e); }
+                } catch (e) { console.warn('Error resolving reactive prompt on cancel', e); }
                 this._clearReactiveState();
+                container.innerHTML = '';
+                container.classList.remove('active');
             });
-            countdown.appendChild(cancelBtn);
+            
+            footer.appendChild(cancelBtn);
+            container.appendChild(footer);
 
-            // Insert into inline area
-            try {
-                if (container) container.appendChild(countdown);
-                else document.body.appendChild(countdown);
-            } catch (e) { document.body.appendChild(countdown); }
-
-            // Countdown logic with pause/resume support
-            let remaining = 5;
-            const tick = () => {
-                remaining -= 1;
-                this._reactiveRemaining = remaining;
-                if (remaining <= 0) {
-                    if (this._reactiveTimer) clearInterval(this._reactiveTimer);
-                    this._clearReactiveState();
-                    resolve({ activated: false });
-                } else {
-                    const el = document.getElementById('trap-countdown');
-                    if (el) {
-                        if (el.firstChild && typeof el.firstChild.textContent !== 'undefined') {
-                            el.firstChild.textContent = String(remaining);
-                        } else {
-                            el.textContent = String(remaining);
-                        }
-                    }
-                }
-            };
-
-            const interval = setInterval(tick, 1000);
-            this._reactiveTimer = interval;
-            this._reactiveRemaining = remaining;
             this._reactiveResolve = resolve;
         });
-    }
-
-    /** Restart the reactive countdown from full 5 seconds (used after a successful non-ending trap activation) */
-    _restartReactiveCountdown() {
-        // Clear existing timer
-        if (this._reactiveTimer) {
-            clearInterval(this._reactiveTimer);
-            this._reactiveTimer = null;
-        }
-        this._reactivePaused = false;
-        let remaining = 5;
-        this._reactiveRemaining = remaining;
-
-        const tick = () => {
-            remaining -= 1;
-            this._reactiveRemaining = remaining;
-            if (remaining <= 0) {
-                if (this._reactiveTimer) clearInterval(this._reactiveTimer);
-                this._clearReactiveState();
-                if (this._reactiveResolve) this._reactiveResolve({ activated: false });
-                return;
-            }
-            const el = document.getElementById('trap-countdown');
-            if (el) {
-                if (el.firstChild && typeof el.firstChild.textContent !== 'undefined') {
-                    el.firstChild.textContent = String(remaining);
-                } else {
-                    el.textContent = String(remaining);
-                }
-            }
-        };
-
-        const interval = setInterval(tick, 1000);
-        this._reactiveTimer = interval;
     }
 
     /**

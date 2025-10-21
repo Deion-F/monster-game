@@ -416,15 +416,11 @@ class Game {
         if (defender && defender.getActivatableTraps) {
             const activatable = defender.getActivatableTraps({ type: defenderIndex === null ? 'battle-phase' : 'attack' });
             if (activatable && activatable.length > 0) {
-                // If defender is human, show UI prompt and wait up to 5 seconds
+                // If defender is human, show UI prompt and wait for player decision
                 if (defender === this.player) {
                     try {
-                                // Wait for reactive prompt but guard with a timeout so the game cannot hang
-                                const resp = await Promise.race([
-                                    this.ui.promptTrapResponse(trapContext),
-                                    new Promise(resolve => setTimeout(() => resolve({ activated: false, timedOut: true }), 7000))
-                                ]);
-                                if (resp && resp.timedOut) console.warn('Reactive trap prompt timed out; continuing as not activated');
+                                // Wait for reactive prompt - no timeout, wait for player decision
+                                const resp = await this.ui.promptTrapResponse(trapContext);
                         if (resp && resp.activated) {
                             // If the trap activation returned a redirect (Jack), reprocess the attack immediately
                             const r = resp.result || {};

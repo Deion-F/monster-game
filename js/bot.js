@@ -28,6 +28,17 @@ class Bot {
             playerTargetsStrongest: 0.5  // Whether player targets strongest monsters
         };
         this.skillLevel = this.getSkillLevelFromDifficulty();
+        
+        // Configurable action delays (in milliseconds) for player visibility
+        this.actionDelays = {
+            afterDraw: 500,          // Delay after drawing cards
+            afterTrapPlacement: 500, // Delay after placing a trap
+            afterSummon: 500,        // Delay after summoning a monster
+            afterFusion: 700,        // Delay after creating a fusion (slightly longer)
+            afterAttack: 600,        // Delay after each attack
+            betweenActions: 400,     // General delay between different action types
+            phaseTransition: 800     // Delay when transitioning phases
+        };
     }
 
     /**
@@ -284,20 +295,25 @@ class Bot {
         console.debug('Bot.takeTurn: starting draw phase');
         await this.handleDrawPhase();
         if (this.game && this.game.gameOver) return;
+        
+        await delay(this.actionDelays.phaseTransition);
 
         console.debug('Bot.takeTurn: starting setup phase');
-    this.game.ui.addLogMessage(`${this.game.bot.name} ended Draw phase`);
+        this.game.ui.addLogMessage(`${this.game.bot.name} ended Draw phase`);
         await this.handleSetupPhase();
         if (this.game && this.game.gameOver) return;
+        
+        await delay(this.actionDelays.phaseTransition);
 
         console.debug('Bot.takeTurn: starting battle phase');
-    this.game.ui.addLogMessage(`${this.game.bot.name} ended Setup phase`);
+        this.game.ui.addLogMessage(`${this.game.bot.name} ended Setup phase`);
         await this.handleBattlePhase();
         if (this.game && this.game.gameOver) return;
 
+        await delay(this.actionDelays.phaseTransition);
 
         console.debug('Bot.takeTurn: starting end phase');
-    this.game.ui.addLogMessage(`${this.game.bot.name} ended Battle phase`);
+        this.game.ui.addLogMessage(`${this.game.bot.name} ended Battle phase`);
         await this.handleEndPhase();
 
         // Activate just-placed traps for bot at end of its End phase
@@ -306,7 +322,7 @@ class Bot {
         }
 
         // End bot's turn
-    this.game.ui.addLogMessage(`${this.game.bot.name} ended their turn`);
+        this.game.ui.addLogMessage(`${this.game.bot.name} ended their turn`);
         this.game.endTurn();
     }
 
@@ -321,7 +337,7 @@ class Bot {
         this.game.ui.updateGameState();
         
         // Delay for visualization
-        await delay(1000);
+        await delay(this.actionDelays.afterDraw);
     }
 
     /**
@@ -340,17 +356,24 @@ class Bot {
             // After Joker resets the board and hands, the bot should continue its setup
             // with the newly dealt cards during the same Setup phase. Add a short delay
             // to simulate thinking and then proceed with normal setup actions.
-            await delay(300);
+            await delay(this.actionDelays.betweenActions);
         }
         
         // Place traps first (strategic advantage)
         await this.placeTraps();
+        if (this.game.bot.trapSpaces.some(space => space.card && space.card.justPlaced)) {
+            await delay(this.actionDelays.betweenActions);
+        }
         
         // Create fusions if possible
         await this.createFusions();
+        if (this.game.bot.monsterSpaces.some(space => space.card && space.card.isFusion)) {
+            await delay(this.actionDelays.betweenActions);
+        }
         
         // Summon big monsters if possible
         await this.summonBigMonsters();
+        await delay(this.actionDelays.betweenActions);
         
         // Summon normal monsters
         await this.summonNormalMonsters();
@@ -387,8 +410,52 @@ class Bot {
             return;
         }
         
-        // Sort attackers based on personality and emotion
-        if (this.personality.aggression < 0.5 || this.emotion.fear > 0.7) {
+        // Get valid targets
+        let targets = this.game.board.getValidAttackTargets(
+            this.game.bot,
+            this.game.player
+        );
+        
+        // No valid targets
+        if (targets.length === 0) {
+            this.game.ui.addLogMessage('Bot has no valid attack targets');
+            return;
+        }
+        
+        // Check if bot has complete advantage (all bot monsters stronger than all player monsters)
+        let hasCompleteAdvantage = false;
+        const isDirectAttackOnly = targets.length > 0 && targets[0] === null;
+        
+        if (!isDirectAttackOnly && targets.length > 0) {
+            // Get player's monster strengths
+            const playerMonsters = this.game.player.monsterSpaces
+                .filter(space => space.card)
+                .map(space => space.card.isFusion ? space.card.fusionStrength : getCardNumericValue(space.card.value));
+            
+            // Get bot's attacking monster strengths
+            const botStrengths = attackingMonsters.map(card => 
+                card.isFusion ? card.fusionStrength : getCardNumericValue(card.value)
+            );
+            
+            // Bot has complete advantage if its weakest monster is stronger than player's strongest
+            if (playerMonsters.length > 0 && botStrengths.length > 0) {
+                const botWeakest = Math.min(...botStrengths);
+                const playerStrongest = Math.max(...playerMonsters);
+                hasCompleteAdvantage = botWeakest > playerStrongest;
+            }
+        }
+        
+        // Sort attackers based on personality, emotion, and advantage
+        // When bot has complete advantage, ALWAYS attack strongest first to match vs player's strongest
+        // This prevents leaving weak attackers unable to attack after strong ones clear the field
+        if (hasCompleteAdvantage) {
+            // Strategic: Attack strongest first when we have advantage
+            attackingMonsters.sort((a, b) => {
+                const strengthA = a.isFusion ? a.fusionStrength : getCardNumericValue(a.value);
+                const strengthB = b.isFusion ? b.fusionStrength : getCardNumericValue(b.value);
+                return strengthB - strengthA; // Descending (strongest first)
+            });
+        } else if (this.personality.aggression < 0.5 || this.emotion.fear > 0.7) {
             // Cautious or fearful bot attacks with weakest first to test the waters
             attackingMonsters.sort((a, b) => {
                 const strengthA = a.isFusion ? a.fusionStrength : getCardNumericValue(a.value);
@@ -404,28 +471,21 @@ class Bot {
             });
         }
         
-        // Get valid targets
-        let targets = this.game.board.getValidAttackTargets(
-            this.game.bot,
-            this.game.player
-        );
-        
-        // No valid targets
-        if (targets.length === 0) {
-            this.game.ui.addLogMessage('Bot has no valid attack targets');
-            return;
-        }
-        
         // Decide how many monsters to attack with based on personality and emotions
         let attackCount = attackingMonsters.length;
         
         // With lower aggression or higher fear, might hold back some monsters for defense
+        // BUT only if there are monsters to defend against (not direct attacks)
+        // AND only if the bot doesn't have complete advantage
         const effectiveAggression = Math.max(0.2, 
             this.personality.aggression - (this.emotion.fear * 0.3)
         );
         
         // Personality and emotion-based decision on how many monsters to attack with
-        if (Math.random() > effectiveAggression && attackingMonsters.length > 1) {
+        // Don't hold back monsters when:
+        // 1. Doing direct attacks - there's no strategic reason
+        // 2. Have complete advantage - should press the advantage
+        if (!isDirectAttackOnly && !hasCompleteAdvantage && Math.random() > effectiveAggression && attackingMonsters.length > 1) {
             // Hold some monsters back defensively
             attackCount = Math.max(1, Math.floor(attackingMonsters.length * effectiveAggression));
             
@@ -477,10 +537,35 @@ class Bot {
                 // Get potential targets with human-like consideration
                 targetIndex = this.findHumanLikeAttackTarget(monster, targets);
                 
-                // If no favorable monster target was found, do not attempt invalid direct attacks
+                // Debug logging for attack decision
+                const monsterStrength = monster.isFusion ? monster.fusionStrength : getCardNumericValue(monster.value);
+                console.log(`Bot considering attack with ${monster.value} (strength ${monsterStrength}), target index: ${targetIndex}`);
+                
+                // If no favorable monster target was found AND there are valid monster targets available,
+                // this is a bug - the bot should attack SOMETHING if it can win
                 if (targetIndex === null) {
-                    this.game.ui.addLogMessage(`Bot skips attacking with ${monster.value} — no favorable target`);
-                    continue;
+                    // Check if bot can beat ANY of the available targets
+                    let canBeatAnyTarget = false;
+                    for (const possibleTarget of targets) {
+                        if (possibleTarget !== null) {
+                            const targetCard = this.game.player.monsterSpaces[possibleTarget]?.card;
+                            if (targetCard) {
+                                const targetStrength = targetCard.isFusion ? targetCard.fusionStrength : getCardNumericValue(targetCard.value);
+                                if (monsterStrength > targetStrength) {
+                                    canBeatAnyTarget = true;
+                                    // Choose this target as a fallback
+                                    targetIndex = possibleTarget;
+                                    console.log(`Bot fallback: attacking target ${targetIndex} (strength ${targetStrength})`);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (!canBeatAnyTarget) {
+                        this.game.ui.addLogMessage(`Bot skips attacking with ${monster.value} — no favorable target`);
+                        continue;
+                    }
                 }
 
                 // Additional check to prevent attacks that would be disadvantageous
@@ -565,9 +650,8 @@ class Bot {
             // Update the targets variable for the next iteration
             targets = newTargets;
             
-            // Brief delay between attacks - vary based on personality
-            const betweenAttackDelay = 400 + Math.floor(Math.random() * 300);
-            await delay(betweenAttackDelay);
+            // Consistent delay between attacks for player visibility
+            await delay(this.actionDelays.afterAttack);
             
             // Occasionally, a frustrated bot might stop attacking early
             if (this.emotion.frustration > 0.7 && Math.random() < 0.3) {
@@ -680,8 +764,8 @@ class Bot {
             // Note: logging is handled in game.playTrapCard()
             this.game.ui.updateGameState();
             
-            // Brief delay between placements
-            await delay(250 + Math.random() * 150);
+            // Consistent delay after placing trap for player visibility
+            await delay(this.actionDelays.afterTrapPlacement);
         }
     }
 
@@ -697,15 +781,108 @@ class Bot {
         // "Think" about fusion creation
         await delay(400 + Math.random() * 400);
         
+        // Get player's monster strengths for strategic evaluation
+        const playerMonsters = this.game.player.monsterSpaces
+            .filter(space => space.card)
+            .map(space => ({
+                strength: space.card.isFusion ? space.card.fusionStrength : getCardNumericValue(space.card.value),
+                card: space.card
+            }))
+            .sort((a, b) => b.strength - a.strength); // Sort descending
+        
+        // Get bot's current monster strengths
+        const botMonsters = this.game.bot.monsterSpaces
+            .filter(space => space.card && !space.card.isFusion) // Only non-fusion monsters (fusion candidates)
+            .map(space => getCardNumericValue(space.card.value));
+        
+        // STRATEGIC ANALYSIS: Can any current bot monsters beat player's monsters?
+        const botStrongestUnfused = botMonsters.length > 0 ? Math.max(...botMonsters) : 0;
+        const playerStrongest = playerMonsters.length > 0 ? playerMonsters[0].strength : 0;
+        const playerWeakest = playerMonsters.length > 0 ? playerMonsters[playerMonsters.length - 1].strength : 0;
+        
+        // Check if bot is at a disadvantage (can't beat player's strongest)
+        const isAtDisadvantage = playerMonsters.length > 0 && botStrongestUnfused <= playerStrongest;
+        
+        // Log strategic analysis
+        if (playerMonsters.length > 0) {
+            console.log(`Bot fusion analysis: Player strongest=${playerStrongest}, Bot strongest unfused=${botStrongestUnfused}, At disadvantage=${isAtDisadvantage}`);
+            console.log(`Available fusions: ${fusions.length} options`);
+        }
+        
+        // Evaluate each fusion option strategically
+        const fusionOptions = fusions.map(fusion => {
+            const m1Strength = getCardNumericValue(fusion.monster1.card.value);
+            const m2Strength = getCardNumericValue(fusion.monster2.card.value);
+            const componentTotal = m1Strength + m2Strength;
+            const efficiency = fusion.fusionStrength / componentTotal;
+            
+            // STRATEGIC VALUE: How many player monsters can this fusion beat?
+            let canBeat = 0;
+            let beatsStrongest = false;
+            let targetsDefeated = [];
+            
+            for (const pm of playerMonsters) {
+                if (fusion.fusionStrength > pm.strength) {
+                    canBeat++;
+                    targetsDefeated.push(pm.strength);
+                    if (pm === playerMonsters[0]) {
+                        beatsStrongest = true;
+                    }
+                }
+            }
+            
+            // Calculate strategic value
+            // High priority: Can beat monsters that bot currently can't
+            let strategicValue = 0;
+            
+            if (playerMonsters.length > 0) {
+                // Prioritize fusions that can beat the strongest player monster
+                if (beatsStrongest) {
+                    strategicValue += 10;
+                }
+                
+                // Value based on how many monsters it can beat
+                strategicValue += canBeat * 3;
+                
+                // If at disadvantage, prioritize ANY fusion that beats something
+                if (isAtDisadvantage && canBeat > 0) {
+                    strategicValue += 5;
+                }
+                
+                // Bonus for beating monsters we currently can't beat
+                for (const defeated of targetsDefeated) {
+                    if (defeated > botStrongestUnfused) {
+                        strategicValue += 4; // Big bonus for overcoming disadvantage
+                    }
+                }
+            }
+            
+            return {
+                fusion: fusion,
+                efficiency: efficiency,
+                componentTotal: componentTotal,
+                strategicValue: strategicValue,
+                canBeat: canBeat,
+                beatsStrongest: beatsStrongest,
+                fusionStrength: fusion.fusionStrength
+            };
+        });
+        
         // Sort by fusion strength (descending) as the initial strategy
         fusions.sort((a, b) => b.fusionStrength - a.fusionStrength);
         
         // Human-like decision making: do we want to create a fusion?
-        const fusionDesirability = Math.min(1, 
+        // MODIFIED: If at disadvantage, be MORE likely to fuse
+        let fusionDesirability = Math.min(1, 
             this.personality.fusionPreference + 
             (this.emotion.fear * 0.3) + 
             (this.emotion.frustration * 0.2)
         );
+        
+        // If at disadvantage and fusion can help, STRONGLY prioritize it
+        if (isAtDisadvantage && fusionOptions.some(f => f.strategicValue > 0)) {
+            fusionDesirability = Math.max(fusionDesirability, 0.85);
+        }
         
         // Decide based on personality and game state
         if (Math.random() > fusionDesirability) {
@@ -716,27 +893,32 @@ class Bot {
         // Evaluate board state for fusion strategy
         const boardAdvantage = this.evaluateBoardAdvantage();
         
-        // Determine fusion approach
+        // Determine fusion approach - STRATEGIC PRIORITY
         let selectedFusion = fusions[0]; // Default to strongest
         
-        // If bot is skilled and thinks more strategically
-        if (this.skillLevel > 0.7) {
-            // Consider fusion component values
-            const fusionOptions = fusions.map(fusion => {
-                // Calculate the "efficiency" of this fusion
-                // Higher = better use of component monsters
-                const m1Strength = getCardNumericValue(fusion.monster1.card.value);
-                const m2Strength = getCardNumericValue(fusion.monster2.card.value);
-                const componentTotal = m1Strength + m2Strength;
-                const efficiency = fusion.fusionStrength / componentTotal;
+        // STRATEGIC SELECTION: Prioritize fusions that solve tactical problems
+        if (playerMonsters.length > 0) {
+            // Sort by strategic value first
+            fusionOptions.sort((a, b) => {
+                // If one has strategic value and other doesn't, prioritize strategic
+                if (a.strategicValue > 0 && b.strategicValue === 0) return -1;
+                if (b.strategicValue > 0 && a.strategicValue === 0) return 1;
                 
-                return {
-                    fusion: fusion,
-                    efficiency: efficiency,
-                    componentTotal: componentTotal
-                };
+                // Both have strategic value: compare
+                if (a.strategicValue !== b.strategicValue) {
+                    return b.strategicValue - a.strategicValue;
+                }
+                
+                // Tie-breaker: fusion strength
+                return b.fusionStrength - a.fusionStrength;
             });
             
+            // Use the most strategic fusion
+            selectedFusion = fusionOptions[0].fusion;
+            
+            console.log(`Bot fusion decision: Selected fusion with strength ${fusionOptions[0].fusionStrength}, strategic value ${fusionOptions[0].strategicValue}, can beat ${fusionOptions[0].canBeat} monsters`);
+        } else if (this.skillLevel > 0.7) {
+            // No player monsters: use old efficiency logic
             // Different strategies based on personality and game state
             if (boardAdvantage < -3 && this.emotion.fear > 0.6) {
                 // Losing and afraid: prioritize highest raw strength
@@ -784,13 +966,49 @@ class Bot {
         this.game.ui.addLogMessage('Bot creates a fusion monster');
         this.game.ui.updateGameState();
         
-        await delay(500);
+        await delay(this.actionDelays.afterFusion);
         
-        // Skilled bots might consider additional fusions
-        if (this.skillLevel > 0.8 && fusions.length > 1 && Math.random() < 0.3) {
+        // Consider additional fusions - STRATEGIC EVALUATION
+        // If at disadvantage or multiple player monsters exist, try to create more fusions
+        const shouldTryMultipleFusions = (
+            (isAtDisadvantage && playerMonsters.length > 1) || // Need multiple answers
+            (this.skillLevel > 0.8 && fusions.length > 1 && Math.random() < 0.5) || // Skilled + options
+            (playerMonsters.length > 1 && Math.random() < 0.4) // Multiple threats
+        );
+        
+        if (shouldTryMultipleFusions) {
             // Get updated fusion possibilities after the first fusion
             const updatedFusions = this.game.board.getPotentialFusions(this.game.bot);
             if (updatedFusions.length > 0) {
+                // Re-evaluate remaining player monsters
+                const remainingPlayerMonsters = this.game.player.monsterSpaces
+                    .filter(space => space.card)
+                    .map(space => ({
+                        strength: space.card.isFusion ? space.card.fusionStrength : getCardNumericValue(space.card.value)
+                    }))
+                    .sort((a, b) => b.strength - a.strength);
+                
+                // Evaluate which fusion would be best for the remaining threats
+                const updatedOptions = updatedFusions.map(fusion => {
+                    let canBeat = 0;
+                    for (const pm of remainingPlayerMonsters) {
+                        if (fusion.fusionStrength > pm.strength) {
+                            canBeat++;
+                        }
+                    }
+                    return {
+                        fusion: fusion,
+                        canBeat: canBeat,
+                        fusionStrength: fusion.fusionStrength
+                    };
+                });
+                
+                // Sort by strategic value
+                updatedOptions.sort((a, b) => {
+                    if (a.canBeat !== b.canBeat) return b.canBeat - a.canBeat;
+                    return b.fusionStrength - a.fusionStrength;
+                });
+                
                 // Find space for another fusion
                 targetSpace = -1;
                 for (let i = 0; i < this.game.bot.monsterSpaces.length; i++) {
@@ -800,19 +1018,23 @@ class Bot {
                     }
                 }
                 
-                if (targetSpace !== -1) {
-                    await delay(700); // Longer think time for second fusion
+                // Only create second fusion if it adds strategic value OR if we have space and skill
+                const secondFusionAddsValue = updatedOptions[0].canBeat > 0;
+                if (targetSpace !== -1 && (secondFusionAddsValue || this.skillLevel > 0.85)) {
+                    await delay(this.actionDelays.betweenActions); // Think time for second fusion
                     
                     // Create another fusion
                     this.game.createFusion(
-                        updatedFusions[0].monster1.card,
-                        updatedFusions[0].monster2.card,
+                        updatedOptions[0].fusion.monster1.card,
+                        updatedOptions[0].fusion.monster2.card,
                         targetSpace,
                         true
                     );
                     
                     this.game.ui.addLogMessage('Bot creates another fusion monster');
                     this.game.ui.updateGameState();
+                    
+                    console.log(`Bot created second fusion with strength ${updatedOptions[0].fusionStrength}, can beat ${updatedOptions[0].canBeat} remaining monsters`);
                 }
             }
         }
@@ -831,10 +1053,22 @@ class Bot {
         
         console.log(`Bot: Found ${bigMonsters.length} big monster(s) in hand:`, bigMonsters.map(m => m.value));
         
-        // Sort by value (descending)
+        // Sort by value (descending) - strongest first
         bigMonsters.sort((a, b) => 
             getCardNumericValue(b.value) - getCardNumericValue(a.value)
         );
+        
+        // Get current field state for strategic evaluation
+        const currentFieldMonsters = this.game.bot.monsterSpaces
+            .filter(space => space.card && !space.card.isFusion)
+            .map(space => ({
+                card: space.card,
+                strength: getCardNumericValue(space.card.value)
+            }));
+        
+        const strongestOnField = currentFieldMonsters.length > 0 
+            ? Math.max(...currentFieldMonsters.map(m => m.strength))
+            : 0;
         
         // Find empty monster spaces
         const emptyMonsterSpaces = this.game.bot.monsterSpaces
@@ -845,17 +1079,55 @@ class Bot {
         const hasEmptySpaces = emptyMonsterSpaces.length > 0;
         
         console.log(`Bot: Empty spaces: ${emptyMonsterSpaces.length}, hasEmptySpaces: ${hasEmptySpaces}`);
+        console.log(`Bot: Strongest monster on field: ${strongestOnField}`);
         
-        // Try to summon each big monster
+        // STRATEGIC EVALUATION: Only summon big monsters that make sense
+        // Track what we've already summoned this turn to avoid sacrificing it
+        const summonedThisTurn = [];
+        
         for (const monster of bigMonsters) {
+            const monsterStrength = getCardNumericValue(monster.value);
+            
+            // STRATEGIC CHECK: Don't summon a weaker big monster if we already have stronger on field
+            // Unless we're filling empty spaces with no sacrifice cost
+            if (monsterStrength < strongestOnField) {
+                console.log(`Bot: Skipping ${monster.value} (strength ${monsterStrength}) - weaker than field monster (${strongestOnField})`);
+                continue;
+            }
+            
+            // STRATEGIC CHECK: Don't summon if it's weaker than what we just summoned
+            if (summonedThisTurn.length > 0) {
+                const lastSummoned = Math.max(...summonedThisTurn);
+                if (monsterStrength < lastSummoned) {
+                    console.log(`Bot: Skipping ${monster.value} (strength ${monsterStrength}) - weaker than just summoned (${lastSummoned})`);
+                    continue;
+                }
+            }
+            
             const requiredValue = getRequiredSacrificeValue(monster);
-            const sacrifices = this.selectSacrificesForBigMonster(requiredValue, !hasEmptySpaces);
+            const sacrifices = this.selectSacrificesForBigMonster(requiredValue, !hasEmptySpaces, monster.id);
             
             console.log(`Bot: Attempting to summon ${monster.value} (requires ${requiredValue})`);
             console.log(`Bot: Found ${sacrifices.length} sacrifices with total value ${getTotalCardValue(sacrifices)}`);
             
             // CRITICAL: Remove the monster being summoned from the sacrifice list if it was included
-            const filteredSacrifices = sacrifices.filter(s => s.id !== monster.id);
+            // ALSO: Remove any monsters we summoned this turn (they're not in hand anymore!)
+            const filteredSacrifices = sacrifices.filter(s => {
+                // Don't sacrifice the monster we're trying to summon
+                if (s.id === monster.id) return false;
+                
+                // Don't sacrifice monsters we just summoned this turn
+                // (they're on field but were from hand, so sacrifice selection might pick them)
+                const wasSummonedThisTurn = this.game.bot.monsterSpaces.some(space => 
+                    space.card && space.card.id === s.id && space.card.justPlaced
+                );
+                if (wasSummonedThisTurn) {
+                    console.log(`Bot: Excluding ${s.value} from sacrifices - just summoned this turn`);
+                    return false;
+                }
+                
+                return true;
+            });
             
             if (filteredSacrifices.length === 0) {
                 console.log(`Bot: No valid sacrifices found for ${monster.value}`);
@@ -866,6 +1138,19 @@ class Bot {
             if (totalValue < requiredValue) {
                 console.log(`Bot: Insufficient sacrifice value (${totalValue} < ${requiredValue})`);
                 continue;
+            }
+            
+            // STRATEGIC CHECK: Don't sacrifice a stronger monster to summon a weaker one
+            const sacrificeStrengths = filteredSacrifices
+                .filter(s => this.game.bot.monsterSpaces.some(space => space.card && space.card.id === s.id))
+                .map(s => getCardNumericValue(s.value));
+            
+            if (sacrificeStrengths.length > 0) {
+                const maxSacrificeStrength = Math.max(...sacrificeStrengths);
+                if (maxSacrificeStrength >= monsterStrength) {
+                    console.log(`Bot: Skipping ${monster.value} (${monsterStrength}) - would sacrifice stronger monster (${maxSacrificeStrength})`);
+                    continue;
+                }
             }
             
             let targetSpace = null;
@@ -884,13 +1169,20 @@ class Bot {
                 }
                 
                 // If no field monster is being sacrificed, we can't summon
-                if (targetSpace === null) continue;
+                if (targetSpace === null) {
+                    console.log(`Bot: No valid target space for ${monster.value}`);
+                    continue;
+                }
             }
             
             // Summon the monster (use playBigMonster if available, otherwise fallback)
             // Logging will be handled by playBigMonster
             if (this.game && typeof this.game.playBigMonster === 'function') {
                 this.game.playBigMonster(monster, targetSpace, filteredSacrifices, true);
+                
+                // Track that we summoned this monster
+                summonedThisTurn.push(monsterStrength);
+                console.log(`Bot: Successfully summoned ${monster.value} with strength ${monsterStrength}`);
             } else {
                 // Fallback: perform sacrifices and then play the monster
                 if (filteredSacrifices && filteredSacrifices.length > 0 && typeof this.game.bot.sacrificeCards === 'function') {
@@ -899,11 +1191,16 @@ class Bot {
                 if (this.game && typeof this.game.playMonsterCard === 'function') {
                     this.game.playMonsterCard(monster, targetSpace, true);
                 }
+                summonedThisTurn.push(monsterStrength);
             }
             
             this.game.ui.updateGameState();
             
-            await delay(500);
+            await delay(this.actionDelays.afterSummon);
+        }
+        
+        if (summonedThisTurn.length === 0) {
+            console.log('Bot: No big monsters summoned this turn');
         }
     }
 
@@ -998,7 +1295,7 @@ class Bot {
             
             this.game.ui.updateGameState();
             
-            await delay(300);
+            await delay(this.actionDelays.afterSummon);
         }
     }
 
@@ -1042,12 +1339,14 @@ class Bot {
      * @param {boolean} preferFieldSacrifice - Whether to prefer sacrificing field monsters
      * @returns {Array} - Selected sacrifices
      */
-    selectSacrificesForBigMonster(requiredValue, preferFieldSacrifice = false) {
+    selectSacrificesForBigMonster(requiredValue, preferFieldSacrifice = false, excludeCardId = null) {
         const sacrificeCandidates = [];
         
         // Add monsters from field (non-fusion)
         this.game.bot.monsterSpaces.forEach(space => {
             if (space.card && !space.card.isFusion) {
+                // Don't include the card we're trying to summon (if it was just placed)
+                if (excludeCardId && space.card.id === excludeCardId) return;
                 sacrificeCandidates.push(space.card);
             }
         });
@@ -1057,6 +1356,8 @@ class Bot {
             const cardType = getCardType(card.value);
             if (cardType !== CARD_TYPES.TRAP &&
                 card.value !== CARD_VALUES.JOKER) {
+                // Don't include the card we're trying to summon
+                if (excludeCardId && card.id === excludeCardId) return;
                 sacrificeCandidates.push(card);
             }
         });

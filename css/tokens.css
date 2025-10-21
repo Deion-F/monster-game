@@ -59,8 +59,14 @@
   --space-xl: clamp(24px, 3vw, 32px);
   
   /* Card Dimensions */
-  --card-w: clamp(60px, 8vw, 110px);
+  /* Hand cards - smaller to make room for larger field cards */
+  --card-w: clamp(45px, 5vw, 65px);
   --card-h: calc(var(--card-w) * 1.4);
+  
+  /* Field cards - double the size of hand cards */
+  --field-card-w: calc(var(--card-w) * 2);
+  --field-card-h: calc(var(--field-card-w) * 1.4);
+  
   --card-radius: clamp(6px, 0.8vw, 12px);
   --gap: clamp(6px, 1.2vw, 14px);
   --deck-card-w: clamp(50px, 7vw, 90px);

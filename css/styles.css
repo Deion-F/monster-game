@@ -220,8 +220,8 @@ html, body {
 }
 
 .monster-space, .trap-space {
-  width: var(--card-w);
-  height: var(--card-h);
+  width: var(--field-card-w);
+  height: var(--field-card-h);
   background: var(--md-surface-container-low);
   border: 2px dashed var(--md-outline);
   border-radius: var(--card-radius);
@@ -239,7 +239,7 @@ html, body {
 
 .monster-space::after {
   content: 'Monster';
-  font-size: var(--font-caption);
+  font-size: var(--font-label);
   color: var(--md-outline);
   opacity: 0.5;
   pointer-events: none;
@@ -247,10 +247,17 @@ html, body {
 
 .trap-space::after {
   content: 'Trap';
-  font-size: var(--font-caption);
+  font-size: var(--font-label);
   color: var(--md-outline);
   opacity: 0.5;
   pointer-events: none;
+}
+
+/* Cards inside field spaces should match field size */
+.monster-space .card,
+.trap-space .card {
+  width: var(--field-card-w);
+  height: var(--field-card-h);
 }
 
 .monster-space:has(.card)::after,
