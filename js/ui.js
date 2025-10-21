@@ -139,12 +139,8 @@ class UI {
             });
         }
 
-        // Tutorial navigation (guarded)
-        const prevBtn = document.getElementById('prev-tutorial');
-        if (prevBtn) prevBtn.addEventListener('click', () => TutorialManager.showPreviousPage());
-
-        const nextBtn = document.getElementById('next-tutorial');
-        if (nextBtn) nextBtn.addEventListener('click', () => TutorialManager.showNextPage());
+        // Tutorial navigation is handled by onclick attributes in HTML
+        // (prev-tutorial and next-tutorial buttons call tutorialPrev() and tutorialNext() from main.js)
 
         // Close tutorial (use explicit id if present, fallback to any .close)
         const closeBtn = document.getElementById('close-tutorial') || document.querySelector('.close');

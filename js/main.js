@@ -69,35 +69,9 @@ function setupEventListeners() {
         });
     }
 
-    // Delegated tutorial navigation (works if buttons are present or recreated)
-    document.addEventListener('click', (e) => {
-        const btn = e.target.closest && e.target.closest('button');
-        if (!btn) return;
-        const id = btn.id;
-
-        if (id === 'prev-tutorial') return TutorialManager.showPreviousPage();
-        if (id === 'next-tutorial') return TutorialManager.showNextPage();
-        if (id === 'back-to-welcome') {
-            const tutorialDialog = document.getElementById('tutorial-dialog');
-            const welcomeDialog = document.getElementById('welcome-dialog');
-            try { if (tutorialDialog && typeof tutorialDialog.close === 'function') tutorialDialog.close(); }
-            catch (err) { if (tutorialDialog) tutorialDialog.style.display = 'none'; }
-            setTimeout(() => { if (welcomeDialog && typeof welcomeDialog.showModal === 'function') welcomeDialog.showModal(); }, 40);
-            return;
-        }
-    });
-
-    // Back to welcome screen (guarded)
-    const backToWelcomeBtn = document.getElementById('back-to-welcome');
-    if (backToWelcomeBtn) {
-        backToWelcomeBtn.addEventListener('click', () => {
-            const tutorialDialog = document.getElementById('tutorial-dialog');
-            const welcomeDialog = document.getElementById('welcome-dialog');
-            try { if (tutorialDialog && typeof tutorialDialog.close === 'function') tutorialDialog.close(); }
-            catch (err) { if (tutorialDialog) tutorialDialog.style.display = 'none'; }
-            setTimeout(() => { if (welcomeDialog && typeof welcomeDialog.showModal === 'function') welcomeDialog.showModal(); }, 60);
-        });
-    }
+    // Tutorial navigation is handled by onclick attributes in HTML
+    // (prev-tutorial, next-tutorial, and back-to-welcome buttons have onclick handlers)
+    // Removed delegated event listeners to prevent duplicate calls
 
     // Game action buttons (guarded)
     const endPhaseBtn = document.getElementById('end-phase-btn');
