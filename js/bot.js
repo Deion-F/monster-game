@@ -675,7 +675,8 @@ class Bot {
             // Variable delay before placing each trap
             await delay(200 + Math.random() * 300);
             
-            this.game.playTrapCard(trapCard, spaceIndex, true);
+            // Wait for trap placement (and player reaction if applicable) to complete
+            await this.game.playTrapCard(trapCard, spaceIndex, true);
             // Note: logging is handled in game.playTrapCard()
             this.game.ui.updateGameState();
             
@@ -853,12 +854,15 @@ class Bot {
             console.log(`Bot: Attempting to summon ${monster.value} (requires ${requiredValue})`);
             console.log(`Bot: Found ${sacrifices.length} sacrifices with total value ${getTotalCardValue(sacrifices)}`);
             
-            if (sacrifices.length === 0) {
+            // CRITICAL: Remove the monster being summoned from the sacrifice list if it was included
+            const filteredSacrifices = sacrifices.filter(s => s.id !== monster.id);
+            
+            if (filteredSacrifices.length === 0) {
                 console.log(`Bot: No valid sacrifices found for ${monster.value}`);
                 continue;
             }
             
-            const totalValue = getTotalCardValue(sacrifices);
+            const totalValue = getTotalCardValue(filteredSacrifices);
             if (totalValue < requiredValue) {
                 console.log(`Bot: Insufficient sacrifice value (${totalValue} < ${requiredValue})`);
                 continue;
@@ -873,7 +877,7 @@ class Bot {
                 // No empty spaces - find a field monster that's being sacrificed
                 for (let i = 0; i < this.game.bot.monsterSpaces.length; i++) {
                     const space = this.game.bot.monsterSpaces[i];
-                    if (space.card && sacrifices.find(s => s.id === space.card.id)) {
+                    if (space.card && filteredSacrifices.find(s => s.id === space.card.id)) {
                         targetSpace = i;
                         break;
                     }
@@ -886,11 +890,11 @@ class Bot {
             // Summon the monster (use playBigMonster if available, otherwise fallback)
             // Logging will be handled by playBigMonster
             if (this.game && typeof this.game.playBigMonster === 'function') {
-                this.game.playBigMonster(monster, targetSpace, sacrifices, true);
+                this.game.playBigMonster(monster, targetSpace, filteredSacrifices, true);
             } else {
                 // Fallback: perform sacrifices and then play the monster
-                if (sacrifices && sacrifices.length > 0 && typeof this.game.bot.sacrificeCards === 'function') {
-                    this.game.bot.sacrificeCards(sacrifices, this.game.deck);
+                if (filteredSacrifices && filteredSacrifices.length > 0 && typeof this.game.bot.sacrificeCards === 'function') {
+                    this.game.bot.sacrificeCards(filteredSacrifices, this.game.deck);
                 }
                 if (this.game && typeof this.game.playMonsterCard === 'function') {
                     this.game.playMonsterCard(monster, targetSpace, true);

@@ -218,7 +218,7 @@ class Game {
         return res && res.success;
     }
 
-    playTrapCard(card, spaceIndex, isBot = false) {
+    async playTrapCard(card, spaceIndex, isBot = false) {
         const player = isBot ? this.bot : this.player;
         const opponent = isBot ? this.player : this.bot;
         
@@ -228,13 +228,11 @@ class Game {
             this.ui.addLogMessage(`${player.name} sets a trap`);
             this.ui.updateGameState();
             
-            // After a trap is set, give the opponent a chance to react (e.g., with a Queen)
-            if (isBot && opponent === this.player && this.ui && typeof this.ui.promptTrapResponse === 'function') {
-                const trapContext = { trapValue: card.value, trapCard: card, attacker: player, defender: opponent };
-                this.ui.promptTrapResponse(trapContext).catch(err => {
-                    console.warn('Trap response prompt error (non-critical)', err);
-                });
-            }
+            // NOTE: Setting a trap does not trigger a reaction prompt.
+            // The player can only react when:
+            // 1. Bot attacks (Ace/Jack/King can respond) - handled in processAttack
+            // 2. Bot activates a trap (Queen/Ace can respond) - handled in activateTrap functions
+            // 3. Bot activates a trap in response (Queen/Ace can chain) - handled in activate functions
         }
         return res && res.success;
     }

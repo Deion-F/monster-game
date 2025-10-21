@@ -1842,46 +1842,66 @@ class UI {
         return new Promise((resolve) => {
             if (!trap) return resolve({ canceled: false });
 
-            // Only allow player's Queen to be used here
+            // Get all activatable traps in response to the opponent's trap activation
             const player = this.game.player;
-            const queenSpaces = player.trapSpaces
-                .map((space, idx) => ({ space, idx }))
-                .filter(item => item.space.card && item.space.card.value === CARD_VALUES.QUEEN && item.space.card.active);
+            const activatableTraps = player.getActivatableTraps({ type: 'trap', trapValue: trap.value });
 
-            if (!queenSpaces || queenSpaces.length === 0) return resolve({ canceled: false });
+            if (!activatableTraps || activatableTraps.length === 0) return resolve({ canceled: false });
 
-            // Build a lightweight modal dialog in DOM
-            const dlg = document.createElement('div');
-            dlg.classList.add('temp-dialog');
-            dlg.id = 'queen-cancel-temp';
-            dlg.innerHTML = '';
+            // Map activatable traps to their spaces for display
+            const trapSpaces = activatableTraps.map(card => {
+                const idx = player.trapSpaces.findIndex(space => space.card && space.card.id === card.id);
+                return { space: player.trapSpaces[idx], idx, card };
+            }).filter(item => item.idx !== -1);
 
-            const content = document.createElement('div');
-            content.classList.add('temp-dialog-content');
+            // Use the trap-reaction-container in the left sidebar
+            const container = document.getElementById('trap-reaction-container');
+            if (!container) {
+                console.warn('trap-reaction-container not found');
+                return resolve({ canceled: false });
+            }
+
+            // Clear any existing content
+            container.innerHTML = '';
+            container.classList.add('active');
+
             const title = document.createElement('div');
-            title.classList.add('temp-dialog-title');
-            title.textContent = 'Opponent activated a trap — activate Queen to cancel?';
-            content.appendChild(title);
+            title.classList.add('reaction-title');
+            title.textContent = 'Opponent activated a trap!';
+            container.appendChild(title);
 
             const list = document.createElement('div');
-            list.classList.add('queen-list');
-            queenSpaces.forEach(({ space, idx }) => {
-                const cardEl = space.card.getElement();
-                cardEl.classList.add('queen-cancel-option');
+            list.classList.add('reaction-trap-list');
+            trapSpaces.forEach(({ space, idx, card }) => {
+                const cardEl = card.getElement();
+                cardEl.classList.add('reaction-trap-option');
                 cardEl.addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    // Activate the Queen to cancel the trap
+                    // Activate the trap to respond
                     try {
-                        const queen = space.card;
-                        // Remove dialog first
-                        if (dlg && dlg.parentNode) dlg.parentNode.removeChild(dlg);
-                        const res = await this.game.activateQueenTrap(queen, trap);
+                        const responseTrap = card;
+                        // Clear interval and container first
+                        if (this._cancelTrapInterval) {
+                            clearInterval(this._cancelTrapInterval);
+                            this._cancelTrapInterval = null;
+                        }
+                        container.innerHTML = '';
+                        container.classList.remove('active');
+                        
+                        // Handle different trap types
+                        let res;
+                        if (responseTrap.value === CARD_VALUES.QUEEN) {
+                            res = await this.game.activateQueenTrap(responseTrap, trap);
+                        } else if (responseTrap.value === CARD_VALUES.ACE) {
+                            res = await this.game.activateAceTrap(responseTrap);
+                        }
+                        
                         // Update UI and clear reactive state
                         if (this.game && this.game.ui) this.game.ui.updateGameState();
                         this._clearReactiveState();
-                        resolve({ canceled: true, queen, result: res });
+                        resolve({ canceled: true, trap: responseTrap, result: res });
                     } catch (err) {
-                        console.warn('Failed to activate Queen', err);
+                        console.warn('Failed to activate trap in response', err);
                         // Ensure reactive state resumes/clears
                         this._resumeReactiveAfterCancel();
                         resolve({ canceled: false });
@@ -1890,25 +1910,32 @@ class UI {
                 list.appendChild(cardEl);
             });
 
-            content.appendChild(list);
+            container.appendChild(list);
 
-            // Countdown and cancel
+            // Countdown and cancel button
+            const footer = document.createElement('div');
+            footer.classList.add('reaction-footer');
+            
             const countdown = document.createElement('div');
-            countdown.classList.add('trap-countdown');
+            countdown.classList.add('reaction-countdown');
             countdown.textContent = '5';
+            
             const cancelBtn = document.createElement('button');
             cancelBtn.classList.add('dialog-button');
-            cancelBtn.textContent = 'Do not cancel';
-            cancelBtn.style.marginLeft = '0.5rem';
+            cancelBtn.textContent = 'Do not respond';
             cancelBtn.addEventListener('click', () => {
-                if (dlg && dlg.parentNode) dlg.parentNode.removeChild(dlg);
+                if (this._cancelTrapInterval) {
+                    clearInterval(this._cancelTrapInterval);
+                    this._cancelTrapInterval = null;
+                }
+                container.innerHTML = '';
+                container.classList.remove('active');
                 resolve({ canceled: false });
             });
-            countdown.appendChild(cancelBtn);
-            content.appendChild(countdown);
-
-            dlg.appendChild(content);
-            document.body.appendChild(dlg);
+            
+            footer.appendChild(countdown);
+            footer.appendChild(cancelBtn);
+            container.appendChild(footer);
 
             // Simple countdown
             let remaining = 5;
@@ -1916,19 +1943,17 @@ class UI {
                 remaining -= 1;
                 if (remaining <= 0) {
                     clearInterval(interval);
-                    if (dlg && dlg.parentNode) dlg.parentNode.removeChild(dlg);
+                    if (this._cancelTrapInterval === interval) this._cancelTrapInterval = null;
+                    container.innerHTML = '';
+                    container.classList.remove('active');
                     resolve({ canceled: false });
                     return;
                 }
-                const el = dlg.querySelector('.trap-countdown');
-                if (el) {
-                    if (el.firstChild && typeof el.firstChild.textContent !== 'undefined') {
-                        el.firstChild.textContent = String(remaining);
-                    } else {
-                        el.textContent = String(remaining);
-                    }
-                }
+                countdown.textContent = String(remaining);
             }, 1000);
+            
+            // Store interval reference for potential cleanup
+            this._cancelTrapInterval = interval;
         });
     }
 

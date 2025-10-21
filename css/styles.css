@@ -468,6 +468,83 @@ html, body {
   box-shadow: none;
 }
 
+/* Trap Reaction Container */
+.trap-reaction-container {
+  display: none;
+  background: var(--md-surface-container-high);
+  border-radius: 12px;
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+  box-shadow: var(--elevation-3);
+  border: 2px solid var(--md-primary);
+  animation: slideIn 0.3s ease-out;
+}
+
+.trap-reaction-container.active {
+  display: block;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reaction-title {
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--md-primary);
+  margin-bottom: var(--space-sm);
+  text-align: center;
+}
+
+.reaction-trap-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  justify-content: center;
+  margin-bottom: var(--space-sm);
+}
+
+.reaction-trap-option {
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  border: 2px solid transparent;
+  border-radius: 8px;
+}
+
+.reaction-trap-option:hover {
+  transform: scale(1.05);
+  border-color: var(--md-primary);
+  box-shadow: var(--elevation-2);
+}
+
+.reaction-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--md-outline-variant);
+}
+
+.reaction-countdown {
+  font-size: var(--font-h3);
+  font-weight: 700;
+  color: var(--md-primary);
+  min-width: 30px;
+  text-align: center;
+}
+
+.reaction-footer .dialog-button {
+  flex: 1;
+}
+
 /* ============ GAME LOG ============ */
 
 .game-log {
