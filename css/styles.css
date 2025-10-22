@@ -998,6 +998,20 @@ html, body {
   }
 }
 
+/* Right-sidebar logs: each should occupy half the viewport height and be independently scrollable.
+   This rule overrides earlier sticky/max-height rules and keeps mobile rules intact. */
+.right-sidebar .game-log {
+  height: 50vh;
+  overflow: hidden; /* container won't scroll itself, inner .log-content will */
+}
+
+.right-sidebar .game-log .log-content {
+  /* Ensure the inner area fills the game-log container and becomes the scrollable area */
+  flex: 1 1 auto;
+  max-height: none;
+  overflow-y: auto;
+}
+
 /* Inline reactive trap area container */
 .reactive-trap-area {
   display: flex;

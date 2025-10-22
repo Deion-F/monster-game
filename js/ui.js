@@ -2445,6 +2445,31 @@ class UI {
     }
 
     /**
+     * Add message to Bot Thinking log (deterministic bot rationale)
+     * @param {string} message - Rationale message
+     */
+    addBotThinkingMessage(message) {
+        const thinkingContent = document.getElementById('bot-thinking-content');
+        if (!thinkingContent) return;
+
+        const entry = document.createElement('div');
+        entry.classList.add('log-entry');
+        // Bot thinking entries are unnumbered but timestamped for readability
+        const ts = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+        entry.textContent = `[${ts}] ${message}`;
+        thinkingContent.appendChild(entry);
+        thinkingContent.scrollTop = thinkingContent.scrollHeight;
+    }
+
+    /**
+     * Clear the Bot Thinking log
+     */
+    clearBotThinkingLog() {
+        const thinkingContent = document.getElementById('bot-thinking-content');
+        if (thinkingContent) thinkingContent.innerHTML = '';
+    }
+
+    /**
      * Highlight attacker and defender for attack visualization
      * @param {number} attackerIndex - Attacker monster index
      * @param {Player} attackerPlayer - Attacking player

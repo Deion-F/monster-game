@@ -10,26 +10,19 @@ class Bot {
     constructor(game, difficulty = 'medium') {
         this.game = game;
         this.difficulty = difficulty || 'medium';
-        this.personality = this.generatePersonality();
-        this.emotion = {
-            fear: 0.2,      // Affects willingness to attack/defend
-            confidence: 0.5, // Affects risk-taking
-            frustration: 0   // Builds when losing, affects decision randomness
-        };
+
+        // Deterministic bot state: no personalities, no emotions, no randomness
         this.gameMemory = {
-            trapActivations: [], // Remember trap activations
-            damageTaken: [],     // Remember big damage events
-            successfulAttacks: 0 // Count successful attacks
+            trapActivations: [],
+            damageTaken: [],
+            successfulAttacks: 0
         };
-        this.learningHistory = {
-            playerUsesTraps: 0.5,        // Start with neutral assumptions
-            playerAggression: 0.5,       // How aggressively player attacks
-            playerFusionPreference: 0.5, // How often player creates fusions
-            playerTargetsStrongest: 0.5  // Whether player targets strongest monsters
-        };
-        this.skillLevel = this.getSkillLevelFromDifficulty();
-        
-        // Configurable action delays (in milliseconds) for player visibility
+
+        // Card memory: counts of seen cards by value (only revealed/known cards)
+        this.seenCountsByValue = this._initTotalCountsByValue(false); // start at 0
+        this.totalCountsByValue = this._initTotalCountsByValue(true); // standard deck totals
+
+        // Configurable action delays (in milliseconds) for player visibility (deterministic)
         this.actionDelays = {
             afterDraw: 500,          // Delay after drawing cards
             afterTrapPlacement: 500, // Delay after placing a trap
@@ -42,122 +35,74 @@ class Bot {
     }
 
     /**
-     * Generate a personality profile based on difficulty
-     * @returns {Object} - Personality profile
+     * Initialize value->count map. If withTotals=true, fill with standard deck totals.
      */
-    generatePersonality() {
-        // Define personality profiles
-        const profiles = [
-            {
-                name: "Cautious",
-                aggression: 0.3,       // Less likely to attack
-                trapPreference: 0.8,   // Highly values traps
-                fusionPreference: 0.5, // Neutral on fusions
-                riskTolerance: 0.2     // Avoids risky plays
-            },
-            {
-                name: "Aggressive",
-                aggression: 0.9,
-                trapPreference: 0.4,
-                fusionPreference: 0.7,
-                riskTolerance: 0.8
-            },
-            {
-                name: "Balanced",
-                aggression: 0.6,
-                trapPreference: 0.6,
-                fusionPreference: 0.6,
-                riskTolerance: 0.5
-            },
-            {
-                name: "Unpredictable",
-                aggression: 0.5,
-                trapPreference: 0.5,
-                fusionPreference: 0.5,
-                riskTolerance: 0.6,
-                volatility: 0.3 // Chance to make completely random plays
-            }
+    _initTotalCountsByValue(withTotals) {
+        const map = {};
+        const valueOrder = [
+            CARD_VALUES.ACE,
+            CARD_VALUES.TWO,
+            CARD_VALUES.THREE,
+            CARD_VALUES.FOUR,
+            CARD_VALUES.FIVE,
+            CARD_VALUES.SIX,
+            CARD_VALUES.SEVEN,
+            CARD_VALUES.EIGHT,
+            CARD_VALUES.NINE,
+            CARD_VALUES.TEN,
+            CARD_VALUES.JACK,
+            CARD_VALUES.QUEEN,
+            CARD_VALUES.KING,
+            CARD_VALUES.JOKER
         ];
-        
-        // Select a random profile, biasing toward aggression for harder difficulties
-        const difficultyBias = {
-            'easy': [0.5, 0.2, 0.2, 0.1],   // Cautious bias
-            'medium': [0.25, 0.25, 0.25, 0.25], // Even distribution
-            'hard': [0.1, 0.4, 0.3, 0.2]    // Aggressive bias
-        }[this.difficulty] || [0.25, 0.25, 0.25, 0.25];
-        
-        // Weighted random selection
-        const rand = Math.random();
-        let cumulativeProb = 0;
-        let selectedIndex = profiles.length - 1;
-        
-        for (let i = 0; i < profiles.length; i++) {
-            cumulativeProb += difficultyBias[i];
-            if (rand < cumulativeProb) {
-                selectedIndex = i;
-                break;
-            }
+        for (const v of valueOrder) {
+            map[v] = withTotals ? (v === CARD_VALUES.JOKER ? 2 : 4) : 0;
         }
-        
-        // Clone the profile to avoid modifying the original
-        const profile = { ...profiles[selectedIndex] };
-        
-        // Add a small random variation to each trait for uniqueness
-        Object.keys(profile).forEach(key => {
-            if (typeof profile[key] === 'number') {
-                profile[key] = Math.max(0.1, Math.min(0.9, 
-                    profile[key] + (Math.random() * 0.2 - 0.1)
-                ));
-            }
-        });
-        
-        console.log(`Bot personality: ${profile.name} (${this.difficulty} difficulty)`);
-        return profile;
+        return map;
     }
-    
+
     /**
-     * Get skill level based on difficulty
-     * @returns {number} - Skill level (0-1)
+     * Update seenCountsByValue by scanning discard pile, both players' open information, and bot hand.
+     * Traps face-down are not counted until revealed.
      */
-    getSkillLevelFromDifficulty() {
-        return {
-            'easy': 0.5,    // 50% optimal decisions
-            'medium': 0.75, // 75% optimal decisions
-            'hard': 0.9     // 90% optimal decisions
-        }[this.difficulty] || 0.75;
+    updateCardMemory() {
+        // Reset seen counts
+        this.seenCountsByValue = this._initTotalCountsByValue(false);
+
+        const addCard = (card) => {
+            if (!card || !card.value) return;
+            if (!this.seenCountsByValue.hasOwnProperty(card.value)) return;
+            this.seenCountsByValue[card.value] += 1;
+        };
+
+        // Discard pile
+        if (this.game && this.game.deck && Array.isArray(this.game.deck.discardPile)) {
+            for (const c of this.game.deck.discardPile) addCard(c);
+        }
+
+        // Bot's own hand and field are known
+        if (this.game && this.game.bot) {
+            for (const c of this.game.bot.hand) addCard(c);
+            for (const space of this.game.bot.monsterSpaces) if (space.card) addCard(space.card);
+        }
+
+        // Player's visible monsters are known; traps are not unless revealed
+        if (this.game && this.game.player) {
+            for (const space of this.game.player.monsterSpaces) if (space.card) addCard(space.card);
+        }
     }
-    
+
     /**
-     * Update bot's emotions based on game state
+     * Get remaining counts by value (total - seen)
      */
-    updateEmotions() {
-        // Update based on game state
-        const healthDiff = this.game.bot.health - this.game.player.health;
-        const boardAdvantage = this.evaluateBoardAdvantage();
-        
-        // If losing badly, increase frustration
-        if (healthDiff < -10 && boardAdvantage < 0) {
-            this.emotion.frustration = Math.min(1, this.emotion.frustration + 0.2);
-            this.emotion.confidence = Math.max(0, this.emotion.confidence - 0.15);
+    getRemainingCountsByValue() {
+        const rem = {};
+        for (const v in this.totalCountsByValue) {
+            const total = this.totalCountsByValue[v] || 0;
+            const seen = this.seenCountsByValue[v] || 0;
+            rem[v] = Math.max(0, total - seen);
         }
-        
-        // If winning, increase confidence
-        if (healthDiff > 10 && boardAdvantage > 0) {
-            this.emotion.confidence = Math.min(1, this.emotion.confidence + 0.1);
-            this.emotion.fear = Math.max(0, this.emotion.fear - 0.1);
-        }
-        
-        // If player has many monsters, increase fear
-        const playerMonsterCount = this.game.player.getMonsterCount();
-        if (playerMonsterCount >= 3) {
-            this.emotion.fear = Math.min(1, this.emotion.fear + 0.15);
-        }
-        
-        // If bot has no monsters but player does, increase fear significantly
-        const botMonsterCount = this.game.bot.getMonsterCount();
-        if (botMonsterCount === 0 && playerMonsterCount > 0) {
-            this.emotion.fear = Math.min(1, this.emotion.fear + 0.3);
-        }
+        return rem;
     }
     
     /**
@@ -199,74 +144,7 @@ class Bot {
         return Math.max(-10, Math.min(10, botAdvantage));
     }
     
-    /**
-     * Make a strategic decision between options
-     * @param {any} optimalChoice - The mathematically optimal choice
-     * @param {Array} alternatives - Alternative choices
-     * @param {number} importanceLevel - How important the decision is (0-1)
-     * @returns {any} - Selected choice
-     */
-    makeDecision(optimalChoice, alternatives, importanceLevel = 0.5) {
-        if (!alternatives || alternatives.length === 0) return optimalChoice;
-        
-        // Higher importance = more likely to make optimal choice
-        // Apply skill level and emotion factors
-        const perfection = Math.min(
-            this.skillLevel + (importanceLevel * 0.2) - (this.emotion.frustration * 0.2),
-            0.95
-        );
-        
-        // Unpredictable personality sometimes makes random choices
-        if (this.personality.volatility && Math.random() < this.personality.volatility) {
-            return alternatives[Math.floor(Math.random() * alternatives.length)];
-        }
-        
-        if (Math.random() < perfection) {
-            return optimalChoice; // Make optimal choice
-        } else {
-            // Make sub-optimal but reasonable choice
-            return alternatives[Math.floor(Math.random() * alternatives.length)];
-        }
-    }
-    
-    /**
-     * Track player behavior to improve bot decision making
-     * @param {string} action - Type of action observed
-     * @param {Object} data - Data about the action
-     */
-    updateLearning(action, data) {
-        switch (action) {
-            case 'playerUsedTrap':
-                // Increase belief that player uses traps
-                this.learningHistory.playerUsesTraps = 
-                    Math.min(0.95, this.learningHistory.playerUsesTraps + 0.1);
-                break;
-                
-            case 'playerAttacked':
-                // Track player aggression
-                if (data && typeof data.attackedWith === 'number' && typeof data.couldAttackWith === 'number') {
-                    const attackPercent = data.attackedWith / data.couldAttackWith;
-                    this.learningHistory.playerAggression = 
-                        this.learningHistory.playerAggression * 0.8 + attackPercent * 0.2;
-                }
-                break;
-                
-            case 'playerCreatedFusion':
-                this.learningHistory.playerFusionPreference =
-                    Math.min(0.95, this.learningHistory.playerFusionPreference + 0.1);
-                break;
-                
-            case 'playerTargeting':
-                if (data && data.targetedStrongest) {
-                    this.learningHistory.playerTargetsStrongest = 
-                        Math.min(0.95, this.learningHistory.playerTargetsStrongest + 0.1);
-                } else if (data && !data.targetedStrongest) {
-                    this.learningHistory.playerTargetsStrongest = 
-                        Math.max(0.05, this.learningHistory.playerTargetsStrongest - 0.1);
-                }
-                break;
-        }
-    }
+    // Deterministic AI: removed legacy makeDecision and learning methods
     
     /**
      * Record trap activation
@@ -287,9 +165,15 @@ class Bot {
      * Take a turn
      */
     async takeTurn() {
-        // Update emotions at turn start
-        this.updateEmotions();
-        
+        // Deterministic: update card memory and log analysis at turn start
+        this.updateCardMemory();
+        if (this.game && this.game.ui && typeof this.game.ui.addBotThinkingMessage === 'function') {
+            const rem = this.getRemainingCountsByValue();
+            const playerTrapCount = this.game.player.trapSpaces.filter(s => s.card).length;
+            const msg = `Start Turn Analysis: remaining Aces=${rem[CARD_VALUES.ACE]}, Queens=${rem[CARD_VALUES.QUEEN]}, Kings=${rem[CARD_VALUES.KING]}, Jacks=${rem[CARD_VALUES.JACK]}; player traps set=${playerTrapCount}.`;
+            this.game.ui.addBotThinkingMessage(msg);
+        }
+
         if (this.game && this.game.gameOver) return;
 
         console.debug('Bot.takeTurn: starting draw phase');
@@ -298,14 +182,14 @@ class Bot {
         
         await delay(this.actionDelays.phaseTransition);
 
-        console.debug('Bot.takeTurn: starting setup phase');
+    console.debug('Bot.takeTurn: starting setup phase');
         this.game.ui.addLogMessage(`${this.game.bot.name} ended Draw phase`);
         await this.handleSetupPhase();
         if (this.game && this.game.gameOver) return;
         
         await delay(this.actionDelays.phaseTransition);
 
-        console.debug('Bot.takeTurn: starting battle phase');
+    console.debug('Bot.takeTurn: starting battle phase');
         this.game.ui.addLogMessage(`${this.game.bot.name} ended Setup phase`);
         await this.handleBattlePhase();
         if (this.game && this.game.gameOver) return;
@@ -445,59 +329,18 @@ class Bot {
             }
         }
         
-        // Sort attackers based on personality, emotion, and advantage
-        // When bot has complete advantage, ALWAYS attack strongest first to match vs player's strongest
-        // This prevents leaving weak attackers unable to attack after strong ones clear the field
-        if (hasCompleteAdvantage) {
-            // Strategic: Attack strongest first when we have advantage
-            attackingMonsters.sort((a, b) => {
-                const strengthA = a.isFusion ? a.fusionStrength : getCardNumericValue(a.value);
-                const strengthB = b.isFusion ? b.fusionStrength : getCardNumericValue(b.value);
-                return strengthB - strengthA; // Descending (strongest first)
-            });
-        } else if (this.personality.aggression < 0.5 || this.emotion.fear > 0.7) {
-            // Cautious or fearful bot attacks with weakest first to test the waters
-            attackingMonsters.sort((a, b) => {
-                const strengthA = a.isFusion ? a.fusionStrength : getCardNumericValue(a.value);
-                const strengthB = b.isFusion ? b.fusionStrength : getCardNumericValue(b.value);
-                return strengthA - strengthB; // Ascending (weakest first)
-            });
-        } else {
-            // Aggressive bot attacks with strongest first
-            attackingMonsters.sort((a, b) => {
-                const strengthA = a.isFusion ? a.fusionStrength : getCardNumericValue(a.value);
-                const strengthB = b.isFusion ? b.fusionStrength : getCardNumericValue(b.value);
-                return strengthB - strengthA; // Descending (strongest first)
-            });
-        }
+        // Deterministic: attack strongest first unless no advantage
+        attackingMonsters.sort((a, b) => {
+            const strengthA = a.isFusion ? a.fusionStrength : getCardNumericValue(a.value);
+            const strengthB = b.isFusion ? b.fusionStrength : getCardNumericValue(b.value);
+            return strengthB - strengthA; // Descending (strongest first)
+        });
         
         // Decide how many monsters to attack with based on personality and emotions
-        let attackCount = attackingMonsters.length;
-        
-        // With lower aggression or higher fear, might hold back some monsters for defense
-        // BUT only if there are monsters to defend against (not direct attacks)
-        // AND only if the bot doesn't have complete advantage
-        const effectiveAggression = Math.max(0.2, 
-            this.personality.aggression - (this.emotion.fear * 0.3)
-        );
-        
-        // Personality and emotion-based decision on how many monsters to attack with
-        // Don't hold back monsters when:
-        // 1. Doing direct attacks - there's no strategic reason
-        // 2. Have complete advantage - should press the advantage
-        if (!isDirectAttackOnly && !hasCompleteAdvantage && Math.random() > effectiveAggression && attackingMonsters.length > 1) {
-            // Hold some monsters back defensively
-            attackCount = Math.max(1, Math.floor(attackingMonsters.length * effectiveAggression));
-            
-            // Maybe add "thinking time" for harder decisions
-            if (this.skillLevel > 0.7) {
-                await delay(300);
-            }
-        }
+        const attackCount = attackingMonsters.length;
         
         // Add a random delay that simulates "thinking" time based on complexity
-        const thinkTime = 300 + Math.floor(Math.random() * 700); // 300-1000ms
-        await delay(thinkTime);
+    await delay(300);
         
         // Execute attacks with the decided number of monsters
         for (let i = 0; i < attackCount; i++) {
@@ -515,20 +358,15 @@ class Bot {
             
             if (monsterIndex === -1) continue;
             
-            // Human-like decision making for attacking when player has Ace trap
-            let skipAttack = false;
+            // Deterministic assessment for direct Ace risk
             if (targets[0] === null && playerHasAceTrap) {
-                // Calculate probability of skipping based on bot personality and experience
-                const trapWariness = 0.3 + (this.learningHistory.playerUsesTraps * 0.5);
-                const skipProbability = trapWariness * (1 - this.personality.riskTolerance);
-                
-                if (Math.random() < skipProbability) {
-                    skipAttack = true;
-                    this.game.ui.addLogMessage(`Bot hesitates to attack directly`);
+                // Use memory: if any Aces remain and player has a set trap, note the risk
+                const rem = this.getRemainingCountsByValue();
+                const aceRemaining = rem[CARD_VALUES.ACE] || 0;
+                if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                    this.game.ui.addBotThinkingMessage(`Direct attack available; Ace risk detected (remaining Aces=${aceRemaining}). Proceeding: no alternative targets.`);
                 }
             }
-            
-            if (skipAttack) continue;
             
             // For monster targets, find optimal target with human-like decision making
             let targetIndex = null;
@@ -588,15 +426,9 @@ class Bot {
                             continue;
                         }
                         
-                        // If the target is significantly stronger and the bot is skilled
-                        // and not emotional, reconsider the attack
-                        if (targetStrength > attackingStrength + 3 && 
-                            this.skillLevel > 0.6 && 
-                            this.emotion.frustration < 0.5 &&
-                            this.emotion.fear < 0.7) {
-                            
-                            // Skip this attack and save the monster
-                            this.game.ui.addLogMessage(`Bot decides not to attack with ${monster.value} - target too strong`);
+                        // Deterministic: additional caution for large negative margins
+                        if (targetStrength > attackingStrength + 3) {
+                            this.game.ui.addLogMessage(`Bot skips unfavorable large-margin attack with ${monster.value}`);
                             continue;
                         }
                     }
@@ -607,9 +439,20 @@ class Bot {
             }
             
             // "Think" before attacking - variable delay based on difficulty
-            const attackDelay = 300 + Math.floor(Math.random() * 500 * (1 - this.skillLevel));
-            await delay(attackDelay);
+            await delay(300);
             
+            // Log thinking for chosen attack
+            if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                const as = monster.isFusion ? monster.fusionStrength : getCardNumericValue(monster.value);
+                if (targetIndex === null) {
+                    this.game.ui.addBotThinkingMessage(`Attacking directly with ${monster.value} (strength ${as})`);
+                } else {
+                    const tsCard = this.game.player.monsterSpaces[targetIndex]?.card;
+                    const ts = tsCard ? (tsCard.isFusion ? tsCard.fusionStrength : getCardNumericValue(tsCard.value)) : '?';
+                    this.game.ui.addBotThinkingMessage(`Attacking player's monster at ${targetIndex} with ${monster.value} (${as} vs ${ts})`);
+                }
+            }
+
             // Execute attack (logging will be handled by processAttack)
             const attackRes = await this.game.processAttack(monsterIndex, targetIndex, true);
             
@@ -653,11 +496,7 @@ class Bot {
             // Consistent delay between attacks for player visibility
             await delay(this.actionDelays.afterAttack);
             
-            // Occasionally, a frustrated bot might stop attacking early
-            if (this.emotion.frustration > 0.7 && Math.random() < 0.3) {
-                this.game.ui.addLogMessage('Bot stops attacking');
-                break;
-            }
+            // Deterministic: continue attacking as long as there are favorable targets
         }
         
         // If battle phase was ended by Ace trap, transition to end phase
@@ -701,70 +540,38 @@ class Bot {
         const trapCards = this.game.bot.hand.filter(
             card => getCardType(card.value) === CARD_TYPES.TRAP
         );
-        
+
         if (trapCards.length === 0) return;
-        
+
         // Find empty trap spaces
         const emptyTrapSpaces = this.game.bot.trapSpaces
             .map((space, index) => space.card === null ? index : -1)
             .filter(index => index !== -1);
-            
+
         if (emptyTrapSpaces.length === 0) return;
-        
-        // "Think" about trap placement
-        await delay(300 + Math.random() * 400);
-        
-        // Decide how many traps to place based on personality
-        let trapsToPlay = [...trapCards];
-        
-        // Only consider holding back if we have multiple traps and personality prefers it
-        if (trapCards.length > 1) {
-            // Calculate probability of holding back traps
-            const holdbackProbability = 0.3 + (1 - this.personality.trapPreference) * 0.5;
-            
-            if (Math.random() < holdbackProbability) {
-                // Decide how many to hold back
-                const holdbackCount = Math.min(
-                    trapCards.length - 1, // Keep at least one to play
-                    1 + Math.floor(Math.random() * (1 - this.skillLevel) * 2) // More skill = fewer held back
-                );
-                
-                if (holdbackCount > 0) {
-                    // Prioritize which traps to hold
-                    const trapsByPriority = [...trapCards];
-                    
-                    // Sort by strategic value for holding back
-                    trapsByPriority.sort((a, b) => {
-                        // Aces and Queens are more valuable to hold back for reactive plays
-                        if (a.value === CARD_VALUES.ACE && b.value !== CARD_VALUES.ACE) return -1;
-                        if (b.value === CARD_VALUES.ACE && a.value !== CARD_VALUES.ACE) return 1;
-                        if (a.value === CARD_VALUES.QUEEN && b.value !== CARD_VALUES.QUEEN) return -1;
-                        if (b.value === CARD_VALUES.QUEEN && a.value !== CARD_VALUES.QUEEN) return 1;
-                        return 0;
-                    });
-                    
-                    // Hold back the strategically valuable traps
-                    const heldBackTraps = trapsByPriority.slice(0, holdbackCount);
-                    trapsToPlay = trapCards.filter(card => !heldBackTraps.includes(card));
-                }
-            }
-        }
-        
-        // Place traps with variable delays to simulate thinking
+
+        // Deterministic priority: ACE > QUEEN > KING > JACK
+        const priority = (v) => {
+            if (v === CARD_VALUES.ACE) return 0;
+            if (v === CARD_VALUES.QUEEN) return 1;
+            if (v === CARD_VALUES.KING) return 2;
+            if (v === CARD_VALUES.JACK) return 3;
+            return 4;
+        };
+
+        const trapsToPlay = [...trapCards].sort((a, b) => priority(a.value) - priority(b.value));
+
+        // Deterministic placement: fill available spaces with highest priority traps first
         for (const trapCard of trapsToPlay) {
             if (emptyTrapSpaces.length === 0) break;
-            
             const spaceIndex = emptyTrapSpaces.shift();
-            
-            // Variable delay before placing each trap
-            await delay(200 + Math.random() * 300);
-            
-            // Wait for trap placement (and player reaction if applicable) to complete
+
+            if (this.game && this.game.ui && typeof this.game.ui.addBotThinkingMessage === 'function') {
+                this.game.ui.addBotThinkingMessage(`Placing trap ${trapCard.value} in space ${spaceIndex} (priority order)`);
+            }
+
             await this.game.playTrapCard(trapCard, spaceIndex, true);
-            // Note: logging is handled in game.playTrapCard()
             this.game.ui.updateGameState();
-            
-            // Consistent delay after placing trap for player visibility
             await delay(this.actionDelays.afterTrapPlacement);
         }
     }
@@ -778,8 +585,8 @@ class Bot {
         
         if (fusions.length === 0) return;
         
-        // "Think" about fusion creation
-        await delay(400 + Math.random() * 400);
+    // Deterministic short pause for visibility
+    await delay(400);
         
         // Get player's monster strengths for strategic evaluation
         const playerMonsters = this.game.player.monsterSpaces
@@ -871,22 +678,13 @@ class Bot {
         // Sort by fusion strength (descending) as the initial strategy
         fusions.sort((a, b) => b.fusionStrength - a.fusionStrength);
         
-        // Human-like decision making: do we want to create a fusion?
-        // MODIFIED: If at disadvantage, be MORE likely to fuse
-        let fusionDesirability = Math.min(1, 
-            this.personality.fusionPreference + 
-            (this.emotion.fear * 0.3) + 
-            (this.emotion.frustration * 0.2)
-        );
-        
-        // If at disadvantage and fusion can help, STRONGLY prioritize it
-        if (isAtDisadvantage && fusionOptions.some(f => f.strategicValue > 0)) {
-            fusionDesirability = Math.max(fusionDesirability, 0.85);
-        }
-        
-        // Decide based on personality and game state
-        if (Math.random() > fusionDesirability) {
-            // Bot decides not to create a fusion this turn
+        // Deterministic: decide to create a fusion if it improves matchups or increases field power usefully
+        const anyStrategic = fusionOptions.some(f => f.strategicValue > 0);
+        if (!anyStrategic && !isAtDisadvantage) {
+            // No tactical benefit and not at disadvantage — skip fusing to preserve resources
+            if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                this.game.ui.addBotThinkingMessage('Skipping fusion: no strategic benefit detected.');
+            }
             return;
         }
         
@@ -917,26 +715,15 @@ class Bot {
             selectedFusion = fusionOptions[0].fusion;
             
             console.log(`Bot fusion decision: Selected fusion with strength ${fusionOptions[0].fusionStrength}, strategic value ${fusionOptions[0].strategicValue}, can beat ${fusionOptions[0].canBeat} monsters`);
-        } else if (this.skillLevel > 0.7) {
+        } else {
             // No player monsters: use old efficiency logic
             // Different strategies based on personality and game state
-            if (boardAdvantage < -3 && this.emotion.fear > 0.6) {
-                // Losing and afraid: prioritize highest raw strength
-                selectedFusion = fusions[0]; // Already sorted by strength
-            } else if (boardAdvantage > 3 && this.personality.riskTolerance > 0.6) {
-                // Winning and risk-taking: maybe try a less efficient fusion
-                // to preserve stronger monsters for later
-                if (fusionOptions.length > 1 && Math.random() < 0.4) {
-                    fusionOptions.sort((a, b) => a.componentTotal - b.componentTotal);
-                    selectedFusion = fusionOptions[0].fusion;
-                }
-            } else {
-                // Normal case: prefer efficient fusions
-                if (Math.random() < 0.7) {
-                    fusionOptions.sort((a, b) => b.efficiency - a.efficiency);
-                    selectedFusion = fusionOptions[0].fusion;
-                }
-            }
+            // Deterministic: prefer highest fusionStrength; tie-breaker by efficiency
+            fusionOptions.sort((a, b) => {
+                if (b.fusionStrength !== a.fusionStrength) return b.fusionStrength - a.fusionStrength;
+                return b.efficiency - a.efficiency;
+            });
+            selectedFusion = fusionOptions[0].fusion;
         }
         
         // Find empty monster space or use one of the fusion components' spaces
@@ -955,6 +742,16 @@ class Bot {
             targetSpace = selectedFusion.monster1.index;
         }
         
+        // Log selection rationale
+        if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+            const chosen = fusionOptions.find(o => o.fusion === selectedFusion);
+            if (chosen) {
+                this.game.ui.addBotThinkingMessage(`Selecting fusion (strength ${chosen.fusionStrength}) beating ${chosen.canBeat} player monster(s); strategicValue=${chosen.strategicValue}`);
+            } else {
+                this.game.ui.addBotThinkingMessage('Selecting strongest available fusion.');
+            }
+        }
+
         // Create fusion
         this.game.createFusion(
             selectedFusion.monster1.card,
@@ -966,14 +763,15 @@ class Bot {
         this.game.ui.addLogMessage('Bot creates a fusion monster');
         this.game.ui.updateGameState();
         
+        if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+            this.game.ui.addBotThinkingMessage('Created fusion to improve matchups.');
+        }
         await delay(this.actionDelays.afterFusion);
         
         // Consider additional fusions - STRATEGIC EVALUATION
         // If at disadvantage or multiple player monsters exist, try to create more fusions
         const shouldTryMultipleFusions = (
-            (isAtDisadvantage && playerMonsters.length > 1) || // Need multiple answers
-            (this.skillLevel > 0.8 && fusions.length > 1 && Math.random() < 0.5) || // Skilled + options
-            (playerMonsters.length > 1 && Math.random() < 0.4) // Multiple threats
+            isAtDisadvantage && playerMonsters.length > 1
         );
         
         if (shouldTryMultipleFusions) {
@@ -1018,9 +816,9 @@ class Bot {
                     }
                 }
                 
-                // Only create second fusion if it adds strategic value OR if we have space and skill
+                // Only create second fusion if it adds strategic value and we have space
                 const secondFusionAddsValue = updatedOptions[0].canBeat > 0;
-                if (targetSpace !== -1 && (secondFusionAddsValue || this.skillLevel > 0.85)) {
+                if (targetSpace !== -1 && secondFusionAddsValue) {
                     await delay(this.actionDelays.betweenActions); // Think time for second fusion
                     
                     // Create another fusion
@@ -1091,7 +889,9 @@ class Bot {
             // STRATEGIC CHECK: Don't summon a weaker big monster if we already have stronger on field
             // Unless we're filling empty spaces with no sacrifice cost
             if (monsterStrength < strongestOnField) {
-                console.log(`Bot: Skipping ${monster.value} (strength ${monsterStrength}) - weaker than field monster (${strongestOnField})`);
+                if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                    this.game.ui.addBotThinkingMessage(`Skip summoning ${monster.value} (${monsterStrength}) — weaker than current strongest on field (${strongestOnField}).`);
+                }
                 continue;
             }
             
@@ -1099,7 +899,9 @@ class Bot {
             if (summonedThisTurn.length > 0) {
                 const lastSummoned = Math.max(...summonedThisTurn);
                 if (monsterStrength < lastSummoned) {
-                    console.log(`Bot: Skipping ${monster.value} (strength ${monsterStrength}) - weaker than just summoned (${lastSummoned})`);
+                    if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                        this.game.ui.addBotThinkingMessage(`Skip summoning ${monster.value} (${monsterStrength}) — weaker than a monster already summoned this turn (${lastSummoned}).`);
+                    }
                     continue;
                 }
             }
@@ -1107,8 +909,9 @@ class Bot {
             const requiredValue = getRequiredSacrificeValue(monster);
             const sacrifices = this.selectSacrificesForBigMonster(requiredValue, !hasEmptySpaces, monster.id);
             
-            console.log(`Bot: Attempting to summon ${monster.value} (requires ${requiredValue})`);
-            console.log(`Bot: Found ${sacrifices.length} sacrifices with total value ${getTotalCardValue(sacrifices)}`);
+            if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                this.game.ui.addBotThinkingMessage(`Evaluating summon ${monster.value} (requires ${requiredValue}); found ${sacrifices.length} sacrifice candidates (total value ${getTotalCardValue(sacrifices)}).`);
+            }
             
             // CRITICAL: Remove the monster being summoned from the sacrifice list if it was included
             // ALSO: Remove any monsters we summoned this turn (they're not in hand anymore!)
@@ -1130,13 +933,17 @@ class Bot {
             });
             
             if (filteredSacrifices.length === 0) {
-                console.log(`Bot: No valid sacrifices found for ${monster.value}`);
+                if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                    this.game.ui.addBotThinkingMessage(`Cannot summon ${monster.value} — no valid sacrifices available after exclusions.`);
+                }
                 continue;
             }
             
             const totalValue = getTotalCardValue(filteredSacrifices);
             if (totalValue < requiredValue) {
-                console.log(`Bot: Insufficient sacrifice value (${totalValue} < ${requiredValue})`);
+                if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                    this.game.ui.addBotThinkingMessage(`Cannot summon ${monster.value} — sacrifices total ${totalValue} < required ${requiredValue}.`);
+                }
                 continue;
             }
             
@@ -1148,7 +955,9 @@ class Bot {
             if (sacrificeStrengths.length > 0) {
                 const maxSacrificeStrength = Math.max(...sacrificeStrengths);
                 if (maxSacrificeStrength >= monsterStrength) {
-                    console.log(`Bot: Skipping ${monster.value} (${monsterStrength}) - would sacrifice stronger monster (${maxSacrificeStrength})`);
+                    if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                        this.game.ui.addBotThinkingMessage(`Skip ${monster.value} (${monsterStrength}) — would require sacrificing stronger monster (${maxSacrificeStrength}).`);
+                    }
                     continue;
                 }
             }
@@ -1178,11 +987,13 @@ class Bot {
             // Summon the monster (use playBigMonster if available, otherwise fallback)
             // Logging will be handled by playBigMonster
             if (this.game && typeof this.game.playBigMonster === 'function') {
+                if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                    const sacVals = filteredSacrifices.map(s=>s.value).join(',');
+                    this.game.ui.addBotThinkingMessage(`Summoning ${monster.value} (${monsterStrength}) at space ${targetSpace}; sacrifices=[${sacVals}]`);
+                }
                 this.game.playBigMonster(monster, targetSpace, filteredSacrifices, true);
-                
                 // Track that we summoned this monster
                 summonedThisTurn.push(monsterStrength);
-                console.log(`Bot: Successfully summoned ${monster.value} with strength ${monsterStrength}`);
             } else {
                 // Fallback: perform sacrifices and then play the monster
                 if (filteredSacrifices && filteredSacrifices.length > 0 && typeof this.game.bot.sacrificeCards === 'function') {
@@ -1215,70 +1026,21 @@ class Bot {
         
         if (normalMonsters.length === 0) return;
         
-        // "Think" about monster placement
-        await delay(300 + Math.random() * 300);
+    // Deterministic brief delay for visibility
+    await delay(300);
         
-        // Sort monsters - the method depends on personality and game state
-        let sortedMonsters = [...normalMonsters];
-        
-        // Evaluate board state
-        const boardAdvantage = this.evaluateBoardAdvantage();
-        
-        if (this.personality.aggression > 0.7 || boardAdvantage < -5) {
-            // Aggressive personality or losing badly: play strongest monsters first
-            sortedMonsters.sort((a, b) => 
-                getCardNumericValue(b.value) - getCardNumericValue(a.value)
-            );
-        } else if (this.emotion.fear > 0.6 && boardAdvantage > 0) {
-            // Fearful and ahead: be cautious, may hold back stronger monsters
-            if (Math.random() < this.emotion.fear) {
-                sortedMonsters.sort((a, b) => 
-                    getCardNumericValue(a.value) - getCardNumericValue(b.value)
-                );
-            }
-        } else {
-            // Default sort by value (descending)
-            sortedMonsters.sort((a, b) => 
-                getCardNumericValue(b.value) - getCardNumericValue(a.value)
-            );
-            
-            // Sometimes slightly randomize order for less predictable play
-            if (Math.random() < 0.3) {
-                // Slightly shuffle the order
-                for (let i = 0; i < sortedMonsters.length - 1; i++) {
-                    if (Math.random() < 0.3) {
-                        const temp = sortedMonsters[i];
-                        sortedMonsters[i] = sortedMonsters[i+1];
-                        sortedMonsters[i+1] = temp;
-                    }
-                }
-            }
-        }
+        // Deterministic: always sort by value descending (strongest first)
+        const sortedMonsters = [...normalMonsters].sort((a, b) => 
+            getCardNumericValue(b.value) - getCardNumericValue(a.value)
+        );
         
         // Find empty monster spaces
         const emptyMonsterSpaces = this.game.bot.monsterSpaces
             .map((space, index) => space.card === null ? index : -1)
             .filter(index => index !== -1);
         
-        // Decide how many monsters to summon based on personality
-        const monstersToSummon = Math.min(
-            emptyMonsterSpaces.length,
-            sortedMonsters.length
-        );
-        
-        // Cautious or high skill bots might hold back some monsters
-        let actualSummonCount = monstersToSummon;
-        
-        // Consider holding back monsters based on personality, skill, and game state
-        if (this.personality.riskTolerance < 0.5 && this.skillLevel > 0.6 && sortedMonsters.length > 1) {
-            // Calculate probability of holding back monsters
-            const holdbackProbability = (1 - this.personality.aggression) * 0.6;
-            
-            if (Math.random() < holdbackProbability) {
-                // Hold back at least one monster for future plays
-                actualSummonCount = Math.max(1, actualSummonCount - 1);
-            }
-        }
+        // Deterministic: summon as many as possible up to empty spaces
+        const actualSummonCount = Math.min(emptyMonsterSpaces.length, sortedMonsters.length);
         
         // Summon monsters with variable delays
         for (let i = 0; i < actualSummonCount; i++) {
@@ -1287,10 +1049,14 @@ class Bot {
             const monster = sortedMonsters[i];
             const targetSpace = emptyMonsterSpaces[i];
             
-            // Variable "thinking" delay
-            await delay(250 + Math.random() * 250);
+            // Deterministic delay
+            await delay(250);
             
             // Logging will be handled by playMonsterCard
+            if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                const strength = getCardNumericValue(monster.value);
+                this.game.ui.addBotThinkingMessage(`Summoning normal monster ${monster.value} (strength ${strength}) to space ${targetSpace}.`);
+            }
             this.game.playMonsterCard(monster, targetSpace, true);
             
             this.game.ui.updateGameState();
@@ -1509,59 +1275,9 @@ class Bot {
             candidate.strategicValue = value;
         });
         
-        // Apply personality and emotion to the decision
-        let sortedCandidates = [...upkeepCandidates];
-        
-        if (this.skillLevel > 0.7) {
-            // Skilled bots make more strategic decisions
-            
-            // Consider board presence
-            const playerMonsterCount = this.game.player.getMonsterCount();
-            const botMonsterCount = this.game.bot.getMonsterCount();
-            const boardDisadvantage = playerMonsterCount - botMonsterCount;
-            
-            if (boardDisadvantage > 0) {
-                // Losing board presence: prefer sacrificing hand cards over field
-                sortedCandidates.forEach(candidate => {
-                    if (candidate.location === 'field') {
-                        candidate.strategicValue += 2 * boardDisadvantage;
-                    }
-                });
-            }
-            
-            // Consider whether hand has potential future plays
-            const handHasHighValue = this.game.bot.hand.some(card => 
-                getCardNumericValue(card.value) >= 8 || 
-                getCardType(card.value) === CARD_TYPES.TRAP
-            );
-            
-            if (handHasHighValue) {
-                // Hand has good future plays: prefer sacrificing field
-                sortedCandidates.forEach(candidate => {
-                    if (candidate.location === 'field' && candidate.strength < 8) {
-                        candidate.strategicValue -= 1;
-                    }
-                });
-            }
-        }
-        
-        // Sort by strategic value (lowest first = best to sacrifice)
-        sortedCandidates.sort((a, b) => a.strategicValue - b.strategicValue);
-        
-        // Apply some randomness for human-like behavior
-        if (this.personality.volatility && Math.random() < this.personality.volatility) {
-            // Swap a couple of candidates to be less predictable
-            if (sortedCandidates.length > 3) {
-                const idxA = Math.floor(Math.random() * 3);
-                const idxB = Math.floor(Math.random() * 3) + 1;
-                if (idxA !== idxB) {
-                    const temp = sortedCandidates[idxA];
-                    sortedCandidates[idxA] = sortedCandidates[idxB];
-                    sortedCandidates[idxB] = temp;
-                }
-            }
-        }
-        
+        // Deterministic sort by strategic value (lowest first = best to sacrifice)
+        const sortedCandidates = [...upkeepCandidates].sort((a, b) => a.strategicValue - b.strategicValue);
+
         // Select cards for upkeep
         return sortedCandidates.slice(0, count).map(candidate => candidate.card);
     }
@@ -1616,169 +1332,43 @@ class Bot {
      * @returns {number} - Selected target index
      */
     findHumanLikeAttackTarget(attackingMonster, targets) {
-        const attackingStrength = attackingMonster && (attackingMonster.isFusion ? 
-            attackingMonster.fusionStrength : 
+        const attackingStrength = attackingMonster && (attackingMonster.isFusion ?
+            attackingMonster.fusionStrength :
             getCardNumericValue(attackingMonster.value));
-        
-        // Calculate advantage for each target
-        const targetAdvantages = [];
-        
+
+        const options = [];
         for (const targetIndex of targets) {
-            // Handle direct attack option
             if (targetIndex === null || targetIndex === undefined) {
-                // Direct attack is always tempting - give it a base score
-                // Increase temptation based on aggression and confidence
-                const directAttackScore = 5 + 
-                    (this.personality.aggression * 10) + 
-                    (this.emotion.confidence * 5);
-                
-                targetAdvantages.push({
-                    index: null,
-                    advantage: directAttackScore,
-                    directAttack: true
-                });
+                // Direct attack: advantage equals damage dealt
+                options.push({ index: null, score: attackingStrength, type: 'direct' });
                 continue;
             }
-
             const targetSpace = this.game.player.monsterSpaces[targetIndex];
             if (!targetSpace || !targetSpace.card) continue;
-
             const targetCard = targetSpace.card;
-            const targetStrength = targetCard.isFusion ? 
-                targetCard.fusionStrength : 
-                getCardNumericValue(targetCard.value);
+            const targetStrength = targetCard.isFusion ? targetCard.fusionStrength : getCardNumericValue(targetCard.value);
+            const rawAdv = attackingStrength - targetStrength;
+            if (rawAdv <= 0) continue; // never choose disadvantageous/equal trades
+            // Prefer destroying fusions slightly
+            const bonus = targetCard.isFusion ? 1 : 0;
+            const score = rawAdv + bonus;
+            options.push({ index: targetIndex, score, type: 'monster', rawAdv, fusion: targetCard.isFusion });
+        }
 
-            const advantage = attackingStrength - targetStrength;
-            
-            // Don't attack monsters that are significantly stronger (safety threshold)
-            // Skip targets that would cause the bot to lose more than 4 points of strength
-            // This check happens BEFORE bonuses to prevent emotional/personality modifiers from
-            // making objectively terrible attacks seem acceptable
-            const desperationFactor = this.emotion.frustration > 0.8 || this.emotion.fear > 0.8;
-            const extremeThreat = targetCard.isFusion && targetStrength > 10;
-            
-            if (advantage < -4) {
-                // Only consider such a disadvantageous attack if the bot is desperate
-                // or the target is extremely threatening
-                if (!desperationFactor && !extremeThreat) {
-                    continue; // Skip this unfavorable target
-                }
-            }
-            
-            // Human-like targeting factors:
-            let adjustedAdvantage = advantage;
-            
-            // Extra weight to destroying fusions (they're threatening)
-            if (targetCard.isFusion) {
-                // Scale fusion bonus based on its strength
-                const fusionBonus = Math.min(3, targetStrength / 3);
-                adjustedAdvantage += fusionBonus;
-            }
-            
-            // Consider targeting potentially dangerous cards even at a disadvantage
-            const highValueTarget = targetStrength > 8;
-            if (highValueTarget) {
-                adjustedAdvantage += 1.5;
-            }
-            
-            // If bot is aggressive, it values destroying monsters more
-            if (this.personality.aggression > 0.7) {
-                // But don't be overly aggressive against stronger monsters
-                const aggressionBonus = advantage > 0 ? 2 : 1;
-                adjustedAdvantage += aggressionBonus;
-            }
-            
-            // If bot is fearful, it prioritizes removing threats
-            if (this.emotion.fear > 0.6 && targetStrength > 6) {
-                // Scale fear-based targeting by the target's strength
-                const fearBonus = Math.min(2.5, targetStrength / 4);
-                adjustedAdvantage += fearBonus;
-            }
-            
-            // Final safety check: Even with all bonuses applied, don't attack if the raw advantage
-            // is worse than -3 unless we're desperate or it's an extreme threat
-            // This prevents emotional/personality bonuses from overriding basic survival logic
-            if (advantage < -3 && !desperationFactor && !extremeThreat) {
-                // Only allow this attack if the adjusted advantage is significantly positive (>2)
-                // meaning the bonuses are strong enough to justify the risk
-                if (adjustedAdvantage <= 2) {
-                    continue; // Skip - the bonuses aren't enough to justify this bad trade
-                }
-            }
-            
-            targetAdvantages.push({
-                index: targetIndex,
-                advantage: adjustedAdvantage,
-                rawAdvantage: advantage,
-                strength: targetStrength,
-                isFusion: targetCard.isFusion
-            });
+        if (options.length === 0) {
+            // If no favorable monster targets, prefer direct attack if available
+            if (targets.includes(null)) return null;
+            return null; // nothing else to do
         }
-        
-        // No valid targets
-        if (targetAdvantages.length === 0) return null;
-        
-        // Sort by advantage (descending)
-        targetAdvantages.sort((a, b) => b.advantage - a.advantage);
-        
-        // If direct attack is the best option by our logic, evaluate whether to take it
-        if (targetAdvantages[0].directAttack) {
-            // Human-like considerations for direct attacks
-            const directAttackBias = this.personality.aggression - this.emotion.fear;
-            
-            // Emotional/personality-based chance to choose direct attack
-            if (Math.random() < directAttackBias) {
-                return null; // Direct attack
-            } else if (targetAdvantages.length > 1) {
-                // Skip direct attack, use next best option
-                return targetAdvantages[1].index;
-            }
-            return null; // Default to direct if it's the only option
-        }
-        
-        // Human-like decision making:
-        // 1. If we're feeling cautious/afraid, prefer safe targets
-        const cautionFactor = this.emotion.fear;
-        
-        // 2. If frustrated, might make worse decisions, but with limits
-        const frustrationRandom = Math.min(0.4, this.emotion.frustration * 0.5);
-        
-        // If no targets have a positive advantage, prefer direct attack
-        const allNegativeAdvantages = targetAdvantages.every(target => 
-            !target.directAttack && target.rawAdvantage < 0);
-        
-        if (allNegativeAdvantages && targetAdvantages.some(target => target.directAttack)) {
-            // Find the direct attack option
-            const directAttack = targetAdvantages.find(target => target.directAttack);
-            if (directAttack) {
-                return directAttack.index; // Return null for direct attack
-            }
-        }
-        
-        // Sort by advantage for better decision making
-        targetAdvantages.sort((a, b) => b.advantage - a.advantage);
-        
-        // Sometimes make a suboptimal choice when options are close
-        // or when emotions are running high, but limit bad decisions
-        if (targetAdvantages.length > 1) {
-            const topChoice = targetAdvantages[0];
-            const secondChoice = targetAdvantages[1];
-            
-            // Only consider the second choice if it's not catastrophically worse
-            const choicesAreClose = Math.abs(topChoice.advantage - secondChoice.advantage) < 3;
-            
-            if (choicesAreClose && (Math.random() < 0.25 + frustrationRandom)) {
-                // Make sure we never pick a highly disadvantageous attack when a better option exists
-                if (!secondChoice.directAttack && secondChoice.rawAdvantage < -3 && topChoice.rawAdvantage > 0) {
-                    return topChoice.index;
-                }
-                
-                return secondChoice.index;
-            }
-        }
-        
-        // Default to best choice
-        return targetAdvantages[0]?.index ?? null;
+
+        // Deterministic selection: highest score, tie-breaker: prefer monster over direct, then lower target index
+        options.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            if (a.type !== b.type) return a.type === 'monster' ? -1 : 1;
+            return (a.index ?? 999) - (b.index ?? 999);
+        });
+
+        return options[0].index ?? null;
     }
 
     /**
@@ -1805,8 +1395,7 @@ class Bot {
      */
     async handleDefensiveTraps(attackerIndex, targetIndex, resumeFunction) {
         // Add variable "thinking" time for trap consideration
-        const thinkTime = 300 + Math.floor(Math.random() * 700);
-        await delay(thinkTime);
+    await delay(300);
         
         // Check if direct attack - use Ace trap if available
         if (targetIndex === null) {
@@ -1854,16 +1443,10 @@ class Bot {
                     useAceProbability -= 0.25; // Save Ace for stronger threats
                 }
                 
-                // Adjust based on personality and emotions
-                useAceProbability += (this.emotion.fear * 0.2); // Fear increases usage
-                useAceProbability -= (this.personality.riskTolerance * 0.15); // Risk takers save traps
+                // Deterministic heuristic: no emotion/personality/skill adjustments
                 
-                // Apply skill level - higher skill = more strategic usage
-                const skillAdjustment = (this.skillLevel - 0.5) * 0.2; // -0.1 to +0.1
-                useAceProbability += skillAdjustment;
-                
-                // Make the decision
-                if (Math.random() < useAceProbability) {
+                // Deterministic: use Ace if probability threshold >= 0.5 (acts as a heuristic score)
+                if (useAceProbability >= 0.5) {
                     this.game.ui.addLogMessage('Bot activates Ace trap!');
                     const res = await this.game.activateAceTrap(aceTraps[0], true);
                     this.recordTrapActivation(aceTraps[0], true);
@@ -2040,14 +1623,10 @@ class Bot {
         }
         
         // If no good options found or small advantage, maybe don't use a trap
-        if (optimalTrapValue < 5 && targetIndex !== null) {
-            // Calculate probability of saving the trap based on personality
-            const saveTrapProbability = 0.3 + (this.personality.riskTolerance * 0.4);
-            
-            if (Math.random() < saveTrapProbability) {
-                if (resumeFunction) resumeFunction();
-                return;
-            }
+        // Deterministic: if the best option provides no improvement, skip using a trap
+        if (optimalTrapValue <= 0 && targetIndex !== null) {
+            if (resumeFunction) resumeFunction();
+            return;
         }
         
         // Human-like decision making
@@ -2060,38 +1639,10 @@ class Bot {
             return;
         }
         
-        // Apply personality and emotion to trap selection
-        trapOptions.forEach(option => {
-            // Adjust value based on personality and emotions
-            let adjustedValue = option.value;
-            
-            // Fearful bots value saving their monsters more
-            if (option.type === 'KING' && option.savesBotMonster) {
-                adjustedValue += (this.emotion.fear * 5);
-            }
-            
-            // Aggressive bots prefer Jack redirects to player monsters
-            if (option.type === 'JACK' && option.redirectsToPlayer) {
-                adjustedValue += (this.personality.aggression * 3);
-            }
-            
-            option.adjustedValue = adjustedValue;
-        });
-        
-        // Sort by adjusted value
-        trapOptions.sort((a, b) => b.adjustedValue - a.adjustedValue);
-        
-        // Make a human-like decision
-        if (trapOptions.length === 1 || Math.random() < this.skillLevel) {
-            // Choose the best option
-            selectedTrap = trapOptions[0].trap;
-            selectedTarget = trapOptions[0].target;
-        } else {
-            // Make a sub-optimal choice
-            const randomIndex = Math.floor(Math.random() * Math.min(2, trapOptions.length));
-            selectedTrap = trapOptions[randomIndex].trap;
-            selectedTarget = trapOptions[randomIndex].target;
-        }
+        // Deterministic: sort by raw value and select the best
+        trapOptions.sort((a, b) => b.value - a.value);
+        selectedTrap = trapOptions[0].trap;
+        selectedTarget = trapOptions[0].target;
         
         // Use the selected trap
         if (selectedTrap) {
@@ -2131,80 +1682,31 @@ class Bot {
      * @returns {boolean} - Whether to play Joker
      */
     shouldPlayJoker() {
-        // Bot considerations for Joker:
-        // 1. If bot is behind in board presence
-        const playerMonsterCount = this.game.player.getMonsterCount();
-        const botMonsterCount = this.game.bot.getMonsterCount();
-        
-        // 2. If bot is behind in health
-        const healthDifference = this.game.bot.health - this.game.player.health;
-        
-        // 3. If player has strong monsters or fusions
-        let playerHasStrongMonsters = false;
-        let strongestPlayerMonster = 0;
-        
-        for (const space of this.game.player.monsterSpaces) {
-            if (space.card) {
-                const strength = space.card.isFusion ? 
-                    space.card.fusionStrength : 
-                    getCardNumericValue(space.card.value);
-                
-                strongestPlayerMonster = Math.max(strongestPlayerMonster, strength);
-                
-                if (strength >= 8) {
-                    playerHasStrongMonsters = true;
-                }
-            }
+        // Deterministic Joker rule:
+        // Play Joker if: (a) player's total field strength exceeds bot's by >= 8 OR
+        // (b) player has >=2 monsters each stronger than any single bot monster,
+        // and bot cannot create a fusion this turn that would beat the strongest player monster.
+        let botStrengths = this.game.bot.monsterSpaces.filter(s => s.card).map(s => s.card.isFusion ? s.card.fusionStrength : getCardNumericValue(s.card.value));
+        let playerStrengths = this.game.player.monsterSpaces.filter(s => s.card).map(s => s.card.isFusion ? s.card.fusionStrength : getCardNumericValue(s.card.value));
+        const botTotal = botStrengths.reduce((a,b)=>a+b,0);
+        const playerTotal = playerStrengths.reduce((a,b)=>a+b,0);
+        const playerStrongest = playerStrengths.length ? Math.max(...playerStrengths) : 0;
+        const botStrongest = botStrengths.length ? Math.max(...botStrengths) : 0;
+        const conditionA = (playerTotal - botTotal) >= 8;
+        const strongerThanAllCount = playerStrengths.filter(s => s > botStrongest).length;
+        const conditionB = strongerThanAllCount >= 2;
+
+        // Quick check: can we fuse to beat player's strongest?
+        const potentials = this.game.board.getPotentialFusions(this.game.bot) || [];
+        let canAnswer = false;
+        for (const f of potentials) {
+            if (f.fusionStrength > playerStrongest) { canAnswer = true; break; }
         }
-        
-        // Calculate base probability based on game state
-        let baseJokerProbability = 0.3; // Base chance
-        
-        // Adjust based on game state
-        if (playerMonsterCount > botMonsterCount + 1) {
-            baseJokerProbability += 0.3; // Behind in board presence
+        const should = (conditionA || conditionB) && !canAnswer;
+        if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+            this.game.ui.addBotThinkingMessage(`Joker decision: playerTotal=${playerTotal}, botTotal=${botTotal}, strongestPlayer=${playerStrongest}, strongestBot=${botStrongest}, canAnswerByFusion=${canAnswer}. Use Joker=${should}`);
         }
-        
-        if (playerHasStrongMonsters) {
-            baseJokerProbability += 0.25; // Player has strong monsters
-        }
-        
-        if (healthDifference < -10) {
-            baseJokerProbability += 0.2; // Behind in health
-        }
-        
-        // Adjust for personality and emotions
-        // Risk-takers are more likely to save Joker for later
-        baseJokerProbability -= (this.personality.riskTolerance * 0.2);
-        
-        // Fearful bots are more likely to use Joker defensively
-        baseJokerProbability += (this.emotion.fear * 0.3);
-        
-        // Frustrated bots might use Joker as a desperate move
-        baseJokerProbability += (this.emotion.frustration * 0.3);
-        
-        // For skilled players, adjust for game state more carefully
-        if (this.skillLevel > 0.7) {
-            // Consider if player might be setting up for something big
-            const playerHandSize = this.game.player.hand.length;
-            if (playerHandSize >= 4) {
-                baseJokerProbability += 0.15; // Player might be planning something
-            }
-            
-            // Consider if we're close to winning
-            if (this.game.player.health <= 10 && this.game.bot.health > this.game.player.health) {
-                baseJokerProbability -= 0.2; // Might not need Joker to win
-            }
-        }
-        
-        // Add a bit of randomness
-        baseJokerProbability += (Math.random() * 0.2 - 0.1);
-        
-        // Clamp to valid probability range
-        baseJokerProbability = Math.max(0, Math.min(1, baseJokerProbability));
-        
-        // Make the decision
-        return Math.random() < baseJokerProbability;
+        return should;
     }
 
     /**
@@ -2213,37 +1715,7 @@ class Bot {
      * @returns {boolean} - Whether player has that trap type (with consideration)
      */
     playerHasActiveTrapType(trapValue) {
-        // Check if player actually has this trap
-        const hasTrap = this.playerHasActiveTrapOfType(trapValue);
-        
-        if (!hasTrap) return false;
-        
-        // Consider bot's personality and learning in reacting to player traps
-        // Higher values = more cautious about traps
-        const trapWariness = 0.3 + (this.learningHistory.playerUsesTraps * 0.6);
-        
-        // Apply skill level - higher skill = more accurate assessment
-        const effectiveWariness = trapWariness * this.skillLevel;
-        
-        // Factor in emotional state - fearful bots are more wary of traps
-        const emotionalFactor = 1 + (this.emotion.fear * 0.5);
-        
-        // Recent activations of this trap type increase wariness
-        const recentActivations = this.gameMemory.trapActivations
-            .filter(mem => 
-                mem.trapType === trapValue && 
-                mem.success && 
-                this.game.turnCounter - mem.turn < 3);
-                
-        const historyFactor = recentActivations.length * 0.2;
-        
-        // Calculate final probability of considering the trap
-        const considerTrapProb = Math.min(0.95, 
-            effectiveWariness * emotionalFactor + historyFactor
-        );
-        
-        // Return true if bot decides to consider this trap
-        return Math.random() < considerTrapProb;
+        return this.playerHasActiveTrapOfType(trapValue);
     }
     
     /**
