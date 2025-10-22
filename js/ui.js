@@ -1710,7 +1710,7 @@ class UI {
         
         // Activate Jack trap with redirect target
         (async () => {
-            const result = this.game.activateJackTrap(
+            const result = await this.game.activateJackTrap(
                 trap,
                 target.index,
                 target.player
