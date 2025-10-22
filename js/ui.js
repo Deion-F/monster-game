@@ -17,6 +17,9 @@ class UI {
         this.redirectTargets = [];
         this._postSacrificeCallback = null; // optional callback to run after sacrifice dialog confirm
         
+        // Track message numbers - simply increment for each log entry
+        this.nextMessageNumber = 1;
+        
         this.setupEventListeners();
     }
 
@@ -136,12 +139,8 @@ class UI {
             });
         }
 
-        // Tutorial navigation (guarded)
-        const prevBtn = document.getElementById('prev-tutorial');
-        if (prevBtn) prevBtn.addEventListener('click', () => TutorialManager.showPreviousPage());
-
-        const nextBtn = document.getElementById('next-tutorial');
-        if (nextBtn) nextBtn.addEventListener('click', () => TutorialManager.showNextPage());
+        // Tutorial navigation is handled by onclick attributes in HTML
+        // (prev-tutorial and next-tutorial buttons call tutorialPrev() and tutorialNext() from main.js)
 
         // Close tutorial (use explicit id if present, fallback to any .close)
         const closeBtn = document.getElementById('close-tutorial') || document.querySelector('.close');
@@ -240,10 +239,17 @@ class UI {
 
             // Activate Queen with the selected target
             if (this.activatingTrap && this.activatingTrap.trap) {
-                const queen = this.activatingTrap.trap;
-                this.game.activateQueenTrap(queen, targetTrap);
-                if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: queen, result: { type: 'QUEEN', target: targetTrap } });
-                this._clearReactiveState();
+                (async () => {
+                    const queen = this.activatingTrap.trap;
+                    try {
+                        const res = await this.game.activateQueenTrap(queen, targetTrap);
+                        if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: queen, result: { type: 'QUEEN', target: targetTrap, res } });
+                        this._clearReactiveState();
+                    } catch (err) {
+                        console.warn('Failed to activate Queen via confirm dialog', err);
+                        this._resumeReactiveAfterCancel();
+                    }
+                })();
             } else {
                 this._resumeReactiveAfterCancel();
             }
@@ -351,6 +357,9 @@ class UI {
      * Initialize the UI
      */
     initialize() {
+        // Reset message counter for new game
+        this.nextMessageNumber = 1;
+        
         this.updateGameState();
         TutorialManager.initializeTutorial();
     }
@@ -736,9 +745,23 @@ class UI {
         
         // Setup phase - place monster
         if (this.game.currentPhase === PHASES.SETUP) {
+            // If the clicked space already has a monster, treat this as a fusion attempt.
+            if (space.card) {
+                // If a card in hand is currently selected, deselect it so the user can pick the field monster for fusion
+                if (this.selectedCard) {
+                    this.selectedCard = null;
+                    this.updatePlayerHand();
+                }
+
+                // Open fusion dialog for the monster at this field index
+                this.handlePotentialFusion(spaceIndex);
+                return;
+            }
+
+            // Otherwise, handle playing the currently selected hand card into this empty space (if any)
             if (this.selectedCard) {
                 const cardType = getCardType(this.selectedCard.value);
-                
+
                 if (cardType === CARD_TYPES.MONSTER_NORMAL) {
                     // Normal monster - place directly if space empty
                     if (!space.card) {
@@ -754,13 +777,10 @@ class UI {
                     if (!space.card) {
                         this.showSacrificeDialog(this.selectedCard, spaceIndex);
                     } else {
-                        // No free space here; allow showing sacrifice dialog that forces at least one field sacrifice
+                        // No free space here: require at least one field sacrifice
                         this.showSacrificeDialog(this.selectedCard, null, null, true);
                     }
                 }
-            } else if (space.card) {
-                // Check for potential fusion
-                this.handlePotentialFusion(spaceIndex);
             }
         }
         // Battle phase - select attacker
@@ -1785,9 +1805,29 @@ class UI {
             delete el._reactiveClickHandler;
         });
 
-        // Clear countdown UI if present
+        // Clear countdown UI if present (inline container-aware)
         const cd = document.getElementById('trap-countdown');
-        if (cd && cd.parentNode) cd.parentNode.removeChild(cd);
+        if (cd && cd.parentNode) {
+            cd.parentNode.removeChild(cd);
+        }
+        const inlineArea = document.getElementById('reactive-trap-area');
+        if (inlineArea) {
+            inlineArea.innerHTML = '';
+        }
+        
+        // Clear sidebar trap-reaction-container
+        const sidebarContainer = document.getElementById('trap-reaction-container');
+        if (sidebarContainer) {
+            sidebarContainer.innerHTML = '';
+            sidebarContainer.classList.remove('active');
+        }
+
+        // Also remove any temporary queen cancel dialog that may have been injected
+        const qdlg = document.getElementById('queen-cancel-temp');
+        if (qdlg && qdlg.parentNode) qdlg.parentNode.removeChild(qdlg);
+
+        // Remove any other lightweight temp dialogs if present
+        document.querySelectorAll('.temp-dialog').forEach(td => { if (td && td.parentNode) td.parentNode.removeChild(td); });
 
         // Clear resolver
         this._reactiveResolve = null;
@@ -1805,133 +1845,112 @@ class UI {
         return new Promise((resolve) => {
             if (!trap) return resolve({ canceled: false });
 
-            // Only allow player's Queen to be used here
+            // Get all activatable traps in response to the opponent's trap activation
             const player = this.game.player;
-            const queenSpaces = player.trapSpaces
-                .map((space, idx) => ({ space, idx }))
-                .filter(item => item.space.card && item.space.card.value === CARD_VALUES.QUEEN && item.space.card.active);
+            const activatableTraps = player.getActivatableTraps({ type: 'trap', trapValue: trap.value });
 
-            if (!queenSpaces || queenSpaces.length === 0) return resolve({ canceled: false });
+            if (!activatableTraps || activatableTraps.length === 0) return resolve({ canceled: false });
 
-            // Build a lightweight modal dialog in DOM
-            const dlg = document.createElement('div');
-            dlg.classList.add('temp-dialog');
-            dlg.id = 'queen-cancel-temp';
-            dlg.innerHTML = '';
+            // Map activatable traps to their spaces for display
+            const trapSpaces = activatableTraps.map(card => {
+                const idx = player.trapSpaces.findIndex(space => space.card && space.card.id === card.id);
+                return { space: player.trapSpaces[idx], idx, card };
+            }).filter(item => item.idx !== -1);
 
-            const content = document.createElement('div');
-            content.classList.add('temp-dialog-content');
+            // Use the trap-reaction-container in the left sidebar
+            const container = document.getElementById('trap-reaction-container');
+            if (!container) {
+                console.warn('trap-reaction-container not found');
+                return resolve({ canceled: false });
+            }
+
+            // Clear any existing content
+            container.innerHTML = '';
+            container.classList.add('active');
+
             const title = document.createElement('div');
-            title.classList.add('temp-dialog-title');
-            title.textContent = 'Opponent activated a trap — activate Queen to cancel?';
-            content.appendChild(title);
+            title.classList.add('reaction-title');
+            title.textContent = 'Opponent activated a trap!';
+            container.appendChild(title);
 
             const list = document.createElement('div');
-            list.classList.add('queen-list');
-            queenSpaces.forEach(({ space, idx }) => {
-                const cardEl = space.card.getElement();
-                cardEl.classList.add('queen-cancel-option');
+            list.classList.add('reaction-trap-list');
+            trapSpaces.forEach(({ space, idx, card }) => {
+                const cardEl = card.getElement();
+                cardEl.classList.add('reaction-trap-option');
                 cardEl.addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    // Activate the Queen to cancel the trap
+                    // Activate the trap to respond
                     try {
-                        const queen = space.card;
-                        // Remove dialog first
-                        if (dlg && dlg.parentNode) dlg.parentNode.removeChild(dlg);
-                        const res = this.game.activateQueenTrap(queen, trap);
-                        // Update UI
+                        const responseTrap = card;
+                        // Clear container first
+                        container.innerHTML = '';
+                        container.classList.remove('active');
+                        
+                        // Handle different trap types
+                        let res;
+                        if (responseTrap.value === CARD_VALUES.QUEEN) {
+                            res = await this.game.activateQueenTrap(responseTrap, trap);
+                        } else if (responseTrap.value === CARD_VALUES.ACE) {
+                            res = await this.game.activateAceTrap(responseTrap);
+                        }
+                        
+                        // Update UI and clear reactive state
                         if (this.game && this.game.ui) this.game.ui.updateGameState();
-                        resolve({ canceled: true, queen });
+                        this._clearReactiveState();
+                        resolve({ canceled: true, trap: responseTrap, result: res });
                     } catch (err) {
-                        console.warn('Failed to activate Queen', err);
+                        console.warn('Failed to activate trap in response', err);
+                        // Ensure reactive state resumes/clears
+                        this._resumeReactiveAfterCancel();
                         resolve({ canceled: false });
                     }
                 });
                 list.appendChild(cardEl);
             });
 
-            content.appendChild(list);
+            container.appendChild(list);
 
-            // Countdown and cancel
-            const countdown = document.createElement('div');
-            countdown.classList.add('trap-countdown');
-            countdown.textContent = '5';
+            // Cancel button (no countdown)
+            const footer = document.createElement('div');
+            footer.classList.add('reaction-footer');
+            
             const cancelBtn = document.createElement('button');
             cancelBtn.classList.add('dialog-button');
-            cancelBtn.textContent = 'Do not cancel';
-            cancelBtn.style.marginLeft = '0.5rem';
+            cancelBtn.textContent = 'Do not respond';
             cancelBtn.addEventListener('click', () => {
-                if (dlg && dlg.parentNode) dlg.parentNode.removeChild(dlg);
+                container.innerHTML = '';
+                container.classList.remove('active');
                 resolve({ canceled: false });
             });
-            countdown.appendChild(cancelBtn);
-            content.appendChild(countdown);
-
-            dlg.appendChild(content);
-            document.body.appendChild(dlg);
-
-            // Simple countdown
-            let remaining = 5;
-            const interval = setInterval(() => {
-                remaining -= 1;
-                if (remaining <= 0) {
-                    clearInterval(interval);
-                    if (dlg && dlg.parentNode) dlg.parentNode.removeChild(dlg);
-                    resolve({ canceled: false });
-                    return;
-                }
-                const el = dlg.querySelector('.trap-countdown');
-                if (el) el.firstChild && (el.firstChild.textContent = String(remaining));
-            }, 1000);
+            
+            footer.appendChild(cancelBtn);
+            container.appendChild(footer);
         });
     }
 
-    /** Pause the reactive countdown timer */
+    /** Deprecated - no longer using countdown timer */
     _pauseReactiveTimer() {
-        if (this._reactiveTimer) {
-            clearInterval(this._reactiveTimer);
-            this._reactiveTimer = null;
-            this._reactivePaused = true;
-        }
+        // No-op: countdown removed
     }
 
-    /** Resume the reactive countdown timer after a pause */
+    /** Deprecated - no longer using countdown timer */
     _resumeReactiveTimer(remaining) {
-        if (!this._reactivePaused) return;
-        this._reactivePaused = false;
-        let remainingSeconds = typeof remaining === 'number' ? remaining : (this._reactiveRemaining || 5);
-        const el = document.getElementById('trap-countdown');
-        if (el) el.textContent = String(remainingSeconds);
-
-        const interval = setInterval(() => {
-            remainingSeconds -= 1;
-            if (remainingSeconds <= 0) {
-                clearInterval(interval);
-                this._clearReactiveState();
-                if (this._reactiveResolve) this._reactiveResolve({ activated: false });
-                return;
-            }
-            const e = document.getElementById('trap-countdown');
-            if (e) e.textContent = String(remainingSeconds);
-            this._reactiveRemaining = remainingSeconds;
-        }, 1000);
-
-        this._reactiveTimer = interval;
+        // No-op: countdown removed
     }
 
-    /** Called when user cancels a redirect/trap dialog to resume the countdown */
+    /** Deprecated - no longer using countdown timer */
     _resumeReactiveAfterCancel() {
-        // If there is an active reactive window paused, resume it
-        if (this._reactivePaused) {
-            this._resumeReactiveTimer(this._reactiveRemaining || 5);
-            return;
-        }
-        // Otherwise, ensure clear reactive state
-        this._clearReactiveState();
+        // No-op: countdown removed
+    }
+
+    /** Deprecated - no longer using countdown timer */
+    _restartReactiveCountdown() {
+        // No-op: countdown removed
     }
 
     /**
-     * Prompt the human defender to react to an action with traps for up to 5 seconds.
+     * Prompt the human defender to react to an action with traps.
      * Returns a promise that resolves to {activated: boolean, trap?, result?}
      * The context should include attackerIndex, attacker, defenderIndex, defender
      */
@@ -1940,8 +1959,15 @@ class UI {
             if (!context || !context.defender) return resolve({ activated: false });
 
             const defender = context.defender;
-            // Determine type
-            const ttype = (context.defenderIndex === null) ? 'battle-phase' : 'attack';
+            // Determine type: 'trap' for trap-to-trap response, 'attack'/'battle-phase' for attack responses
+            let ttype = 'attack'; // Default
+            if (context.defenderIndex === null) {
+                ttype = 'battle-phase';
+            } else if (context.trapValue !== undefined && !context.defenderIndex) {
+                // This is a trap response (opponent just set a trap)
+                ttype = 'trap';
+            }
+            
             const activatable = defender.getActivatableTraps({ type: ttype, trapValue: context.trapValue });
             if (!activatable || activatable.length === 0) return resolve({ activated: false });
 
@@ -1956,14 +1982,12 @@ class UI {
                 if (!el) continue;
                 el.classList.add('reactive-highlight');
 
-                    // Attach click handler that pauses the countdown while a trap activation UI/dialog is shown
+                    // Attach click handler for trap activation
                     const handler = (e) => {
                         e.stopPropagation();
                         (async () => {
                             try {
                                 const trapCard = space.card;
-                                // Pause the countdown while the trap activation/resolution occurs
-                                this._pauseReactiveTimer();
 
                                 // Handle trap activations and wait for result
                                 if (trapCard.value === CARD_VALUES.JACK) {
@@ -1981,8 +2005,7 @@ class UI {
                                         this._clearReactiveState();
                                         return;
                                     }
-                                    // Otherwise, reset the countdown so player can chain
-                                    this._restartReactiveCountdown();
+                                    // Ace activated successfully, allow player to continue reacting
                                     if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard, result: { type: 'ACE', effect: res && res.effect } });
                                     return;
                                 }
@@ -1996,26 +2019,32 @@ class UI {
                                 }
 
                                 if (trapCard.value === CARD_VALUES.QUEEN) {
-                                    // Queen: prefer to cancel the opponent's last used trap automatically
+                                    // Queen: cancel an opponent's trap
                                     this.activatingTrap = { trap: trapCard, context };
-                                    const last = this.game.lastTrapUsed;
                                     let autoTarget = null;
-                                    try {
-                                        if (last) {
-                                            const lastOwner = this.game.findTrapOwner(last);
-                                            const queenOwner = this.game.findTrapOwner(trapCard);
-                                            // Auto-target only if last trap belongs to opponent
-                                            if (lastOwner && queenOwner && lastOwner !== queenOwner) {
-                                                autoTarget = last;
+                                    
+                                    // If this is a trap response (opponent just set a trap), auto-target that trap
+                                    if (context.trapCard && ttype === 'trap') {
+                                        autoTarget = context.trapCard;
+                                    } else {
+                                        // Otherwise, prefer to cancel the last used trap
+                                        const last = this.game.lastTrapUsed;
+                                        try {
+                                            if (last) {
+                                                const lastOwner = this.game.findTrapOwner(last);
+                                                const queenOwner = this.game.findTrapOwner(trapCard);
+                                                // Auto-target only if last trap belongs to opponent
+                                                if (lastOwner && queenOwner && lastOwner !== queenOwner) {
+                                                    autoTarget = last;
+                                                }
                                             }
-                                        }
-                                    } catch (err) { console.warn('Error checking lastTrapUsed', err); }
+                                        } catch (err) { console.warn('Error checking lastTrapUsed', err); }
+                                    }
 
                                     if (autoTarget) {
                                         const res = await this.game.activateQueenTrap(trapCard, autoTarget);
                                         if (res && res.success) {
-                                            // Queen cancelled a trap; reset countdown to allow further chaining
-                                            this._restartReactiveCountdown();
+                                            // Queen cancelled a trap, allow player to continue reacting
                                             if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard, result: { type: 'QUEEN', target: autoTarget } });
                                             return;
                                         }
@@ -2028,16 +2057,15 @@ class UI {
                                 }
 
                                 // Fallback activation (shouldn't normally reach here)
-                                const res = await this.game.activateQueenTrap(trapCard, context.targetTrap);
+                                const res = await this.game.activateQueenTrap(trapCard, context.targetTrap || context.trapCard);
                                 if (res && res.success) {
-                                    this._restartReactiveCountdown();
                                     if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard });
                                     return;
                                 }
                             } catch (err) {
                                 console.warn('Reactive trap handler error', err);
-                                // Attempt to resume countdown if something goes wrong
-                                this._resumeReactiveAfterCancel();
+                                // Attempt to clear state if something goes wrong
+                                this._clearReactiveState();
                             }
                         })();
                     };
@@ -2046,81 +2074,52 @@ class UI {
                     el.addEventListener('click', handler);
             }
 
-            // Show countdown element next to player's area for visibility
-            const playerArea = document.querySelector('.player-area-human') || document.getElementById('player-hand') || document.body;
-            const countdown = document.createElement('div');
-            countdown.id = 'trap-countdown';
-            countdown.classList.add('trap-countdown');
-            countdown.textContent = '5';
-            // Add a small cancel button so the player can explicitly cancel the reactive window.
-            // When clicked we must resolve the awaiting promise to avoid leaving callers (bot or game flows) hanging.
+            // Show reaction UI in the trap-reaction-container in the left sidebar
+            const container = document.getElementById('trap-reaction-container');
+            if (!container) {
+                console.warn('trap-reaction-container not found');
+                return resolve({ activated: false });
+            }
+            
+            // Clear any existing content
+            container.innerHTML = '';
+            container.classList.add('active');
+            
+            const title = document.createElement('div');
+            title.classList.add('reaction-title');
+            title.textContent = 'Opponent is attacking!';
+            container.appendChild(title);
+            
+            const message = document.createElement('div');
+            message.classList.add('reaction-message');
+            message.textContent = 'Click a trap to respond';
+            message.style.fontSize = 'var(--font-body2)';
+            message.style.color = 'var(--md-on-surface-variant)';
+            message.style.marginBottom = 'var(--space-sm)';
+            message.style.textAlign = 'center';
+            container.appendChild(message);
+            
+            // Add cancel button in the footer
+            const footer = document.createElement('div');
+            footer.classList.add('reaction-footer');
+            
             const cancelBtn = document.createElement('button');
             cancelBtn.classList.add('dialog-button');
-            cancelBtn.textContent = 'Cancel';
-            cancelBtn.style.marginLeft = '0.5rem';
+            cancelBtn.textContent = 'Do not respond';
             cancelBtn.addEventListener('click', () => {
-                // User explicitly cancels trap activation stage; resolve the reactive prompt as not activated
                 try {
                     if (this._reactiveResolve) this._reactiveResolve({ activated: false });
-                } catch (e) { console.warn('Error resolving reactive prompt on countdown cancel', e); }
+                } catch (e) { console.warn('Error resolving reactive prompt on cancel', e); }
                 this._clearReactiveState();
+                container.innerHTML = '';
+                container.classList.remove('active');
             });
-            countdown.appendChild(cancelBtn);
+            
+            footer.appendChild(cancelBtn);
+            container.appendChild(footer);
 
-            // Insert next to player area
-            try {
-                if (playerArea && playerArea.parentNode) playerArea.parentNode.insertBefore(countdown, playerArea.nextSibling);
-                else document.body.appendChild(countdown);
-            } catch (e) { document.body.appendChild(countdown); }
-
-            // Countdown logic with pause/resume support
-            let remaining = 5;
-            const tick = () => {
-                remaining -= 1;
-                this._reactiveRemaining = remaining;
-                if (remaining <= 0) {
-                    if (this._reactiveTimer) clearInterval(this._reactiveTimer);
-                    this._clearReactiveState();
-                    resolve({ activated: false });
-                } else {
-                    const el = document.getElementById('trap-countdown');
-                    if (el) el.firstChild && (el.firstChild.textContent = String(remaining));
-                }
-            };
-
-            const interval = setInterval(tick, 1000);
-            this._reactiveTimer = interval;
-            this._reactiveRemaining = remaining;
             this._reactiveResolve = resolve;
         });
-    }
-
-    /** Restart the reactive countdown from full 5 seconds (used after a successful non-ending trap activation) */
-    _restartReactiveCountdown() {
-        // Clear existing timer
-        if (this._reactiveTimer) {
-            clearInterval(this._reactiveTimer);
-            this._reactiveTimer = null;
-        }
-        this._reactivePaused = false;
-        let remaining = 5;
-        this._reactiveRemaining = remaining;
-
-        const tick = () => {
-            remaining -= 1;
-            this._reactiveRemaining = remaining;
-            if (remaining <= 0) {
-                if (this._reactiveTimer) clearInterval(this._reactiveTimer);
-                this._clearReactiveState();
-                if (this._reactiveResolve) this._reactiveResolve({ activated: false });
-                return;
-            }
-            const el = document.getElementById('trap-countdown');
-            if (el) el.firstChild && (el.firstChild.textContent = String(remaining));
-        };
-
-        const interval = setInterval(tick, 1000);
-        this._reactiveTimer = interval;
     }
 
     /**
@@ -2434,10 +2433,66 @@ class UI {
         const logContent = document.getElementById('log-content');
         const logEntry = document.createElement('div');
         logEntry.classList.add('log-entry');
-        logEntry.textContent = message;
+        
+        // Each log entry gets the next sequential number
+        const messageNumber = this.nextMessageNumber++;
+        
+        // Format: [#] message
+        logEntry.textContent = `[${messageNumber}] ${message}`;
         
         logContent.appendChild(logEntry);
         logContent.scrollTop = logContent.scrollHeight;
+    }
+
+    /**
+     * Highlight attacker and defender for attack visualization
+     * @param {number} attackerIndex - Attacker monster index
+     * @param {Player} attackerPlayer - Attacking player
+     * @param {number|null} defenderIndex - Defender monster index (null for direct)
+     * @param {Player} defenderPlayer - Defending player
+     */
+    highlightAttack(attackerIndex, attackerPlayer, defenderIndex, defenderPlayer) {
+        // Clear any existing highlights
+        this.clearAttackHighlights();
+        
+        // Highlight the attacking monster
+        const attackerSelector = attackerPlayer === this.game.player ? 
+            `#player-monster-${attackerIndex}` : 
+            `#bot-monster-${attackerIndex}`;
+        const attackerElement = document.querySelector(attackerSelector);
+        if (attackerElement) {
+            attackerElement.classList.add('attack-highlight', 'attacker-highlight');
+        }
+        
+        // Highlight the defender
+        if (defenderIndex !== null) {
+            // Monster target
+            const defenderSelector = defenderPlayer === this.game.player ?
+                `#player-monster-${defenderIndex}` :
+                `#bot-monster-${defenderIndex}`;
+            const defenderElement = document.querySelector(defenderSelector);
+            if (defenderElement) {
+                defenderElement.classList.add('attack-highlight', 'defender-highlight');
+            }
+        } else {
+            // Direct attack - highlight player area
+            const defenderAreaSelector = defenderPlayer === this.game.player ?
+                '.player-area-human .player-info' : 
+                '.bot-area .player-info';
+            const defenderArea = document.querySelector(defenderAreaSelector);
+            if (defenderArea) {
+                defenderArea.classList.add('attack-highlight', 'direct-attack-highlight');
+            }
+        }
+    }
+
+    /**
+     * Clear all attack highlights
+     */
+    clearAttackHighlights() {
+        document.querySelectorAll('.attack-highlight').forEach(el => {
+            el.classList.remove('attack-highlight', 'attacker-highlight', 'defender-highlight', 'direct-attack-highlight');
+        });
     }
 
     /**
@@ -2449,46 +2504,40 @@ class UI {
      * @returns {Promise} - Animation completion promise
      */
     async animateAttack(attackerIndex, attackerPlayer, defenderIndex, defenderPlayer) {
-        // Get elements
-        const attackerSelector = attackerPlayer === this.game.player ? 
-            `#player-monster-${attackerIndex}` : 
-            `#bot-monster-${attackerIndex}`;
-            
-        const attackerElement = document.querySelector(attackerSelector);
-        
-        // Add attacking animation
-        attackerElement.classList.add('attacking');
-        
+        // Get attacker space and its card element
+        const attackerSelector = attackerPlayer === this.game.player ? `#player-monster-${attackerIndex}` : `#bot-monster-${attackerIndex}`;
+        const attackerSpace = document.querySelector(attackerSelector);
+        const attackerCard = attackerSpace ? attackerSpace.querySelector('.card') : null;
+
+        // Add attacking animation on the card element only
+        if (attackerCard) attackerCard.classList.add('anim-attack');
+
         // Wait for animation
         await delay(ANIMATION_DURATION);
-        
+
         // Remove animation class
-        attackerElement.classList.remove('attacking');
+        if (attackerCard) attackerCard.classList.remove('anim-attack');
         
         // If direct attack, animate defending player area
         if (defenderIndex === null) {
-            const defenderAreaSelector = defenderPlayer === this.game.player ?
-                '.player-area-human' : 
-                '.bot-area';
-                
-            const defenderElement = document.querySelector(defenderAreaSelector);
-            defenderElement.classList.add('taking-damage');
-            
-            await delay(ANIMATION_DURATION);
-            
-            defenderElement.classList.remove('taking-damage');
+            // Direct damage: animate the defender area container
+            const defenderAreaSelector = defenderPlayer === this.game.player ? '.player-area-human' : '.bot-area';
+            const defenderArea = document.querySelector(defenderAreaSelector);
+            if (defenderArea) {
+                defenderArea.classList.add('anim-damage');
+                await delay(ANIMATION_DURATION);
+                defenderArea.classList.remove('anim-damage');
+            }
         } else {
-            // Monster vs monster attack
-            const defenderSelector = defenderPlayer === this.game.player ?
-                `#player-monster-${defenderIndex}` :
-                `#bot-monster-${defenderIndex}`;
-                
-            const defenderElement = document.querySelector(defenderSelector);
-            defenderElement.classList.add('taking-damage');
-            
-            await delay(ANIMATION_DURATION);
-            
-            defenderElement.classList.remove('taking-damage');
+            // Monster vs monster: animate defender card
+            const defenderSelector = defenderPlayer === this.game.player ? `#player-monster-${defenderIndex}` : `#bot-monster-${defenderIndex}`;
+            const defenderSpace = document.querySelector(defenderSelector);
+            const defenderCard = defenderSpace ? defenderSpace.querySelector('.card') : null;
+            if (defenderCard) {
+                defenderCard.classList.add('anim-damage');
+                await delay(ANIMATION_DURATION);
+                defenderCard.classList.remove('anim-damage');
+            }
         }
     }
 

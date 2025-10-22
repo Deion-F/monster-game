@@ -1,1008 +1,1308 @@
-/* Base styles */
-:root {
-    --primary-color: #6200ee;
-    --primary-variant: #3700b3;
-    --secondary-color: #03dac6;
-    --secondary-variant: #018786;
-    --background: #ffffff;
-    --surface: #ffffff;
-    --error: #b00020;
-    --on-primary: #ffffff;
-    --on-secondary: #000000;
-    --on-background: #000000;
-    --on-surface: #000000;
-    --on-error: #ffffff;
-    --elevation-1: 0 2px 1px -1px rgba(0,0,0,0.2), 0 1px 1px 0 rgba(0,0,0,0.14), 0 1px 3px 0 rgba(0,0,0,0.12);
-    --elevation-2: 0 3px 1px -2px rgba(0,0,0,0.2), 0 2px 2px 0 rgba(0,0,0,0.14), 0 1px 5px 0 rgba(0,0,0,0.12);
-    --elevation-3: 0 3px 3px -2px rgba(0,0,0,0.2), 0 3px 4px 0 rgba(0,0,0,0.14), 0 1px 8px 0 rgba(0,0,0,0.12);
-    --elevation-4: 0 2px 4px -1px rgba(0,0,0,0.2), 0 4px 5px 0 rgba(0,0,0,0.14), 0 1px 10px 0 rgba(0,0,0,0.12);
-    --elevation-6: 0 3px 5px -1px rgba(0,0,0,0.2), 0 6px 10px 0 rgba(0,0,0,0.14), 0 1px 18px 0 rgba(0,0,0,0.12);
-    --card-width: 85px;
-    --card-height: 120px;
-    --space-width: 85px;
-    --space-height: 120px;
-}
+/**
+ * Monster Card Battle - Material Design 3
+ * Main Styles
+ */
+
+@import url('tokens.css');
+@import url('animations.css');
+
+/* ============ BASE STYLES ============ */
 
 * {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-body {
-    font-family: 'Roboto', sans-serif;
-    color: var(--on-background);
-    background-color: #f5f5f5;
-    line-height: 1.6;
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* ============ MAIN LAYOUT ============ */
 
 .game-container {
-    max-width: 1200px;
-    height: 100vh;
-    margin: 0 auto;
-    padding: 0.5rem;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+  width: 100%;
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  grid-template-columns: 1fr;
+  overflow: hidden;
 }
 
-/* Game Header */
+/* ============ HEADER ============ */
+
 .game-header {
-    text-align: center;
-    margin-bottom: 0.5rem;
-    padding: 0.25rem;
-    background-color: var(--surface);
-    border-radius: 8px;
-    box-shadow: var(--elevation-1);
-    flex-shrink: 0;
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--elevation-2);
+  z-index: var(--z-header);
 }
 
 .game-header h1 {
-    color: var(--primary-color);
-    margin-bottom: 0.25rem;
-    font-size: 1.5rem;
+  font-size: var(--font-h6);
+  font-weight: 500;
+  margin: 0;
 }
 
 .game-status {
-    display: flex;
-    justify-content: center;
-    gap: 2rem;
-    font-size: 1.1rem;
-    font-weight: 500;
+  display: flex;
+  gap: var(--space-md);
+  font-size: var(--font-body2);
 }
 
-#turn-indicator {
-    color: var(--primary-color);
+#turn-indicator, #phase-indicator {
+  background: rgba(255, 255, 255, 0.2);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: 16px;
+  font-weight: 500;
 }
 
-#phase-indicator {
-    color: var(--secondary-variant);
-}
+/* ============ GAME BOARD LAYOUT ============ */
 
-/* Game Board */
 .game-board {
+  display: grid;
+  grid-template-columns: 220px 1fr 280px;
+  grid-template-rows: 1fr;
+  gap: var(--space-lg);
+  padding: var(--space-md);
+  align-items: stretch;
+  height: 100%;
+  overflow: hidden;
+}
+
+.left-sidebar {
     display: flex;
     flex-direction: column;
-    flex: 1;
-    gap: 0.5rem;
-    min-height: 0;
-    overflow: hidden;
+    gap: var(--space-md);
+    justify-content: space-between;
 }
+
+.main-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.right-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+/* ============ PLAYER AREAS ============ */
 
 .player-area {
-    display: flex;
-    flex-direction: column;
-    background-color: var(--surface);
-    border-radius: 8px;
-    padding: 0.5rem;
-    box-shadow: var(--elevation-2);
-    flex: 1;
-    min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
 }
 
 .bot-area {
-    order: 1;
+  align-items: flex-start;
 }
 
 .player-area-human {
-    order: 3;
+  align-items: stretch;
 }
 
-.center-area {
-    order: 2;
-    display: flex;
-    justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.5rem;
-    background-color: var(--surface);
-    border-radius: 8px;
-    box-shadow: var(--elevation-1);
-    flex-shrink: 0;
-}
-
-/* Player Info */
 .player-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid rgba(0,0,0,0.12);
+    grid-row: 1;
+    grid-column: 1;
+}
+
+.game-controls {
+    margin-top: auto;
+}
+
+.player-hand-container {
+    grid-row: 2;
+    grid-column: 1 / -1;
+}
+
+.player-info {
+  background: var(--md-surface-container);
+  border-radius: var(--space-md);
+  padding: var(--space-md);
+  box-shadow: var(--elevation-1);
+  width: 100%;
 }
 
 .player-name {
-    font-weight: 500;
-    font-size: 1.2rem;
+  font-size: var(--font-h6);
+  font-weight: 500;
+  margin-bottom: var(--space-xs);
+  color: var(--md-on-surface);
 }
 
 .player-health {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.health-label {
+  font-size: var(--font-body2);
+  color: var(--md-on-surface-variant);
 }
 
 .health-value {
-    font-weight: 700;
-    color: var(--error);
+  font-size: var(--font-h5);
+  font-weight: 700;
+  color: var(--color-monster-big);
 }
 
 .deck-info {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
 }
 
 .hand-count {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-body1);
+  color: var(--md-on-surface-variant);
 }
 
 .hand-icon {
-    font-size: 1.2rem;
+  font-size: 20px;
 }
 
-/* View hand button */
 .view-hand-btn {
-    background: none;
-    border: none;
-    color: var(--primary-color);
-    cursor: pointer;
-    padding: 0.25rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
-    transition: all 0.3s ease;
-    border-radius: 4px;
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  box-shadow: var(--elevation-1);
 }
 
 .view-hand-btn:hover {
-    background-color: rgba(98, 0, 238, 0.1);
-    transform: scale(1.15);
+  background: var(--md-primary-container);
+  box-shadow: var(--elevation-2);
+  transform: scale(1.05);
 }
 
 .view-hand-btn .material-icons {
-    font-size: 1.1rem;
+  font-size: 20px;
 }
 
-/* Bot hand display dialog content */
-.bot-hand-display {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    margin: 1.5rem 0;
-    justify-content: center;
-    min-height: 150px;
-    padding: 1rem;
-    background-color: #f5f5f5;
-    border-radius: 8px;
-}
+/* ============ BOARD SPACES ============ */
 
-/* Board Spaces */
 .board-spaces {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    flex: 1;
-    min-height: 0;
+  display: grid;
+  gap: var(--space-sm);
 }
 
 .monster-row, .trap-row {
-    display: flex;
-    justify-content: center;
-    gap: 0.5rem;
-    flex: 1;
-    min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-sm);
 }
 
 .monster-space, .trap-space {
-    width: var(--space-width);
-    height: var(--space-height);
-    border: 2px dashed #ccc;
-    border-radius: 8px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
+  width: var(--field-card-w);
+  height: var(--field-card-h);
+  background: var(--md-surface-container-low);
+  border: 2px dashed var(--md-outline);
+  border-radius: var(--card-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: all var(--duration-fast);
 }
 
-.monster-space.highlight, .trap-space.highlight {
-    border: 2px solid var(--secondary-color);
-    background-color: rgba(3, 218, 198, 0.1);
+.monster-space:hover, .trap-space:hover {
+  background: var(--md-surface-container);
+  border-color: var(--md-primary);
 }
 
-/* Cards */
+.monster-space::after {
+  content: 'Monster';
+  font-size: var(--font-label);
+  color: var(--md-outline);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.trap-space::after {
+  content: 'Trap';
+  font-size: var(--font-label);
+  color: var(--md-outline);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Cards inside field spaces should match field size */
+.monster-space .card,
+.trap-space .card {
+  width: var(--field-card-w);
+  height: var(--field-card-h);
+}
+
+.monster-space:has(.card)::after,
+.trap-space:has(.card)::after {
+  display: none;
+}
+
+/* ============ ATTACK HIGHLIGHTS ============ */
+
+.monster-space.attack-highlight {
+  animation: attack-pulse 1s ease-in-out infinite;
+  z-index: 10;
+}
+
+.monster-space.attacker-highlight {
+  border: 3px solid var(--md-error);
+  box-shadow: 0 0 0 3px rgba(179, 38, 30, 0.3),
+              0 0 20px rgba(179, 38, 30, 0.5);
+  background: var(--md-error-container);
+}
+
+.monster-space.defender-highlight {
+  border: 3px solid var(--md-warning);
+  box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.3),
+              0 0 20px rgba(245, 124, 0, 0.5);
+  background: var(--md-warning-container);
+}
+
+.player-info.direct-attack-highlight {
+  border: 3px solid var(--md-error);
+  box-shadow: 0 0 0 3px rgba(179, 38, 30, 0.3),
+              0 0 20px rgba(179, 38, 30, 0.5);
+  background: var(--md-error-container);
+  animation: attack-pulse 1s ease-in-out infinite;
+}
+
+@keyframes attack-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+/* ============ BATTLE PHASE ATTACK STATUS STYLES ============ */
+/* Visual cues for monsters that can still attack (ready) and those that have already attacked.
+   Scoped to the BATTLE phase so these decorations don't show during other phases. */
+
+/* Ready to attack: glowing outline and small indicator */
+.game-board.phase-player-BATTLE .monster-space .card.can-attack,
+.game-board.phase-bot-BATTLE .monster-space .card.can-attack {
+  transform: translateY(-6px);
+  transition: transform 180ms var(--duration-fast), box-shadow 180ms var(--duration-fast);
+  box-shadow: 0 0 0 4px rgba(16, 108, 200, 0.08), 0 0 12px rgba(16, 108, 200, 0.18);
+  border: 2px solid rgba(16, 108, 200, 0.22);
+}
+
+.game-board.phase-player-BATTLE .monster-space .card.can-attack::after,
+.game-board.phase-bot-BATTLE .monster-space .card.can-attack::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--md-primary);
+  box-shadow: 0 0 6px rgba(0,0,0,0.2);
+}
+
+/* Already attacked: desaturated and show a small check badge */
+.game-board.phase-player-BATTLE .monster-space .card.attacked,
+.game-board.phase-bot-BATTLE .monster-space .card.attacked {
+  opacity: 0.75;
+  filter: grayscale(0.35) contrast(0.9);
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.game-board.phase-player-BATTLE .monster-space .card.attacked::after,
+.game-board.phase-bot-BATTLE .monster-space .card.attacked::after {
+  content: '✓';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 14px;
+  padding: 2px 6px;
+  border-radius: 12px;
+}
+
+/* Make sure these status badges don't appear outside battle phase */
+
+
+/* ============ CENTER PLAY AREA ============ */
+
+.center-play-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  flex-grow: 1;
+}
+
+.play-area-divider {
+  width: 100%;
+  height: 4px;
+  background: var(--md-outline);
+  border-radius: 2px;
+  margin: var(--space-sm) 0;
+}
+
+/* ============ RIGHT SIDEBAR ============ */
+.right-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  justify-content: flex-start;
+  /* allow children to shrink inside the viewport so internal scrolling works */
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ============ DECK & DISCARD ============ */
+
+.deck-container {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--deck-card-h) + var(--space-md));
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.deck, .discard-pile {
+  position: relative;
+  width: var(--deck-card-w);
+  height: var(--deck-card-h);
+  cursor: pointer;
+  transition: transform var(--duration-fast);
+}
+
+.deck:hover, .discard-pile:hover {
+  transform: scale(1.05);
+}
+
+.discard-empty {
+  opacity: 0.3;
+}
+
+.deck-count, .discard-count {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: var(--font-h5);
+  font-weight: 700;
+  color: var(--md-on-primary);
+  background: rgba(98, 0, 238, 0.9);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  box-shadow: var(--elevation-3);
+}
+
+.game-controls {
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.action-button {
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  border: none;
+  border-radius: 20px;
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--font-button);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  box-shadow: var(--elevation-2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.action-button:hover {
+  background: var(--md-primary-container);
+  box-shadow: var(--elevation-3);
+  transform: translateY(-2px);
+}
+
+.action-button:active {
+  transform: translateY(0);
+  box-shadow: var(--elevation-1);
+}
+
+.action-button:disabled {
+  background: var(--md-surface-container);
+  color: var(--md-on-surface-variant);
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+/* Trap Reaction Container */
+.trap-reaction-container {
+  display: none;
+  background: var(--md-surface-container-high);
+  border-radius: 12px;
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+  box-shadow: var(--elevation-3);
+  border: 2px solid var(--md-primary);
+  animation: slideIn 0.3s ease-out;
+}
+
+.trap-reaction-container.active {
+  display: block;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reaction-title {
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--md-primary);
+  margin-bottom: var(--space-sm);
+  text-align: center;
+}
+
+.reaction-trap-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  justify-content: center;
+  margin-bottom: var(--space-sm);
+}
+
+.reaction-trap-option {
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  border: 2px solid transparent;
+  border-radius: 8px;
+}
+
+.reaction-trap-option:hover {
+  transform: scale(1.05);
+  border-color: var(--md-primary);
+  box-shadow: var(--elevation-2);
+}
+
+.reaction-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--md-outline-variant);
+}
+
+.reaction-countdown {
+  font-size: var(--font-h3);
+  font-weight: 700;
+  color: var(--md-primary);
+  min-width: 30px;
+  text-align: center;
+}
+
+.reaction-footer .dialog-button {
+  flex: 1;
+}
+
+/* ============ GAME LOG ============ */
+
+.game-log {
+  background: var(--md-surface-container);
+  border-radius: var(--space-md);
+  padding: var(--space-md);
+  width: 100%;
+  flex-grow: 1;
+  box-shadow: var(--elevation-2);
+  display: flex;
+  flex-direction: column;
+  /* ensure the log container can shrink inside the right sidebar */
+  min-height: 0;
+}
+
+.log-header {
+  font-size: var(--font-subtitle1);
+  font-weight: 500;
+  margin-bottom: var(--space-sm);
+  color: var(--md-on-surface);
+  padding-bottom: var(--space-xs);
+  border-bottom: 2px solid var(--md-outline);
+}
+
+.log-content {
+  flex: 1;
+  overflow-y: auto;
+  font-size: var(--font-body2);
+  line-height: 1.6;
+  /* allow the scrollable area to shrink properly inside flex parents */
+  min-height: 0;
+}
+
+.log-entry {
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--md-surface-container-low);
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.log-content::-webkit-scrollbar-track {
+  background: var(--md-surface);
+  border-radius: 4px;
+}
+
+.log-content::-webkit-scrollbar-thumb {
+  background: var(--md-outline);
+  border-radius: 4px;
+}
+
+.log-content::-webkit-scrollbar-thumb:hover {
+  background: var(--md-primary);
+}
+
+/* ============ PLAYER HAND ============ */
+
+.player-hand-container {
+  width: 100%;
+  max-width: 100%;
+}
+
+.player-hand {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: nowrap;
+  justify-content: center;
+  padding: var(--space-md);
+  background: var(--md-surface-container-low);
+  border-radius: var(--space-md);
+  box-shadow: var(--elevation-1);
+  height: calc(var(--card-h) + 2 * var(--space-md));
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* ============ CARDS ============ */
+
 .card {
-    width: var(--card-width);
-    height: var(--card-height);
-    border-radius: 8px;
-    box-shadow: var(--elevation-2);
-    position: relative;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    cursor: pointer;
-    background-color: white;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: var(--card-radius);
+  background: var(--md-surface-container-high);
+  box-shadow: var(--elevation-2);
+  cursor: pointer;
+  position: relative;
+  transition: all var(--duration-fast);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-xs);
+  overflow: hidden;
 }
 
-.card:hover {
-    transform: translateY(-5px);
-    box-shadow: var(--elevation-4);
+.card:hover:not(.disabled) {
+  transform: translateY(-4px);
+  box-shadow: var(--elevation-4);
 }
 
 .card-back {
-    background-color: var(--primary-color);
-    background-image: 
-        repeating-linear-gradient(
-            45deg, 
-            rgba(255, 255, 255, 0.1), 
-            rgba(255, 255, 255, 0.1) 10px, 
-            rgba(0, 0, 0, 0.1) 10px, 
-            rgba(0, 0, 0, 0.1) 20px
-        );
+  background: linear-gradient(135deg, var(--md-primary) 0%, var(--md-secondary) 100%);
+  color: var(--md-on-primary);
+  cursor: default;
+}
+
+.card-back::before {
+  content: '🎴';
+  font-size: 48px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.card[data-type="monster"] {
+  background: linear-gradient(135deg, var(--color-monster-normal) 0%, #4CAF50 100%);
+  color: white;
+}
+
+.card[data-type="monster"][data-value="7"],
+.card[data-type="monster"][data-value="8"],
+.card[data-type="monster"][data-value="9"] {
+  background: linear-gradient(135deg, var(--color-monster-big) 0%, #FF6F00 100%);
+}
+
+.card[data-type="trap"] {
+  background: linear-gradient(135deg, var(--color-trap) 0%, #1976D2 100%);
+  color: white;
+}
+
+.card[data-type="fusion"] {
+  background: linear-gradient(135deg, var(--color-fusion) 0%, #6A1B9A 100%);
+  color: white;
+}
+
+.card[data-type="joker"] {
+  background: linear-gradient(135deg, var(--color-joker) 0%, #C62828 100%);
+  color: white;
+}
+
+.card-name {
+  font-size: var(--font-caption);
+  font-weight: 500;
+  text-align: center;
+  margin-top: var(--space-xs);
 }
 
 .card-value {
-    position: absolute;
-    top: 0.25rem;
-    left: 0.25rem;
-    font-size: 1.5rem;
-    font-weight: 700;
-    z-index: 2;
+  font-size: var(--font-h4);
+  font-weight: 700;
+  text-align: center;
 }
 
-.card-value.red {
-    color: #d32f2f;
+.card-description {
+  font-size: 9px;
+  text-align: center;
+  opacity: 0.9;
+  line-height: 1.2;
+  margin-bottom: var(--space-xs);
 }
 
-.card-value.black {
-    color: #212121;
-}
-
+/* Card inner elements - used by JavaScript */
 .card-type {
-    position: absolute;
-    top: 0.25rem;
-    right: 0.25rem;
-    font-size: 0.8rem;
-    font-weight: 500;
-    background-color: rgba(0, 0, 0, 0.6);
-    color: white;
-    padding: 0.1rem 0.3rem;
-    border-radius: 3px;
-    z-index: 2;
+  font-size: var(--font-caption);
+  font-weight: 500;
+  text-align: center;
+  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .card-content {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 2.5rem;
-    padding: 0.5rem;
+  font-size: var(--font-h3);
+  font-weight: 700;
+  text-align: center;
+  margin: var(--space-sm) 0;
 }
 
-.card.normal {
-    background-color: #e3f2fd;
+.card-content.red {
+  color: #FF5252;
 }
 
-.card.big {
-    background-color: #dcedc8;
+.card-content.black {
+  color: #212121;
 }
 
-.card.trap {
-    background-color: #ffecb3;
+.monster-strength,
+.fusion-value {
+  position: absolute;
+  bottom: var(--space-xs);
+  right: var(--space-xs);
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: 12px;
+  font-size: var(--font-body2);
+  font-weight: 700;
 }
 
-.card.joker {
-    background-color: #f8bbd0;
-}
-
-.card.fusion {
-    background-color: #b2dfdb;
-    background-image: linear-gradient(45deg, #b2dfdb 25%, #80cbc4 25%, #80cbc4 50%, #b2dfdb 50%, #b2dfdb 75%, #80cbc4 75%, #80cbc4);
-    background-size: 10px 10px;
-}
-
+/* Face-down cards */
 .card.face-down {
-    background-color: var(--primary-color);
-    background-image: 
-        repeating-linear-gradient(
-            45deg, 
-            rgba(255, 255, 255, 0.1), 
-            rgba(255, 255, 255, 0.1) 10px, 
-            rgba(0, 0, 0, 0.1) 10px, 
-            rgba(0, 0, 0, 0.1) 20px
-        );
+  background: linear-gradient(135deg, var(--md-primary) 0%, var(--md-secondary) 100%);
 }
 
 .card.face-down .card-value,
 .card.face-down .card-type,
-.card.face-down .card-content {
-    display: none;
+.card.face-down .card-content,
+.card.face-down .monster-strength,
+.card.face-down .fusion-value {
+  display: none;
 }
 
-.card.disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+.card.face-down::before {
+  content: '🎴';
+  font-size: 48px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
 }
 
-.card.selected {
-    border: 3px solid var(--secondary-color);
+/* Card type classes - used by old JavaScript code */
+.card.monster-normal {
+  background: linear-gradient(135deg, var(--color-monster-normal) 0%, #4CAF50 100%);
+  color: white;
 }
 
-.card.can-attack {
-    box-shadow: 0 0 0 3px #4caf50;
+.card.monster-big {
+  background: linear-gradient(135deg, var(--color-monster-big) 0%, #FF6F00 100%);
+  color: white;
 }
 
-.card.fusion-component {
-    position: relative;
+.card.trap {
+  background: linear-gradient(135deg, var(--color-trap) 0%, #1976D2 100%);
+  color: white;
 }
 
-.fusion-value {
-    position: absolute;
-    bottom: 0.25rem;
-    left: 0.25rem;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 0.1rem 0.3rem;
-    border-radius: 3px;
-    font-weight: 700;
-    font-size: 0.9rem;
+.card.fusion {
+  background: linear-gradient(135deg, var(--color-fusion) 0%, #6A1B9A 100%);
+  color: white;
 }
 
-/* Deck and Discard */
-.deck-container {
-    display: flex;
-    gap: 2rem;
+.card.joker {
+  background: linear-gradient(135deg, var(--color-joker) 0%, #C62828 100%);
+  color: white;
 }
 
-.deck, .discard-pile {
-    width: var(--card-width);
-    height: var(--card-height);
-    position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.deck-count, .discard-count {
-    position: absolute;
-    bottom: -1.5rem;
-    width: 100%;
-    text-align: center;
-    font-weight: 500;
-}
-
-.discard-empty {
-    opacity: 0.3;
-}
-
-/* Game Controls */
-.game-controls {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 1rem;
-}
-
-.action-button {
-    padding: 0.75rem 1.5rem;
-    background-color: var(--primary-color);
-    color: var(--on-primary);
-    border: none;
-    border-radius: 4px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    box-shadow: var(--elevation-2);
-}
-
-.action-button:hover {
-    background-color: var(--primary-variant);
-}
-
-.action-button:disabled {
-    background-color: #9e9e9e;
-    cursor: not-allowed;
-}
-
-/* Game Log */
-.game-log {
-    min-width: 250px;
-    max-width: 350px;
-    height: 400px;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    box-shadow: var(--elevation-2);
-}
-
-.log-header {
-    background-color: var(--primary-color);
-    color: var(--on-primary);
-    padding: 0.5rem;
-    font-weight: 500;
-    text-align: center;
-}
-
-.log-content {
-    flex: 1;
-    padding: 0.5rem;
-    overflow-y: auto;
-    font-size: 0.9rem;
-}
-
-.log-entry {
-    margin-bottom: 0.3rem;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px dashed #e0e0e0;
-}
-
-.log-entry:last-child {
-    margin-bottom: 0;
-    padding-bottom: 0;
-    border-bottom: none;
-}
-
-/* Player Hand */
-.player-hand-container {
-    overflow-x: auto;
-    padding: 1rem 0;
-}
-
-.player-hand {
-    display: flex;
-    gap: 0.5rem;
-    min-height: calc(var(--card-height) + 10px);
-    padding: 0.5rem;
-}
-
-/* Dialogs */
-.dialog {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-    justify-content: center;
-    align-items: center;
-}
-
-.dialog.visible {
-    display: flex;
-}
-
-.dialog-content {
-    background-color: var(--surface);
-    padding: 1.5rem;
-    border-radius: 8px;
-    box-shadow: var(--elevation-4);
-    max-width: 500px;
-    width: 90%;
-    max-height: 80vh;
-    overflow-y: auto;
-    position: relative;
-}
-
-.dialog-content h2 {
-    margin-bottom: 1rem;
-    color: var(--primary-color);
-}
-
-.dialog-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    margin-top: 1.5rem;
-}
-
-.dialog-button {
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 4px;
-    font-weight: 500;
-    cursor: pointer;
-    background-color: #e0e0e0;
-    transition: background-color 0.2s ease;
-}
-
-.dialog-button:hover {
-    background-color: #d5d5d5;
-}
-
-.dialog-button.primary {
-    background-color: var(--primary-color);
-    color: var(--on-primary);
-}
-
-.dialog-button.primary:hover {
-    background-color: var(--primary-variant);
-}
-
-/* Sacrifice and Fusion dialogs */
-.sacrifice-cards, .fusion-cards, .discard-selection, .redirect-targets {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    margin: 1rem 0;
-    justify-content: center;
-}
-
-.sacrifice-card-wrapper, .fusion-card-wrapper, .discard-card-wrapper, .redirect-target-wrapper {
-    position: relative;
-}
-
-.sacrifice-total {
-    margin-top: 1rem;
-    font-weight: 500;
-    text-align: center;
-}
-
-.sacrifice-section-header {
-    width: 100%;
-    text-align: center;
-    font-weight: 700;
-    margin-top: 0.5rem;
-    margin-bottom: 0.25rem;
-    color: var(--primary-color);
-}
-
-.fusion-target-spaces {
-    display: flex;
-    justify-content: center;
-    gap: 1rem;
-    margin-top: 1rem;
-}
-
-/* Tutorial Modal */
-.modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-    justify-content: center;
-    align-items: center;
-    overflow-y: auto;
-}
-
-.modal.visible {
-    display: flex;
-}
-
-.modal-content {
-    background-color: var(--surface);
-    padding: 2rem;
-    border-radius: 8px;
-    box-shadow: var(--elevation-4);
-    max-width: 800px;
-    width: 90%;
-    max-height: 90vh;
-    overflow-y: auto;
-    position: relative;
-}
-
-.close {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    font-size: 1.5rem;
-    cursor: pointer;
-}
-
-.tutorial-content {
-    margin-top: 1.5rem;
-}
-
-.tutorial-navigation {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.tutorial-nav-button {
-    background: none;
-    border: none;
-    color: var(--primary-color);
-    font-weight: 500;
-    cursor: pointer;
-}
-
-#tutorial-pages {
-    min-height: 300px;
-}
-
-.tutorial-page {
-    display: none;
-}
-
-.tutorial-page.active {
-    display: block;
-}
-
-.tutorial-page h3 {
-    margin-bottom: 1rem;
-    color: var(--primary-color);
-}
-
-.tutorial-page ul {
-    padding-left: 1.5rem;
-    margin-bottom: 1rem;
-}
-
-.tutorial-page p {
-    margin-bottom: 1rem;
-}
-
-/* Help button */
-.help-button {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    width: 3rem;
-    height: 3rem;
-    border-radius: 50%;
-    background-color: var(--secondary-color);
-    color: var(--on-secondary);
-    border: none;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    box-shadow: var(--elevation-2);
-    transition: background-color 0.3s ease, transform 0.3s ease;
-    z-index: 100;
-}
-
-.help-button:hover {
-    background-color: var(--secondary-variant);
-    transform: scale(1.1);
-}
-
-/* Combat animation */
-@keyframes attack {
-    0% { transform: translateY(0); }
-    25% { transform: translateY(-10px); }
-    50% { transform: translateY(0); }
-    75% { transform: translateY(10px); }
-    100% { transform: translateY(0); }
-}
-
-.attacking {
-    animation: attack 0.5s ease;
-}
-
-@keyframes damage {
-    0% { background-color: transparent; }
-    50% { background-color: rgba(255, 0, 0, 0.3); }
-    100% { background-color: transparent; }
-}
-
-.taking-damage {
-    animation: damage 0.5s ease;
-}
-
-@keyframes destroy {
-    0% { opacity: 1; transform: scale(1); }
-    100% { opacity: 0; transform: scale(0.5) rotate(15deg); }
-}
-
-.destroyed {
-    animation: destroy 0.5s ease forwards;
-}
-
-/* Responsive adjustments */
-@media (min-width: 768px) {
-    .game-board {
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: center;
-        align-items: stretch;
-    }
-    
-    .player-area {
-        flex: 2;
-        min-width: 400px;
-    }
-    
-    .bot-area {
-        order: 1;
-    }
-    
-    .center-area {
-        flex: 1;
-        order: 2;
-        flex-direction: column;
-        justify-content: space-around;
-        min-width: 300px;
-    }
-    
-/* Visual marker for King-weakened monsters */
+/* Weakened state (King effect) */
 .card.weakened {
-    box-shadow: 0 0 10px rgba(200,50,50,0.6) inset, 0 0 8px rgba(200,50,50,0.25);
-    opacity: 0.95;
+  opacity: 0.7;
+  filter: grayscale(0.3);
 }
 
 .card.weakened .monster-strength,
 .card.weakened .fusion-value {
-    color: #c62828; /* red-ish to show reduced */
-    font-weight: 700;
+  background: rgba(211, 47, 47, 0.9);
+  animation: pulse-red 2s ease-in-out infinite;
 }
 
-    .player-area-human {
-        order: 3;
-    }
-}
-
-@media (max-width: 767px) {
-    :root {
-        --card-width: 70px;
-        --card-height: 98px;
-        --space-width: 70px;
-        --space-height: 98px;
-    }
-    
-    .card-value {
-        font-size: 1.2rem;
-    }
-    
-    .player-hand {
-        justify-content: center;
-    }
-}
-
-/* Drag and drop styling */
-.dragging {
-    opacity: 0.7;
-    z-index: 1000;
-}
-
-.drop-target {
-    border: 2px solid var(--secondary-color);
-    background-color: rgba(3, 218, 198, 0.1);
-}
-
-/* Card flip animations */
-@keyframes card-flip {
-    0% { transform: rotateY(0deg) scale(1); }
-    25% { transform: rotateY(45deg) scale(1.05); }
-    50% { transform: rotateY(90deg) scale(1.1); }
-    75% { transform: rotateY(135deg) scale(1.05); }
-    100% { transform: rotateY(180deg) scale(1); }
-}
-
-@keyframes card-flip-back {
-    0% { transform: rotateY(180deg) scale(1); }
-    25% { transform: rotateY(225deg) scale(1.05); }
-    50% { transform: rotateY(270deg) scale(1.1); }
-    75% { transform: rotateY(315deg) scale(1.05); }
-    100% { transform: rotateY(360deg) scale(1); }
-}
-
-.card-flipping {
-    animation: card-flip 0.6s ease-in-out;
-    z-index: 100;
-}
-
-.card-flipping-back {
-    animation: card-flip-back 0.6s ease-in-out;
-    z-index: 100;
-}
-
-/* Trap reveal animation */
-@keyframes trap-reveal {
-    0% { 
-        transform: scale(1);
-        box-shadow: var(--elevation-2);
-    }
-    25% { 
-        transform: scale(1.1);
-        box-shadow: 0 0 20px rgba(255, 193, 7, 0.6);
-    }
-    50% { 
-        transform: scale(1.15);
-        box-shadow: 0 0 25px rgba(255, 193, 7, 0.8);
-    }
-    75% { 
-        transform: scale(1.1);
-        box-shadow: 0 0 20px rgba(255, 193, 7, 0.6);
-    }
-    100% { 
-        transform: scale(1);
-        box-shadow: var(--elevation-2);
-    }
-}
-
-.card.trap-revealing {
-    animation: trap-reveal 1.0s ease-in-out;
-}
-
-/* Phase highlight indicators */
-.phase-highlight {
-    position: relative;
-    overflow: hidden;
-}
-
-.phase-highlight::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(98, 0, 238, 0.1);
-    border: 2px solid var(--primary-color);
-    border-radius: 6px;
-    z-index: -1;
-    pointer-events: none;
-}
-
-/* Phase-based background and area accents */
-.game-board.phase-player-SETUP, .game-board.phase-player-BATTLE, .game-board.phase-player-END,
-.game-board.phase-bot-SETUP, .game-board.phase-bot-BATTLE, .game-board.phase-bot-END {
-    transition: background-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.game-board.phase-player-SETUP { background-color: rgba(60,128,255,0.03); }
-.game-board.phase-player-BATTLE { background-color: rgba(255,92,92,0.03); }
-.game-board.phase-player-END { background-color: rgba(120,120,120,0.02); }
-
-.game-board.phase-bot-SETUP { background-color: rgba(60,128,255,0.02); }
-.game-board.phase-bot-BATTLE { background-color: rgba(255,92,92,0.02); }
-.game-board.phase-bot-END { background-color: rgba(120,120,120,0.01); }
-
-.player-area.phase-active { box-shadow: inset 0 0 0 2px rgba(60,128,255,0.06); }
-.bot-area.phase-active { box-shadow: inset 0 0 0 2px rgba(255,92,92,0.04); }
-
-/* Card values and types visual styles */
-.hearts, .diamonds {
-    color: #d32f2f;
-}
-
-.clubs, .spades {
-    color: #212121;
-}
-
-.monster-strength {
-    position: absolute;
-    top: -0.75rem;
-    right: -0.75rem;
-    background-color: var(--primary-color);
-    color: white;
-    border-radius: 50%;
-    width: 1.75rem;
-    height: 1.75rem;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-weight: 700;
-    z-index: 3;
-}
-
-/* Trap visual states */
+/* Trap states */
 .card.trap-disabled {
-    filter: grayscale(70%);
-    opacity: 0.85;
-    box-shadow: none;
+  opacity: 0.6;
+  filter: grayscale(0.5);
 }
 
 .card.trap-active {
-    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.25), 0 6px 12px rgba(255, 193, 7, 0.15);
-    transform: translateY(-3px);
+  box-shadow: 0 0 0 2px var(--color-trap), 
+              0 0 16px 2px rgba(33, 150, 243, 0.6),
+              var(--elevation-3);
 }
 
 .trap-status-badge {
-    position: absolute;
-    bottom: 0.25rem;
-    right: 0.25rem;
-    background-color: rgba(0,0,0,0.6);
-    color: white;
-    padding: 0.15rem 0.4rem;
-    border-radius: 3px;
-    font-size: 0.7rem;
-    z-index: 4;
+  position: absolute;
+  top: var(--space-xs);
+  left: var(--space-xs);
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 2px var(--space-xs);
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
 }
 
-/* Reactive trap highlight for player when prompted to respond */
-.reactive-highlight {
-    box-shadow: 0 0 0 4px rgba(33, 150, 243, 0.35);
-    transform: translateY(-4px);
-    border: 2px solid rgba(33, 150, 243, 0.6);
-    z-index: 50;
-}
-
-/* Countdown element shown during 5s reaction window */
-#trap-countdown {
-    position: fixed;
-    right: 1rem;
-    top: 1rem;
-    background: rgba(33, 150, 243, 0.95);
-    color: white;
-    padding: 0.5rem 0.75rem;
-    border-radius: 6px;
-    font-weight: 700;
-    z-index: 2000;
-    box-shadow: var(--elevation-4);
-}
-
-/* Monster attacked state */
+/* Attacked state */
 .card.attacked {
-    opacity: 0.6;
-    filter: grayscale(40%);
-    box-shadow: none;
-    transform: translateY(0);
+  animation: damage 300ms ease-in-out;
 }
 
 .card.attacked .monster-strength {
-    background-color: #9e9e9e;
+  animation: pulse-red 300ms ease-in-out;
 }
 
-/* Redirect target highlight for Jack trap */
-.redirect-highlight {
-    box-shadow: 0 0 0 6px rgba(255, 152, 0, 0.35) !important;
-    transform: translateY(-6px);
-    border: 2px solid rgba(255, 152, 0, 0.7) !important;
-    z-index: 60;
-    cursor: pointer;
+/* ============ DIALOGS ============ */
+
+.dialog, .modal-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--md-surface-container-high);
+  border-radius: var(--space-lg);
+  box-shadow: var(--elevation-5);
+  z-index: var(--z-modal);
+  max-width: min(600px, 90vw);
+  max-height: 85vh;
+  overflow: auto;
+  display: none;
 }
 
-/* Attack target highlight */
-.attack-target {
-    box-shadow: 0 0 0 6px rgba(255, 0, 0, 0.4) !important;
-    border: 2px solid rgba(255, 0, 0, 0.7) !important;
-    z-index: 55;
-    animation: pulse-target 1.5s infinite;
+.dialog.visible, .modal-dialog[open] {
+  display: block;
 }
 
-/* Direct attack target highlight */
-.direct-attack-target {
-    box-shadow: 0 0 15px 5px rgba(255, 0, 0, 0.4) inset !important;
-    animation: pulse-direct-target 1.5s infinite;
+.dialog-content {
+  padding: var(--space-lg);
 }
 
-@keyframes pulse-target {
-    0% { box-shadow: 0 0 0 3px rgba(255, 0, 0, 0.4) !important; }
-    50% { box-shadow: 0 0 0 6px rgba(255, 0, 0, 0.7) !important; }
-    100% { box-shadow: 0 0 0 3px rgba(255, 0, 0, 0.4) !important; }
+.dialog-content h2 {
+  font-size: var(--font-h5);
+  font-weight: 500;
+  margin-bottom: var(--space-md);
+  color: var(--md-on-surface);
 }
 
-@keyframes pulse-direct-target {
-    0% { box-shadow: 0 0 5px 2px rgba(255, 0, 0, 0.4) inset !important; }
-    50% { box-shadow: 0 0 15px 5px rgba(255, 0, 0, 0.7) inset !important; }
-    100% { box-shadow: 0 0 5px 2px rgba(255, 0, 0, 0.4) inset !important; }
+.dialog-content p {
+  font-size: var(--font-body1);
+  color: var(--md-on-surface-variant);
+  margin-bottom: var(--space-md);
+  line-height: 1.6;
+}
+
+.dialog-buttons {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+  margin-top: var(--space-lg);
+}
+
+.dialog-button {
+  padding: var(--space-sm) var(--space-lg);
+  border: none;
+  border-radius: 20px;
+  font-size: var(--font-button);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dialog-button.primary {
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  box-shadow: var(--elevation-2);
+}
+
+.dialog-button.primary:hover {
+  background: var(--md-primary-container);
+  box-shadow: var(--elevation-3);
+}
+
+.dialog-button:not(.primary) {
+  background: transparent;
+  color: var(--md-primary);
+}
+
+.dialog-button:not(.primary):hover {
+  background: var(--md-primary-container);
+}
+
+.dialog-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============ TRAP COUNTDOWN ============ */
+
+#trap-countdown,
+.trap-countdown {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10001;
+  background: var(--md-error-container);
+  color: var(--md-on-error-container);
+  padding: var(--space-xl);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-5);
+  font-size: var(--font-headline3);
+  font-weight: bold;
+  text-align: center;
+  border: 3px solid var(--md-error);
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  animation: countdown-pulse 1s ease-in-out infinite;
+}
+
+#trap-countdown::before,
+.trap-countdown::before {
+  content: 'React with Trap!';
+  font-size: var(--font-subtitle1);
+  font-weight: 500;
+  display: block;
+  margin-bottom: var(--space-sm);
+  color: var(--md-error);
+}
+
+@keyframes countdown-pulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+
+@media (max-width: 600px) {
+  #trap-countdown,
+  .trap-countdown {
+    padding: var(--space-lg);
+    font-size: var(--font-headline4);
+    min-width: 150px;
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+  }
+  
+  #trap-countdown::before,
+  .trap-countdown::before {
+    font-size: var(--font-body1);
+  }
+}
+
+/* Inline reactive trap area container */
+.reactive-trap-area {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 0;
+  margin-bottom: var(--space-md);
+}
+
+/* When trap countdown is rendered inline, remove fixed positioning and pulse */
+.trap-countdown.inline {
+  position: static;
+  transform: none;
+  z-index: auto;
+  animation: none;
+  box-shadow: var(--elevation-2);
+}
+
+/* Lock the game log to the right side on larger screens */
+@media (min-width: 900px) {
+
+
+  .game-log {
+    /* keep the log visible while the main area scrolls */
+    position: sticky;
+    top: var(--space-md);
+    align-self: start;
+    /* cap the height to the viewport so internal scrolling is used */
+    max-height: calc(100vh - (2 * var(--space-md)));
+    overflow: hidden;
+  }
+
+  .log-content {
+    /* internal scroll area for entries */
+    max-height: calc(100vh - (4 * var(--space-md)));
+    overflow-y: auto;
+  }
+}
+
+/* ============ SPECIFIC DIALOG STYLES ============ */
+
+.sacrifice-cards, .fusion-cards, .redirect-targets, .discard-selection, .card-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  justify-content: center;
+  padding: var(--space-md);
+  background: var(--md-surface-container-low);
+  border-radius: var(--space-md);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.bot-hand-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  justify-content: center;
+  padding: var(--space-md);
+  background: var(--md-surface-container-low);
+  border-radius: var(--space-md);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.welcome-form {
+  margin: var(--space-lg) 0;
+}
+
+.input-group {
+  margin-bottom: var(--space-md);
+}
+
+.input-group label {
+  display: block;
+  font-size: var(--font-body2);
+  font-weight: 500;
+  margin-bottom: var(--space-xs);
+  color: var(--md-on-surface);
+}
+
+.input-group input[type="text"] {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid var(--md-outline);
+  border-radius: var(--space-sm);
+  font-size: var(--font-body1);
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  transition: border-color var(--duration-fast);
+}
+
+.input-group input[type="text"]:focus {
+  outline: none;
+  border-color: var(--md-primary);
+}
+
+.difficulty-select {
+  margin-top: var(--space-md);
+}
+
+.difficulty-select p {
+  font-size: var(--font-body2);
+  font-weight: 500;
+  margin-bottom: var(--space-sm);
+}
+
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.radio-group label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--font-body1);
+  cursor: pointer;
+}
+
+/* ============ HELP BUTTON ============ */
+
+.help-button {
+  position: fixed;
+  bottom: var(--space-lg);
+  right: var(--space-lg);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--md-secondary);
+  color: var(--md-on-secondary);
+  border: none;
+  box-shadow: var(--elevation-3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-floating);
+  transition: all var(--duration-fast);
+}
+
+.help-button:hover {
+  box-shadow: var(--elevation-4);
+  transform: scale(1.1);
+}
+
+.help-button .material-icons {
+  font-size: 28px;
+}
+
+/* ============ TUTORIAL STYLES ============ */
+
+.tutorial-close {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--md-on-surface);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--duration-fast);
+}
+
+.tutorial-close:hover {
+  background: var(--md-surface-container);
+}
+
+.tutorial-content {
+  padding-top: var(--space-md);
+}
+
+.tutorial-navigation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+
+.tutorial-nav-button {
+  padding: var(--space-xs) var(--space-md);
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: var(--font-body2);
+  transition: all var(--duration-fast);
+}
+
+.tutorial-nav-button:hover {
+  background: var(--md-primary-container);
+}
+
+.tutorial-nav-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#tutorial-page-indicator {
+  font-size: var(--font-body2);
+  color: var(--md-on-surface-variant);
+}
+
+#tutorial-pages {
+  min-height: 300px;
+}
+
+.tutorial-page {
+  display: none;
+}
+
+.tutorial-page.active {
+  display: block;
+}
+
+.tutorial-page h3 {
+  margin-top: var(--space-md);
+  margin-bottom: var(--space-sm);
+  color: var(--md-primary);
+}
+
+.tutorial-page ul {
+  margin-left: var(--space-lg);
+  line-height: 1.6;
+}
+
+.tutorial-page p {
+  margin-bottom: var(--space-sm);
+  line-height: 1.6;
+}
+
+.tutorial-footer {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--md-outline);
+}
+
+/* ============ RESPONSIVE BREAKPOINTS ============ */
+
+@media (max-width: 1200px) {
+  .game-board {
+    /* Three-column layout: left sidebar, main content, right sidebar */
+    grid-template-columns: 200px 1fr 250px;
+    gap: var(--space-md);
+  }
+}
+
+@media (max-width: 900px) {
+  .game-board {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr auto;
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+  }
+  
+  .left-sidebar {
+      order: 1;
+      flex-direction: row;
+      justify-content: space-between;
+  }
+
+  .main-content {
+      order: 2;
+  }
+
+  .right-sidebar {
+      order: 3;
+      flex-direction: row-reverse;
+  }
+  
+  .game-log {
+    width: 100%;
+    height: 150px;
+    flex-grow: 1;
+  }
+  
+  .player-hand {
+    max-height: 150px;
+    flex-wrap: nowrap;
+  }
+}
+
+@media (max-width: 600px) {
+  .game-header h1 {
+    font-size: var(--font-subtitle1);
+  }
+  
+  .game-status {
+    flex-direction: column;
+    gap: var(--space-xs);
+    font-size: var(--font-caption);
+  }
+  
+  .help-button {
+    width: 48px;
+    height: 48px;
+    bottom: var(--space-md);
+    right: var(--space-md);
+  }
 }

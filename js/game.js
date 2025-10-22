@@ -23,9 +23,8 @@ class Game {
         this.battlePhaseEnded = false; // Flag to indicate if Ace trap ended the battle phase
         this.turnForcefullyEnded = false; // Flag to indicate if turn was ended by Ace trap
 
-        // Initialize starting hands
-        this.player.drawCards(this.deck, GAME_SETTINGS.STARTING_HAND_SIZE);
-        this.bot.drawCards(this.deck, GAME_SETTINGS.STARTING_HAND_SIZE);
+        // Don't draw starting hands here - they will be drawn in startTurn() 
+        // to avoid duplicate draw messages
 
         // Ensure UI initialized
         if (this.ui && typeof this.ui.initialize === 'function') this.ui.initialize();
@@ -49,9 +48,8 @@ class Game {
         this.turnCounter = 1;
         this.firstTurnRestriction = true;
 
-        // Deal starting hands
-        this.player.drawCards(this.deck, GAME_SETTINGS.STARTING_HAND_SIZE);
-        this.bot.drawCards(this.deck, GAME_SETTINGS.STARTING_HAND_SIZE);
+        // Don't draw starting hands here - they will be drawn in startTurn()
+        // to avoid duplicate draw messages
 
         this.ui.initialize();
         this.ui.updateGameState();
@@ -108,6 +106,7 @@ class Game {
 
         switch (this.currentPhase) {
             case PHASES.SETUP:
+                this.ui.addLogMessage(`${this.currentPlayer.name} ended Setup phase`);
                 // If the current player played a Joker this turn, skip their battle phase
                 if (this.currentPlayer && this.currentPlayer.skipBattleThisTurn) {
                     this.ui.addLogMessage(`${this.currentPlayer.name}'s Battle phase is skipped due to Joker`);
@@ -124,6 +123,7 @@ class Game {
                 }
                 break;
             case PHASES.BATTLE:
+                this.ui.addLogMessage(`${this.currentPlayer.name} ended Battle phase`);
                 this.currentPhase = PHASES.END;
                 // Reset attacked flags when battle phase ends so monsters become active again visually
                 this.resetAttackedFlags();
@@ -138,6 +138,7 @@ class Game {
                 this.handleEndPhase();
                 return;
             case PHASES.END:
+                this.ui.addLogMessage(`${this.currentPlayer.name} ended their turn`);
                 this.endTurn();
                 return;
         }
@@ -217,13 +218,21 @@ class Game {
         return res && res.success;
     }
 
-    playTrapCard(card, spaceIndex, isBot = false) {
+    async playTrapCard(card, spaceIndex, isBot = false) {
         const player = isBot ? this.bot : this.player;
+        const opponent = isBot ? this.player : this.bot;
+        
         // Player API uses playCard for both monsters and traps
         const res = (typeof player.playCard === 'function') ? player.playCard(card, spaceIndex) : { success: false };
         if (res && res.success) {
             this.ui.addLogMessage(`${player.name} sets a trap`);
             this.ui.updateGameState();
+            
+            // NOTE: Setting a trap does not trigger a reaction prompt.
+            // The player can only react when:
+            // 1. Bot attacks (Ace/Jack/King can respond) - handled in processAttack
+            // 2. Bot activates a trap (Queen/Ace can respond) - handled in activateTrap functions
+            // 3. Bot activates a trap in response (Queen/Ace can chain) - handled in activate functions
         }
         return res && res.success;
     }
@@ -294,6 +303,15 @@ class Game {
 
         this.ui.addLogMessage(`${player.name} played Joker — board and hands reset`);
         this.ui.updateGameState();
+        this.ui.updatePlayerHand(); // Ensure player's new hand is displayed
+        this.ui.updateHandCounts(); // Ensure hand counts are updated
+        
+        // Force a reflow to ensure hand is visible on all screen sizes
+        setTimeout(() => {
+            this.ui.updatePlayerHand();
+            this.ui.updateHandCounts();
+        }, 50);
+        
         return true;
     }
 
@@ -338,6 +356,22 @@ class Game {
         const attacker = isAttackerBot ? this.bot : this.player;
         const defender = (attacker === this.player) ? this.bot : this.player;
         
+        // Log the attack attempt
+        try {
+            const attackingCard = attacker.monsterSpaces[attackerIndex] ? attacker.monsterSpaces[attackerIndex].card : null;
+            const atkName = attackingCard ? (attackingCard.isFusion ? `Fusion(${attackingCard.fusionStrength})` : attackingCard.value) : 'Unknown';
+            let targetDesc = '';
+            if (defenderIndex === null) targetDesc = `${defender.name} (direct)`;
+            else {
+                const defCard = defender.monsterSpaces[defenderIndex] ? defender.monsterSpaces[defenderIndex].card : null;
+                const defName = defCard ? (defCard.isFusion ? `Fusion(${defCard.fusionStrength})` : defCard.value) : 'Unknown';
+                targetDesc = `${defender.name}'s ${defName}`;
+            }
+            if (this.ui && typeof this.ui.addLogMessage === 'function') {
+                this.ui.addLogMessage(`${attacker.name}'s ${atkName} attempts to attack ${targetDesc}`);
+            }
+        } catch (e) { /* non-fatal logging error */ }
+
         // Validate attack: direct attacks should not be allowed if defender has monsters
         if (defenderIndex === null) {
             // This is a direct attack - check if defender has monsters
@@ -352,25 +386,11 @@ class Game {
             }
         }
 
-        // Add attack target highlighting for better visibility
-        if (this.ui && typeof this.ui.clearAttackHighlights === 'function') {
-            this.ui.clearAttackHighlights();
-            
-            // Highlight the attacking monster
-            const attackerElementId = `${isAttackerBot ? 'bot' : 'player'}-monster-${attackerIndex}`;
-            document.getElementById(attackerElementId)?.classList.add('highlight');
-            
-            // Highlight the target (either monster or direct attack)
-            if (defenderIndex !== null) {
-                const targetElementId = `${isAttackerBot ? 'player' : 'bot'}-monster-${defenderIndex}`;
-                document.getElementById(targetElementId)?.classList.add('attack-target');
-            } else {
-                // Direct attack
-                const targetAreaClass = isAttackerBot ? '.player-area' : '.bot-area';
-                document.querySelector(targetAreaClass)?.classList.add('direct-attack-target');
-            }
+        // Highlight the attack (attacker and defender)
+        if (this.ui && typeof this.ui.highlightAttack === 'function') {
+            this.ui.highlightAttack(attackerIndex, attacker, defenderIndex, defender);
         }
-        
+
         // Play attack animation
         try {
             if (this.ui && typeof this.ui.animateAttack === 'function') {
@@ -380,16 +400,6 @@ class Game {
             // Swallow animation errors but continue
             console.warn('Attack animation error', err);
         }
-        
-        // Set a timeout to clear the highlights after animation
-        setTimeout(() => {
-            if (this.ui && typeof this.ui.clearAttackHighlights === 'function') {
-                this.ui.clearAttackHighlights();
-                document.querySelectorAll('.monster-space, .player-area').forEach(element => {
-                    element.classList.remove('highlight');
-                });
-            }
-        }, 1000);
 
         // Before resolving the attack, check for defender traps and give the human defender a chance to react
         try {
@@ -406,15 +416,11 @@ class Game {
         if (defender && defender.getActivatableTraps) {
             const activatable = defender.getActivatableTraps({ type: defenderIndex === null ? 'battle-phase' : 'attack' });
             if (activatable && activatable.length > 0) {
-                // If defender is human, show UI prompt and wait up to 5 seconds
+                // If defender is human, show UI prompt and wait for player decision
                 if (defender === this.player) {
                     try {
-                                // Wait for reactive prompt but guard with a timeout so the game cannot hang
-                                const resp = await Promise.race([
-                                    this.ui.promptTrapResponse(trapContext),
-                                    new Promise(resolve => setTimeout(() => resolve({ activated: false, timedOut: true }), 7000))
-                                ]);
-                                if (resp && resp.timedOut) console.warn('Reactive trap prompt timed out; continuing as not activated');
+                                // Wait for reactive prompt - no timeout, wait for player decision
+                                const resp = await this.ui.promptTrapResponse(trapContext);
                         if (resp && resp.activated) {
                             // If the trap activation returned a redirect (Jack), reprocess the attack immediately
                             const r = resp.result || {};
@@ -556,6 +562,11 @@ class Game {
             attackingMonsterSpace.card.attackedThisTurn = true;
         }
 
+        // Clear attack highlights now that attack is resolved
+        if (this.ui && typeof this.ui.clearAttackHighlights === 'function') {
+            this.ui.clearAttackHighlights();
+        }
+
         // Update UI state
         if (this.ui) this.ui.updateGameState();
 
@@ -654,6 +665,9 @@ class Game {
                     // Mark that the turn was forcefully ended by Ace trap
                     this.turnForcefullyEnded = true;
                     
+                    // Clear attack highlights since turn is ending
+                    this.ui.clearAttackHighlights();
+                    
                     // Process end phase logic (including fusion upkeep) when Ace forces phase transition
                     this.handleEndPhase();
                 }
@@ -698,6 +712,23 @@ class Game {
             }
             
             this.ui.addLogMessage(`${owner.name} activates King`);
+
+            // Before applying King effect, allow the opponent to cancel using a Queen if available
+            const opponent = (owner === this.player) ? this.bot : this.player;
+            // Only prompt the human player (UI) if they are opponent and have a UI
+            if (this.ui && opponent === this.player) {
+                try {
+                    // Ask UI to prompt cancelation; if canceled, do not apply King effect
+                    const cancelResp = await this.ui.promptCancelTrap(trap);
+                    if (cancelResp && cancelResp.canceled) {
+                        this.ui.addLogMessage('King activation was cancelled by Queen');
+                        this.ui.updateGameState();
+                        return { success: true, canceledByQueen: true };
+                    }
+                } catch (err) {
+                    console.warn('Error prompting for Queen cancel', err);
+                }
+            }
 
             // If context provides attacker info, mark the attacking monster as king-weakened
             if (context && typeof context.attackerIndex === 'number') {
@@ -746,6 +777,23 @@ class Game {
             }
             
             this.ui.addLogMessage(`${owner.name} activates Jack`);
+
+            // Before applying Jack effect, allow the opponent to cancel using a Queen if available
+            const opponent = (owner === this.player) ? this.bot : this.player;
+            // Only prompt the human player (UI) if they are opponent and have a UI
+            if (this.ui && opponent === this.player) {
+                try {
+                    // Ask UI to prompt cancelation; if canceled, do not apply Jack effect
+                    const cancelResp = await this.ui.promptCancelTrap(trap);
+                    if (cancelResp && cancelResp.canceled) {
+                        this.ui.addLogMessage('Jack activation was cancelled by Queen');
+                        this.ui.updateGameState();
+                        return { success: true, canceledByQueen: true };
+                    }
+                } catch (err) {
+                    console.warn('Error prompting for Queen cancel', err);
+                }
+            }
 
             // Redirect handled by board; caller should resume attack with new target
             const redirect = this.board.handleJackTrap(targetIndex, targetPlayer);

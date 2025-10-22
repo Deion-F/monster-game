@@ -6,8 +6,8 @@
     <title>Monster Card Battle Game</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="css/animations.css">
     <link rel="stylesheet" href="css/styles.css">
-    <link rel="stylesheet" href="css/dialog.css">
 </head>
 <body>
     <!-- Welcome Dialog -->
@@ -17,7 +17,7 @@
             <div class="welcome-form">
                 <div class="input-group">
                     <label for="player-name">Your Name:</label>
-                    <input type="text" id="player-name" name="player-name" maxlength="20" placeholder="Enter your name" value="Player" autocomplete="off" />
+                    <input type="text" id="player-name" name="player-name" maxlength="20" placeholder="Enter your name" autocomplete="off" />
                 </div>
                 <div class="difficulty-select">
                     <p>Select Difficulty:</p>
@@ -58,62 +58,76 @@
 
         <!-- Game board -->
         <div class="game-board">
-            <!-- Bot area -->
-            <div class="player-area bot-area">
-                <div class="player-info">
-                    <div class="player-name">Bot</div>
-                    <div class="player-health">
-                        <span class="health-label">Health:</span>
-                        <span id="bot-health" class="health-value">40</span>
-                    </div>
-                    <div class="deck-info">
-                        <div class="hand-count">
-                            <span class="hand-icon material-icons">pan_tool</span>
-                            <span id="bot-hand-count">5</span>
-                            <button id="view-bot-hand-btn" class="view-hand-btn" title="View Bot's Hand">
-                                <span class="material-icons">visibility</span>
-                            </button>
+            <div class="left-sidebar">
+                <div class="player-area bot-area">
+                    <div class="player-info">
+                        <div class="player-name">Bot</div>
+                        <div class="player-health">
+                            <span class="health-label">Health:</span>
+                            <span id="bot-health" class="health-value">40</span>
+                        </div>
+                        <div class="deck-info">
+                            <div class="hand-count">
+                                <span class="hand-icon material-icons">pan_tool</span>
+                                <span id="bot-hand-count">5</span>
+                                <button id="view-bot-hand-btn" class="view-hand-btn" title="View Bot's Hand">
+                                    <span class="material-icons">visibility</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="board-spaces">
-                    <div class="trap-row">
-                        <div class="trap-space" id="bot-trap-0" data-index="0"></div>
-                        <div class="trap-space" id="bot-trap-1" data-index="1"></div>
-                        <div class="trap-space" id="bot-trap-2" data-index="2"></div>
+                <div class="player-area player-area-human">
+                    <div class="player-info">
+                        <div class="player-name">Player</div>
+                        <div class="player-health">
+                            <span class="health-label">Health:</span>
+                            <span id="player-health" class="health-value">40</span>
+                        </div>
+                        <div class="deck-info">
+                            <div class="hand-count">
+                                <span class="hand-icon material-icons">pan_tool</span>
+                                <span id="player-hand-count">5</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="monster-row">
-                        <div class="monster-space" id="bot-monster-0" data-index="0"></div>
-                        <div class="monster-space" id="bot-monster-1" data-index="1"></div>
-                        <div class="monster-space" id="bot-monster-2" data-index="2"></div>
+                    <div class="deck-container">
+                        <div id="deck" class="deck">
+                            <div class="card card-back"></div>
+                            <div id="deck-count" class="deck-count">54</div>
+                        </div>
+                        <div id="discard-pile" class="discard-pile">
+                            <div class="card card-back discard-empty"></div>
+                            <div id="discard-count" class="discard-count">0</div>
+                        </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Center area with deck and discard pile -->
-            <div class="center-area">
-                <div class="deck-container">
-                    <div id="deck" class="deck">
-                        <div class="card card-back"></div>
-                        <div id="deck-count" class="deck-count">54</div>
-                    </div>
-                    <div id="discard-pile" class="discard-pile">
-                        <div class="card card-back discard-empty"></div>
-                        <div id="discard-count" class="discard-count">0</div>
-                    </div>
-                </div>
+                <div id="trap-reaction-container" class="trap-reaction-container"></div>
                 <div class="game-controls">
                     <button id="end-phase-btn" class="action-button">End Phase</button>
                 </div>
-                <div id="game-log" class="game-log">
-                    <div class="log-header">Game Log</div>
-                    <div id="log-content" class="log-content"></div>
-                </div>
             </div>
 
-            <!-- Player area -->
-            <div class="player-area player-area-human">
-                <div class="board-spaces">
+            <div class="main-content">
+                <div class="center-play-area">
+                    <!-- Inline reactive trap area (countdown and actions) -->
+                    <div id="reactive-trap-area" class="reactive-trap-area" aria-live="polite"></div>
+                    <div class="board-spaces bot-board-spaces">
+                        <div class="trap-row">
+                            <div class="trap-space" id="bot-trap-0" data-index="0"></div>
+                            <div class="trap-space" id="bot-trap-1" data-index="1"></div>
+                            <div class="trap-space" id="bot-trap-2" data-index="2"></div>
+                        </div>
+                        <div class="monster-row">
+                            <div class="monster-space" id="bot-monster-0" data-index="0"></div>
+                            <div class="monster-space" id="bot-monster-1" data-index="1"></div>
+                            <div class="monster-space" id="bot-monster-2" data-index="2"></div>
+                        </div>
+                    </div>
+
+                    <div class="play-area-divider"></div>
+
+                    <div class="board-spaces player-board-spaces">
                         <div class="monster-row">
                             <div class="monster-space" id="player-monster-0" data-index="0"></div>
                             <div class="monster-space" id="player-monster-1" data-index="1"></div>
@@ -125,21 +139,16 @@
                             <div class="trap-space" id="player-trap-2" data-index="2"></div>
                         </div>
                     </div>
-                <div class="player-info">
-                    <div class="player-name">Player</div>
-                    <div class="player-health">
-                        <span class="health-label">Health:</span>
-                        <span id="player-health" class="health-value">40</span>
-                    </div>
-                    <div class="deck-info">
-                        <div class="hand-count">
-                            <span class="hand-icon material-icons">pan_tool</span>
-                            <span id="player-hand-count">5</span>
-                        </div>
-                    </div>
                 </div>
                 <div class="player-hand-container">
                     <div id="player-hand" class="player-hand"></div>
+                </div>
+            </div>
+
+            <div class="right-sidebar">
+                <div id="game-log" class="game-log">
+                    <div class="log-header">Game Log</div>
+                    <div id="log-content" class="log-content"></div>
                 </div>
             </div>
         </div>
@@ -260,7 +269,6 @@
         <!-- Tutorial modal -->
         <dialog id="tutorial-dialog" class="modal-dialog">
             <div class="dialog-content">
-                <button id="close-tutorial" class="tutorial-close" aria-label="Close">✕</button>
                 <h2>Game Rules</h2>
                 <div class="tutorial-content">
                     <div class="tutorial-navigation">
