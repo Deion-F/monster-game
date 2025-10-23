@@ -15,6 +15,7 @@ class Player {
         this.monsterSpaces = Array(GAME_SETTINGS.MAX_MONSTER_SPACES).fill().map(() => ({ card: null }));
         this.trapSpaces = Array(GAME_SETTINGS.MAX_TRAP_SPACES).fill().map(() => ({ card: null }));
         this.usedTrapTypes = new Set(); // Track trap types used this turn
+        this.skipBattleThisTurn = false; // Flag to skip battle phase (set if Joker is played)
     }
 
     /**
@@ -464,6 +465,7 @@ class Player {
      */
     resetForNewTurn() {
         this.usedTrapTypes.clear();
+        this.skipBattleThisTurn = false; // Reset battle phase skip flag for new turn
         
         // Reset monster attack flags
         for (const space of this.monsterSpaces) {

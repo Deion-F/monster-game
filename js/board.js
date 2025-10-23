@@ -298,6 +298,62 @@ class Board {
     }
 
     /**
+     * Get potential fusions that combine one field monster with one hand monster
+     * This prevents fusing two field monsters together
+     * @param {Player} player - Player to check
+     * @returns {Array} - Fusion combinations with one field + one hand monster
+     */
+    getPotentialFusionsWithHand(player) {
+        const combinations = [];
+        
+        // Collect all non-fusion monsters on field
+        const fieldMonsters = [];
+        player.monsterSpaces.forEach((space, index) => {
+            if (space.card && isMonsterCard(space.card) && !space.card.isFusion) {
+                fieldMonsters.push({
+                    card: space.card,
+                    index,
+                    location: 'field'
+                });
+            }
+        });
+        
+        // Collect all non-fusion monsters in hand
+        const handMonsters = [];
+        player.hand.forEach((card, index) => {
+            if (isMonsterCard(card) && !card.isFusion) {
+                handMonsters.push({
+                    card: card,
+                    handIndex: index,
+                    location: 'hand'
+                });
+            }
+        });
+        
+        // Need at least 1 field monster and 1 hand monster
+        if (fieldMonsters.length === 0 || handMonsters.length === 0) return [];
+        
+        // Create combinations: one field monster + one hand monster
+        for (const fieldMonster of fieldMonsters) {
+            for (const handMonster of handMonsters) {
+                // Values must be different for fusion
+                const value1 = getCardNumericValue(fieldMonster.card.value);
+                const value2 = getCardNumericValue(handMonster.card.value);
+                
+                if (value1 !== value2) {
+                    combinations.push({
+                        monster1: fieldMonster,
+                        monster2: handMonster,
+                        fusionStrength: value1 + value2
+                    });
+                }
+            }
+        }
+        
+        return combinations;
+    }
+
+    /**
      * Count active fusions for a player
      * @param {Player} player - Player to check
      * @returns {number} - Count of active fusions

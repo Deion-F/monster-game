@@ -1150,6 +1150,23 @@ html, body {
   transition: all var(--duration-fast);
 }
 
+/* Section headers for sacrifice/fusion/upkeep dialogs */
+.sacrifice-section-header,
+.fusion-section-header,
+.upkeep-section-header {
+  width: 100%;
+  font-size: var(--font-subtitle2);
+  font-weight: 600;
+  color: var(--md-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: var(--space-md) var(--space-sm);
+  margin-top: var(--space-md);
+  margin-bottom: var(--space-sm);
+  border-bottom: 2px solid var(--md-outline);
+  text-align: left;
+}
+
 .redirect-target-wrapper .card.selected {
   outline: 4px solid var(--md-error);
   outline-offset: 2px;
@@ -1312,6 +1329,64 @@ html, body {
 .input-group input[type="text"]:focus {
   outline: none;
   border-color: var(--md-primary);
+}
+
+.input-group textarea {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid var(--md-outline);
+  border-radius: var(--space-sm);
+  font-size: var(--font-body1);
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  font-family: 'Roboto', sans-serif;
+  resize: vertical;
+  transition: border-color var(--duration-fast);
+}
+
+.input-group textarea:focus {
+  outline: none;
+  border-color: var(--md-primary);
+}
+
+/* Recording toggle checkbox styles */
+.input-group input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: var(--md-primary);
+  margin-right: var(--space-sm);
+}
+
+.input-group.recording-toggle label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.recording-help-text {
+  font-size: var(--font-body2);
+  color: var(--md-on-surface-variant);
+  margin-top: var(--space-xs);
+  margin-left: 28px;
+  line-height: 1.4;
+}
+
+.recording-options {
+  background: rgba(var(--md-primary-rgb), 0.05);
+  border-left: 4px solid var(--md-primary);
+  padding: var(--space-md);
+  margin-top: var(--space-md);
+  border-radius: var(--space-sm);
+}
+
+.recording-options p {
+  margin: 0 0 var(--space-sm) 0;
+  font-size: var(--font-body2);
+}
+
+.recording-options p strong {
+  font-weight: 600;
 }
 
 .difficulty-select {

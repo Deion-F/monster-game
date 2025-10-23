@@ -269,8 +269,8 @@ class Bot {
         // Evaluate if we need fusions to compete
         const isAtDisadvantage = playerMonsters.length > 0 && botStrongest < playerStrongest;
         
-        // Check potential fusions
-        const potentialFusions = this.game.board.getPotentialFusions(this.game.bot);
+        // Check potential fusions (field + hand only to prevent fusing two field monsters)
+        const potentialFusions = this.game.board.getPotentialFusionsWithHand(this.game.bot);
         const bestFusionStrength = potentialFusions.length > 0 
             ? Math.max(...potentialFusions.map(f => f.fusionStrength))
             : 0;
@@ -284,7 +284,73 @@ class Bot {
             normalMonsters: 5
         };
         
-        if (isAtDisadvantage) {
+        // EARLY GAME (turns 1-4): Simplify strategy - just fill the board
+        if (this.game.turnCounter <= 4) {
+            strategyGoal = 'fill-board';
+            priorityScore = {
+                traps: 8,        // Fill trap spaces first
+                bigMonsters: 7,  // Then fill monster spaces with any cards
+                normalMonsters: 7, // Big or normal - just fill them
+                fusions: 1       // Skip fusions in early game
+            };
+            
+            if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                this.game.ui.addBotThinkingMessage(`Turn ${this.game.turnCounter} - Early game setup: Fill empty spaces (traps ${this.game.bot.trapSpaces.filter(s => !s.card).length}, monsters ${this.game.bot.monsterSpaces.filter(s => !s.card).length})`);
+            }
+        } else if (this.game.turnCounter >= 5) {
+            // MID-LATE GAME (turn 5+): Simplified strategy based on board presence
+            const currentMonsterCount = this.game.bot.monsterSpaces.filter(s => s.card).length;
+            
+            // If we have board presence (2+ monsters), just maintain it
+            if (currentMonsterCount >= 2) {
+                strategyGoal = 'maintain-and-attack';
+                // Keep traps full, don't overthink fusions
+                priorityScore = {
+                    traps: 8,           // Keep full for defense
+                    fusions: 2,         // Nice bonus, not critical
+                    bigMonsters: 3,     // Strengthen if possible
+                    normalMonsters: 2   // Lower priority
+                };
+                
+                if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                    this.game.ui.addBotThinkingMessage(`Turn ${this.game.turnCounter} - Mid-game maintenance: We have board presence (${currentMonsterCount} monsters). Focus on attacks.`);
+                }
+            } else if (isAtDisadvantage) {
+                // MID-LATE GAME: Only use aggressive strategy if significantly behind
+                strategyGoal = 'aggressive';
+                // Prioritize fusions and big monsters to overcome disadvantage
+                priorityScore.fusions = 10;
+                priorityScore.bigMonsters = 8;
+                priorityScore.normalMonsters = 3;
+                priorityScore.traps = 5;
+                
+                if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                    this.game.ui.addBotThinkingMessage(`Setup strategy: AGGRESSIVE - at disadvantage (bot ${botStrongest} vs player ${playerStrongest}). Plan fusions/big monsters.`);
+                }
+            } else if (botStrongest > playerStrongest) {
+                strategyGoal = 'dominant';
+                // Already ahead: focus on defending and securing advantage
+                priorityScore.traps = 8;
+                priorityScore.fusions = 6;
+                priorityScore.bigMonsters = 3;
+                priorityScore.normalMonsters = 7; // Fill board to maximize attacks
+                
+                if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                    this.game.ui.addBotThinkingMessage(`Setup strategy: DOMINANT - bot ahead (${botStrongest} vs player ${playerStrongest}). Maximize attacks.`);
+                }
+            } else {
+                // Balanced situation
+                priorityScore.traps = 5;
+                priorityScore.fusions = 6;
+                priorityScore.bigMonsters = 6;
+                priorityScore.normalMonsters = 5;
+                
+                if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                    this.game.ui.addBotThinkingMessage(`Setup strategy: BALANCED - position (bot ${botStrongest} vs player ${playerStrongest}). Mix fusions and summons.`);
+                }
+            }
+        } else if (isAtDisadvantage) {
+            // MID-LATE GAME: Only use aggressive strategy if significantly behind
             strategyGoal = 'aggressive';
             // Prioritize fusions and big monsters to overcome disadvantage
             priorityScore.fusions = 10;
@@ -353,7 +419,37 @@ class Bot {
             await delay(this.actionDelays.betweenActions);
         }
         
-        // STRATEGIC PLANNING: Evaluate the turn's goals before placing anything
+        // EARLY GAME SIMPLIFICATION (turns 1-5): Just fill empty spaces
+        // Adjusted: ensure 2+ monsters by turn 3 when possible; prioritize normals early
+        if (this.game.turnCounter <= 5) {
+            const currentMonsterCount = this.game.bot.monsterSpaces.filter(s => s.card).length;
+            const needPresence = currentMonsterCount < 2;
+
+            if (needPresence) {
+                // Always keep traps progressing
+                await this.placeTraps();
+                if (this.game.bot.trapSpaces.some(space => space.card && space.card.justPlaced)) {
+                    await delay(this.actionDelays.betweenActions);
+                }
+
+                if (this.game.turnCounter <= 3) {
+                    // Turn 1-3: prefer normal monsters first to hit 2+ quickly
+                    await this.summonNormalMonsters();
+                    await delay(this.actionDelays.betweenActions);
+                    await this.summonBigMonsters();
+                } else {
+                    // Turn 4-5: still aim for 2+, but bigs are acceptable if efficient
+                    await this.summonBigMonsters();
+                    await delay(this.actionDelays.betweenActions);
+                    await this.summonNormalMonsters();
+                }
+
+                this.game.ui.updateGameState();
+                return;
+            }
+        }
+        
+        // STRATEGIC PLANNING (turn 5+): Evaluate the turn's goals before placing anything
         const strategy = this.evaluateSetupStrategy();
         
         // Place traps first (strategic advantage) - always do this early for defense
@@ -464,7 +560,7 @@ class Bot {
             }
         }
         
-        // Deterministic: attack strongest first unless no advantage
+        // Deterministic: attack strongest first unless we detect lethal direct
         attackingMonsters.sort((a, b) => {
             const strengthA = a.isFusion ? a.fusionStrength : getCardNumericValue(a.value);
             const strengthB = b.isFusion ? b.fusionStrength : getCardNumericValue(b.value);
@@ -474,6 +570,22 @@ class Bot {
         // Decide how many monsters to attack with based on personality and emotions
         const attackCount = attackingMonsters.length;
         
+        // LETHAL/Near-lethal direct attack check
+        let directPlan = 'none'; // 'none' | 'bias' | 'all'
+        if (targets.includes(null)) {
+            const strengths = attackingMonsters.map(m => m.isFusion ? m.fusionStrength : getCardNumericValue(m.value));
+            const total = strengths.reduce((a,b)=>a+b,0);
+            const playerHasKing = this.playerHasActiveTrapType(CARD_VALUES.KING);
+            const botHasQueen = (this.game.bot.getActivatableTraps && this.game.bot.getActivatableTraps({ type: 'trap' }).some(t => t.value === CARD_VALUES.QUEEN)) || false;
+            const expected = (playerHasKing && !botHasQueen) ? Math.ceil(total / 2) : total;
+            const hp = this.game.player.health;
+            if (expected >= hp) {
+                directPlan = 'all';
+            } else if (expected >= hp - 4) {
+                directPlan = 'bias';
+            }
+        }
+
         // Add a random delay that simulates "thinking" time based on complexity
     await delay(300);
         
@@ -506,7 +618,7 @@ class Bot {
             // For monster targets, find optimal target with human-like decision making
             let targetIndex = null;
             
-            if (targets[0] !== null) {
+            if (targets[0] !== null && directPlan !== 'all') {
                 // Get potential targets with human-like consideration
                 targetIndex = this.findHumanLikeAttackTarget(monster, targets);
                 
@@ -553,20 +665,28 @@ class Bot {
                             targetSpace.card.fusionStrength : 
                             getCardNumericValue(targetSpace.card.value);
                         
-                        // AGGRESSIVE STRATEGY: Allow equal-strength and moderately unfavorable attacks
-                        // Only skip if we're significantly outmatched (large margin)
+                        // AGGRESSIVE STRATEGY: Attack almost all monsters, even at disadvantage
+                        // Analysis shows player attacked regardless of margin - we should too
                         const margin = targetStrength - attackingStrength;
                         
-                        // Skip only if target is significantly stronger (more than 3 points stronger)
-                        if (margin > 3) {
-                            this.game.ui.addLogMessage(`Bot skips attacking with ${monster.value} — target too strong (${targetStrength} vs ${attackingStrength})`);
+                        // Skip only if we're EXTREMELY outmatched (more than 8 points stronger)
+                        // This allows attacking even at -3 or -5 margins (mutual destruction acceptable)
+                        if (margin > 8) {
+                            this.game.ui.addLogMessage(`Bot skips attacking with ${monster.value} — target massively stronger (${targetStrength} vs ${attackingStrength})`);
                             continue;
                         }
                         
-                        // Equal strength or slightly worse is OK - mutual destruction or acceptable loss
-                        if (margin >= 0) {
+                        // Accept even negative margins - any attack is worth considering
+                        if (margin >= -5) {
                             if (this.game.ui && this.game.ui.addBotThinkingMessage) {
-                                this.game.ui.addBotThinkingMessage(`Attacking equal/slightly weaker: ${attackingStrength} vs ${targetStrength}`);
+                                let outcome;
+                                if (margin < -3) outcome = 'bot wins big';
+                                else if (margin < 0) outcome = 'bot wins slightly';
+                                else if (margin === 0) outcome = 'mutual destruction';
+                                else if (margin <= 3) outcome = 'close match';
+                                else outcome = 'target stronger';
+                                
+                                this.game.ui.addBotThinkingMessage(`Attacking: ${attackingStrength} vs ${targetStrength} (margin ${margin}, ${outcome})`);
                             }
                         }
                     }
@@ -574,6 +694,22 @@ class Bot {
             } else {
                 // Direct attack
                 targetIndex = null;
+            }
+
+            // Apply near-lethal direct bias: choose direct if no clear favorable monster kill
+            if (directPlan === 'bias' && targets.includes(null)) {
+                if (targetIndex !== null) {
+                    const attackingStrength = monster.isFusion ? monster.fusionStrength : getCardNumericValue(monster.value);
+                    const targetSpace = this.game.player.monsterSpaces[targetIndex];
+                    const targetStrength = targetSpace && targetSpace.card ? (targetSpace.card.isFusion ? targetSpace.card.fusionStrength : getCardNumericValue(targetSpace.card.value)) : 0;
+                    const advantage = attackingStrength - targetStrength;
+                    if (advantage <= 0) {
+                        // Prefer direct when not clearly winning the trade
+                        targetIndex = null;
+                    }
+                } else {
+                    // already direct – keep
+                }
             }
             
             // "Think" before attacking - variable delay based on difficulty
@@ -704,35 +840,59 @@ class Bot {
         const botStrongest = botMonsters.length > 0 ? Math.max(...botMonsters) : 0;
         const isAtDisadvantage = playerMonsters.length > 0 && botStrongest < playerStrongest;
         
-        // Prioritization based on threat level
-        // DEFENSIVE PRIORITY: If player is threatening, prioritize ACE (stops direct attacks)
-        // STANDARD PRIORITY: ACE > QUEEN > KING > JACK
+        // CRITICAL: Ensure minimum trap coverage every turn until all trap spaces are full
+        const currentTrapCount = this.game.bot.trapSpaces.filter(space => space.card).length;
+        const trapSpacesFull = currentTrapCount === this.game.bot.trapSpaces.length;
+        const isEarlyGame = this.game.turnCounter <= 4;
+        
+        // GUARANTEE: Place at least 1 trap per turn if trap spaces not full and we have traps
+        // Analysis: Player kept traps filled for 14+ turns - this is critical for survival
+        const shouldForceMinimumTrap = !trapSpacesFull && trapCards.length > 0;
+        
+        if (shouldForceMinimumTrap && this.game.ui && this.game.ui.addBotThinkingMessage) {
+            this.game.ui.addBotThinkingMessage(`Turn ${this.game.turnCounter}: Ensuring trap coverage (${currentTrapCount}/${this.game.bot.trapSpaces.length} spaces). Placing at least 1 trap.`);
+        }
+        
+    // Prioritization based on threat level
+        // Trap functions:
+        // - ACE: End battle phase (most disruptive)
+        // - KING: Halve attack damage (defensive)
+        // - JACK: Redirect attack (tactical)
+        // - QUEEN: Cancel opponent trap (reactive/meta-defensive)
+        // STANDARD PRIORITY: ACE > KING > JACK > QUEEN
+        // When at disadvantage, prioritize ACE first, then defensive traps
         const priority = (v) => {
-            // If at severe disadvantage and player has many monsters, prioritize defensive traps
+            // If at severe disadvantage and player has many monsters, prioritize ACE
             if (isAtDisadvantage && playerMonsters.length > 1) {
-                // ACE is most valuable (stops direct attacks)
+                // ACE is most valuable (stops all remaining attacks)
                 if (v === CARD_VALUES.ACE) return 0;
-                // QUEEN and KING redirect attacks (more defensive)
-                if (v === CARD_VALUES.QUEEN) return 1;
-                if (v === CARD_VALUES.KING) return 2;
-                // JACK is less defensive
-                if (v === CARD_VALUES.JACK) return 3;
+                // KING reduces damage (defensive)
+                if (v === CARD_VALUES.KING) return 1;
+                // JACK redirects attacks (tactical)
+                if (v === CARD_VALUES.JACK) return 2;
+                // QUEEN cancels traps (meta-defensive, lower priority for setup)
+                if (v === CARD_VALUES.QUEEN) return 3;
             } else {
-                // Standard priority: all attack-enabling traps
+                // Standard priority: ACE > KING > JACK > QUEEN
                 if (v === CARD_VALUES.ACE) return 0;
-                if (v === CARD_VALUES.QUEEN) return 1;
-                if (v === CARD_VALUES.KING) return 2;
-                if (v === CARD_VALUES.JACK) return 3;
+                if (v === CARD_VALUES.KING) return 1;
+                if (v === CARD_VALUES.JACK) return 2;
+                if (v === CARD_VALUES.QUEEN) return 3;
             }
             return 4;
         };
 
         const trapsToPlay = [...trapCards].sort((a, b) => priority(a.value) - priority(b.value));
 
-        // Determine how many traps to place
+        // Determine how many traps to place - GUARANTEE minimum 1 per turn if spaces available
         let trapsToPlaceCount = Math.min(trapsToPlay.length, emptyTrapSpaces.length);
         
-        // Strategic decision: Always place at least some defensive traps
+        // ENFORCE: If we have spaces and traps but counted 0, force 1
+        if (shouldForceMinimumTrap && trapsToPlaceCount === 0 && trapCards.length > 0 && emptyTrapSpaces.length > 0) {
+            trapsToPlaceCount = 1;
+        }
+        
+        // Strategic decision: Always place at least some defensive traps when needed
         if (isAtDisadvantage && trapsToPlaceCount > 0) {
             // Ensure we place defensive traps
             if (this.game.ui && this.game.ui.addBotThinkingMessage) {
@@ -760,11 +920,21 @@ class Bot {
      * Create fusions with human-like decision making
      */
     async createFusions() {
-        // Get potential fusions
-        const fusions = this.game.board.getPotentialFusions(this.game.bot);
+        // Get potential fusions that combine field monsters with hand monsters
+        // This ensures we never fuse two field monsters together
+        const fusions = this.game.board.getPotentialFusionsWithHand(this.game.bot);
         
         if (fusions.length === 0) return;
         
+        // CRITICAL: Skip fusion creation in early game (turns 1-3)
+        // Player analysis shows board filling is more important than fusion strategy
+        if (this.game.turnCounter <= 3) {
+            if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                this.game.ui.addBotThinkingMessage(`Turn ${this.game.turnCounter}: Early game - skip fusion, focus on board filling.`);
+            }
+            return;
+        }
+    
     // Deterministic short pause for visibility
     await delay(400);
         
@@ -782,13 +952,27 @@ class Bot {
             .filter(space => space.card && !space.card.isFusion) // Only non-fusion monsters (fusion candidates)
             .map(space => getCardNumericValue(space.card.value));
         
-        // STRATEGIC ANALYSIS: Can any current bot monsters beat player's monsters?
+    // STRATEGIC ANALYSIS: Can any current bot monsters beat player's monsters?
         const botStrongestUnfused = botMonsters.length > 0 ? Math.max(...botMonsters) : 0;
         const playerStrongest = playerMonsters.length > 0 ? playerMonsters[0].strength : 0;
         const playerWeakest = playerMonsters.length > 0 ? playerMonsters[playerMonsters.length - 1].strength : 0;
         
         // Check if bot is at a disadvantage (can't beat player's strongest)
         const isAtDisadvantage = playerMonsters.length > 0 && botStrongestUnfused <= playerStrongest;
+        // Turn 4 guard: only fuse if it beats player's strongest AND we maintain >=2 attackers
+        if (this.game.turnCounter === 4) {
+            const bestFusionStrength = Math.max(...fusions.map(f => f.fusionStrength));
+            const currentFieldCount = this.game.bot.monsterSpaces.filter(s => s.card).length;
+            const emptySpaces = this.game.bot.monsterSpaces.filter(s => !s.card).length;
+            // Using field+hand fusion replaces one field monster with a fusion (net 0). Require already >=2.
+            const maintainAttackers = currentFieldCount >= 2; 
+            if (!(bestFusionStrength > playerStrongest && maintainAttackers)) {
+                if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                    this.game.ui.addBotThinkingMessage('Turn 4 fusion skipped: does not cleanly beat strongest or would risk presence.');
+                }
+                return;
+            }
+        }
         
         // Log strategic analysis
         if (playerMonsters.length > 0) {
@@ -955,8 +1139,8 @@ class Bot {
         );
         
         if (shouldTryMultipleFusions) {
-            // Get updated fusion possibilities after the first fusion
-            const updatedFusions = this.game.board.getPotentialFusions(this.game.bot);
+            // Get updated fusion possibilities after the first fusion (field + hand only)
+            const updatedFusions = this.game.board.getPotentialFusionsWithHand(this.game.bot);
             if (updatedFusions.length > 0) {
                 // Re-evaluate remaining player monsters
                 const remainingPlayerMonsters = this.game.player.monsterSpaces
@@ -1374,7 +1558,49 @@ class Bot {
     // Deterministic brief delay for visibility
     await delay(300);
         
-        // Get player's strongest target for strategic evaluation
+        // Find empty monster spaces
+        const emptyMonsterSpaces = this.game.bot.monsterSpaces
+            .map((space, index) => space.card === null ? index : -1)
+            .filter(index => index !== -1);
+        
+        // EARLY GAME STRATEGY (turns 1-4): Fill the board aggressively
+        // Place ALL available normal monsters if we're early game and have space
+        if (this.game.turnCounter <= 4) {
+            // In early game, place as many normal monsters as possible
+            // Don't hold back for fusion - board presence is more important
+            const sortedMonsters = [...normalMonsters].sort((a, b) => 
+                getCardNumericValue(b.value) - getCardNumericValue(a.value)
+            );
+            
+            const monstersToSummon = sortedMonsters.slice(0, emptyMonsterSpaces.length);
+            
+            if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                this.game.ui.addBotThinkingMessage(
+                    `Early game (turn ${this.game.turnCounter}): Placing ${monstersToSummon.length} monsters to fill board.`
+                );
+            }
+            
+            // Summon all selected monsters
+            for (let i = 0; i < monstersToSummon.length; i++) {
+                if (i >= emptyMonsterSpaces.length) break;
+                
+                const monster = monstersToSummon[i];
+                const targetSpace = emptyMonsterSpaces[i];
+                
+                await delay(250);
+                
+                if (this.game.ui && this.game.ui.addBotThinkingMessage) {
+                    const strength = getCardNumericValue(monster.value);
+                    this.game.ui.addBotThinkingMessage(`Summoning ${monster.value} (strength ${strength}) to space ${targetSpace}.`);
+                }
+                this.game.playMonsterCard(monster, targetSpace, true);
+                this.game.ui.updateGameState();
+                await delay(this.actionDelays.afterSummon);
+            }
+            return;
+        }
+        
+        // MID-LATE GAME (turn 5+): Consider strategic holding for fusion
         const playerMonsters = this.game.player.monsterSpaces
             .filter(space => space.card)
             .map(space => ({
@@ -1382,18 +1608,10 @@ class Bot {
             }));
         const playerStrongest = playerMonsters.length > 0 ? Math.max(...playerMonsters.map(m => m.strength)) : 0;
         
-        // Deterministic: always sort by value descending (strongest first)
         const sortedMonsters = [...normalMonsters].sort((a, b) => 
             getCardNumericValue(b.value) - getCardNumericValue(a.value)
         );
         
-        // Find empty monster spaces
-        const emptyMonsterSpaces = this.game.bot.monsterSpaces
-            .map((space, index) => space.card === null ? index : -1)
-            .filter(index => index !== -1);
-        
-        // STRATEGIC DECISION: Check if we should hold back some monsters for fusion
-        // If we have monsters that could fuse with field monsters to beat player's strongest, consider holding them
         let monstersToSummon = sortedMonsters.slice(0, emptyMonsterSpaces.length);
         
         if (playerStrongest > 0 && normalMonsters.length > 0) {
@@ -1455,18 +1673,14 @@ class Bot {
             const monster = monstersToSummon[i];
             const targetSpace = emptyMonsterSpaces[i];
             
-            // Deterministic delay
             await delay(250);
             
-            // Logging will be handled by playMonsterCard
             if (this.game.ui && this.game.ui.addBotThinkingMessage) {
                 const strength = getCardNumericValue(monster.value);
                 this.game.ui.addBotThinkingMessage(`Summoning normal monster ${monster.value} (strength ${strength}) to space ${targetSpace}.`);
             }
             this.game.playMonsterCard(monster, targetSpace, true);
-            
             this.game.ui.updateGameState();
-            
             await delay(this.actionDelays.afterSummon);
         }
     }
@@ -1492,6 +1706,18 @@ class Bot {
             // Prioritize keeping traps
             if (typeA === CARD_TYPES.TRAP && typeB !== CARD_TYPES.TRAP) return 1;
             if (typeB === CARD_TYPES.TRAP && typeA !== CARD_TYPES.TRAP) return -1;
+
+            // Within traps, keep ACE > QUEEN > KING > JACK
+            if (typeA === CARD_TYPES.TRAP && typeB === CARD_TYPES.TRAP) {
+                const trapPriority = (v) => {
+                    if (v === CARD_VALUES.ACE) return 3;
+                    if (v === CARD_VALUES.QUEEN) return 2;
+                    if (v === CARD_VALUES.KING) return 1;
+                    if (v === CARD_VALUES.JACK) return 0;
+                    return 0;
+                };
+                return trapPriority(a.value) - trapPriority(b.value);
+            }
             
             // For monsters, keep higher values
             return getCardNumericValue(a.value) - getCardNumericValue(b.value);
@@ -1880,60 +2106,46 @@ class Bot {
         // Add variable "thinking" time for trap consideration
     await delay(300);
         
-        // Check if direct attack - use Ace trap if available
-        if (targetIndex === null) {
+        // Check if attack (direct or targeted) - evaluate Ace trap usage
+        // Ace trap should be considered for both direct attacks AND targeted monster attacks
+        // to end the player's battle phase early
+        {
             const allTraps = this.game.bot.getActivatableTraps({ type: 'battle-phase' });
             const aceTraps = allTraps.filter(trap => trap.value === CARD_VALUES.ACE);
 
             if (aceTraps.length > 0) {
-                // Human-like decision making for Ace trap activation
                 const attackerSpace = this.game.player.monsterSpaces[attackerIndex];
                 const attackingMonster = attackerSpace && attackerSpace.card;
-                if (!attackingMonster) {
-                    if (resumeFunction) resumeFunction();
-                    return;
-                }
-                
-                const attackingStrength = attackingMonster.isFusion ? 
-                    attackingMonster.fusionStrength : 
-                    getCardNumericValue(attackingMonster.value);
-                
-                // Calculate importance of saving the Ace
-                // Check if player might have stronger monsters to attack with later
-                const playerStrongerMonsterCount = this.game.player.monsterSpaces.filter(space => {
-                    if (!space.card || space.card.attackedThisTurn) return false;
-                    const strength = space.card.isFusion ? 
-                        space.card.fusionStrength : 
-                        getCardNumericValue(space.card.value);
-                    return strength > attackingStrength;
-                }).length;
-                
-                // Calculate direct damage threat
-                const directDamagePercent = attackingStrength / this.game.bot.health;
-                
-                // Decision factors
-                let useAceProbability = 0.8; // Base probability
-                
-                // Adjust based on direct damage threat
-                if (directDamagePercent > 0.25) {
-                    useAceProbability += 0.15; // High damage increases likelihood
-                } else if (directDamagePercent < 0.1) {
-                    useAceProbability -= 0.2; // Low damage decreases likelihood
-                }
-                
-                // Adjust based on stronger monsters the player might attack with later
-                if (playerStrongerMonsterCount > 0) {
-                    useAceProbability -= 0.25; // Save Ace for stronger threats
-                }
-                
-                // Deterministic heuristic: no emotion/personality/skill adjustments
-                
-                // Deterministic: use Ace if probability threshold >= 0.5 (acts as a heuristic score)
-                if (useAceProbability >= 0.5) {
-                    this.game.ui.addLogMessage('Bot activates Ace trap!');
-                    const res = await this.game.activateAceTrap(aceTraps[0], true);
-                    this.recordTrapActivation(aceTraps[0], true);
-                    return res;
+                if (attackingMonster) {
+                    const attackingStrength = attackingMonster.isFusion ? 
+                        attackingMonster.fusionStrength : 
+                        getCardNumericValue(attackingMonster.value);
+                    
+                    // Threshold-based Ace usage
+                    let shouldActivateAce = false;
+                    if (targetIndex === null) {
+                        // Direct attack: use Ace if strong hit or multiple attacks remain
+                        const playerUnattackedMonsterCount = this.game.player.monsterSpaces.filter(s => s.card && !s.card.attackedThisTurn).length;
+                        shouldActivateAce = (attackingStrength >= 6) || (playerUnattackedMonsterCount > 1);
+                    } else {
+                        const playerUnattackedMonsterCount = this.game.player.monsterSpaces.filter(s => s.card && !s.card.attackedThisTurn).length;
+                        let valuableTarget = false;
+                        if (targetIndex !== null && targetIndex < this.game.bot.monsterSpaces.length) {
+                            const t = this.game.bot.monsterSpaces[targetIndex].card;
+                            if (t) {
+                                const tStr = t.isFusion ? t.fusionStrength : getCardNumericValue(t.value);
+                                valuableTarget = tStr >= 8 || t.isFusion;
+                            }
+                        }
+                        shouldActivateAce = (playerUnattackedMonsterCount > 1) || valuableTarget;
+                    }
+                    
+                    if (shouldActivateAce) {
+                        this.game.ui.addLogMessage('Bot activates Ace trap!');
+                        const res = await this.game.activateAceTrap(aceTraps[0], true);
+                        this.recordTrapActivation(aceTraps[0], true);
+                        return res;
+                    }
                 }
             }
         }
@@ -1973,7 +2185,8 @@ class Bot {
             if (targetIndex === null) {
                 // Direct attack: value equals direct damage reduction
                 const halvedStrength = applyKingEffect(attackingStrength);
-                const reduction = attackingStrength - halvedStrength;
+                let reduction = attackingStrength - halvedStrength;
+                if (reduction >= 6) reduction += 25; // strong direct reduction bonus
                 trapOptions.push({
                     trap: kingTraps[0],
                     type: 'KING',
@@ -2007,6 +2220,7 @@ class Bot {
                     if (savesBotMonster) score += 100;
                     if (turnsTieToWin) score += 50;
                     score += defenderValuable * 10;
+                    if (savesBotMonster && attackingStrength >= 8) score += 25; // high-impact flip bonus
                     
                     trapOptions.push({
                         trap: kingTraps[0],
@@ -2057,7 +2271,7 @@ class Bot {
                     
                     // Bonus if player's stronger monster attacks player's weaker monster (monster dies)
                     if (attackingStrength > targetStrength) {
-                        advantage += 20; // Favorable outcome: player loses a monster and takes damage
+                        advantage += 30; // Favorable outcome: player loses a monster and takes damage
                     }
                     
                     // Bonus if this prevents damage to a valuable bot monster  
@@ -2109,10 +2323,12 @@ class Bot {
                     if (strengthDifference >= 0) {
                         // Redirect target survives - good if we're saving something more valuable
                         advantage = valueDifference + strengthDifference;
+                        // If saving a very valuable original target, bonus
+                        if (originalTargetValue >= 8) advantage += 20;
                     } else if (strengthDifference < 0) {
                         // Attacker dies when it hits the redirect target
                         // Base value: destroying the attacking monster is worth its strength
-                        advantage = attackingStrength;
+                        advantage = attackingStrength + 20; // reward killing attacker via redirect
                         
                         // Add value from not taking damage on the original target
                         const damageAvoided = Math.max(0, attackingStrength - originalTargetValue);
@@ -2225,7 +2441,7 @@ class Bot {
      */
     shouldPlayJoker() {
         // Deterministic Joker rule:
-        // Play Joker if: (a) player's total field strength exceeds bot's by >= 8 OR
+    // Play Joker if: (a) player's total field strength exceeds bot's by >= 6 OR
         // (b) player has >=2 monsters each stronger than any single bot monster,
         // and bot cannot create a fusion this turn that would beat the strongest player monster.
         let botStrengths = this.game.bot.monsterSpaces.filter(s => s.card).map(s => s.card.isFusion ? s.card.fusionStrength : getCardNumericValue(s.card.value));
@@ -2234,12 +2450,12 @@ class Bot {
         const playerTotal = playerStrengths.reduce((a,b)=>a+b,0);
         const playerStrongest = playerStrengths.length ? Math.max(...playerStrengths) : 0;
         const botStrongest = botStrengths.length ? Math.max(...botStrengths) : 0;
-        const conditionA = (playerTotal - botTotal) >= 8;
+    const conditionA = (playerTotal - botTotal) >= 6;
         const strongerThanAllCount = playerStrengths.filter(s => s > botStrongest).length;
         const conditionB = strongerThanAllCount >= 2;
 
-        // Quick check: can we fuse to beat player's strongest?
-        const potentials = this.game.board.getPotentialFusions(this.game.bot) || [];
+        // Quick check: can we fuse to beat player's strongest? (field + hand combinations only)
+        const potentials = this.game.board.getPotentialFusionsWithHand(this.game.bot) || [];
         let canAnswer = false;
         for (const f of potentials) {
             if (f.fusionStrength > playerStrongest) { canAnswer = true; break; }
@@ -2272,5 +2488,85 @@ class Bot {
             }
         }
         return false;
+    }
+
+    /**
+     * Decide whether to use a Queen trap to cancel an opponent's trap
+     * @param {Card} trapToCancel - The trap being activated by opponent
+     * @param {Player} trapOwner - The player who owns the trap (opponent)
+     * @returns {boolean} - Whether bot should cancel with a Queen
+     */
+    decideBotQueenCancel(trapToCancel, trapOwner) {
+        // Check if bot has a Queen trap available
+        const queenTraps = this.game.bot.getActivatableTraps({ type: 'trap' })
+            .filter(t => t.value === CARD_VALUES.QUEEN);
+        
+        if (queenTraps.length === 0) {
+            // No Queen traps available
+            return false;
+        }
+
+        // Evaluate the threat level of the trap being activated
+        let shouldCancel = false;
+        let reason = '';
+
+        if (trapToCancel.value === CARD_VALUES.ACE) {
+            // ACE is extremely dangerous - cancels entire battle phase
+            // Almost always worth canceling if we have active monsters
+            const hasActiveMonsters = this.game.bot.monsterSpaces.some(s => s.card);
+            if (hasActiveMonsters) {
+                shouldCancel = true;
+                reason = 'ACE would end our battle phase - must cancel';
+            }
+        } else if (trapToCancel.value === CARD_VALUES.KING) {
+            // KING halves attack damage
+            // Worth canceling if we're about to attack with a valuable monster
+            // Check if we're in battle phase and have monsters ready to attack
+            if (this.game.currentPhase === PHASES.BATTLE) {
+                const unattackedMonsters = this.game.bot.monsterSpaces
+                    .filter(s => s.card && !s.card.attackedThisTurn);
+                if (unattackedMonsters.length > 0) {
+                    // We have unattacked monsters, so King could reduce our damage
+                    // Cancel if we expect to get significant attacks off
+                    const ourMonsterCount = unattackedMonsters.length;
+                    const anyStrongAttacker = unattackedMonsters.some(s => {
+                        const c = s.card; const str = c.isFusion ? c.fusionStrength : getCardNumericValue(c.value); return str >= 8;
+                    });
+                    const playerMonsterCount = this.game.player.monsterSpaces
+                        .filter(s => s.card).length;
+                    
+                    // Cancel if we outnumber player or have a very strong attacker to protect
+                    if (ourMonsterCount >= playerMonsterCount || anyStrongAttacker) {
+                        shouldCancel = true;
+                        reason = `KING would reduce our attack damage (unattacked=${ourMonsterCount}${anyStrongAttacker?', strong attacker present':''})`;
+                    }
+                }
+            }
+        } else if (trapToCancel.value === CARD_VALUES.JACK) {
+            // JACK redirects attacks
+            // Worth canceling if redirects would be problematic or trap infighting
+            // Generally less dangerous than ACE or KING, so lower priority
+            if (this.game.currentPhase === PHASES.BATTLE) {
+                const unattackedMonsters = this.game.bot.monsterSpaces
+                    .filter(s => s.card && !s.card.attackedThisTurn);
+                
+                const anyStrongAttacker = unattackedMonsters.some(s => {
+                    const c = s.card; const str = c.isFusion ? c.fusionStrength : getCardNumericValue(c.value); return str >= 8;
+                });
+
+                // Cancel if we have multiple attacks planned or a key attacker that could be redirected badly
+                if (unattackedMonsters.length >= 2 || anyStrongAttacker) {
+                    shouldCancel = true;
+                    reason = 'JACK could disrupt our multi-attack strategy or kill a key attacker';
+                }
+            }
+        }
+        // Queen traps are only useful if the player uses them reactively (we can't trigger them)
+
+        if (shouldCancel && this.game.ui && this.game.ui.addBotThinkingMessage) {
+            this.game.ui.addBotThinkingMessage(`Bot cancels ${trapToCancel.value} with Queen: ${reason}`);
+        }
+
+        return shouldCancel;
     }
 }

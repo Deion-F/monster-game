@@ -1,0 +1,3267 @@
+{
+  "metadata": {
+    "gameId": "game_1761166960470_bbed3f21j",
+    "timestamp": "2025-10-22T21:02:40.470Z",
+    "playerName": "Player",
+    "playerType": "human",
+    "botDifficulty": "medium",
+    "recordingVersion": "1.0"
+  },
+  "initialState": {
+    "timestamp": 1761166960470,
+    "stateType": "initial",
+    "currentPhase": "Draw",
+    "currentPlayer": "human",
+    "turnNumber": 1,
+    "player": {
+      "name": "Player",
+      "type": "human",
+      "health": 40,
+      "hand": {
+        "count": 0,
+        "cards": []
+      },
+      "field": {
+        "monsters": [
+          {
+            "index": 0,
+            "card": null,
+            "canAttack": false
+          },
+          {
+            "index": 1,
+            "card": null,
+            "canAttack": false
+          },
+          {
+            "index": 2,
+            "card": null,
+            "canAttack": false
+          }
+        ],
+        "traps": [
+          {
+            "index": 0,
+            "card": null
+          },
+          {
+            "index": 1,
+            "card": null
+          },
+          {
+            "index": 2,
+            "card": null
+          }
+        ]
+      }
+    },
+    "bot": {
+      "name": "Bot",
+      "type": "bot",
+      "health": 40,
+      "hand": {
+        "count": 0,
+        "cards": []
+      },
+      "field": {
+        "monsters": [
+          {
+            "index": 0,
+            "card": null,
+            "canAttack": false
+          },
+          {
+            "index": 1,
+            "card": null,
+            "canAttack": false
+          },
+          {
+            "index": 2,
+            "card": null,
+            "canAttack": false
+          }
+        ],
+        "traps": [
+          {
+            "index": 0,
+            "card": null
+          },
+          {
+            "index": 1,
+            "card": null
+          },
+          {
+            "index": 2,
+            "card": null
+          }
+        ]
+      }
+    },
+    "deck": {
+      "remaining": 54
+    },
+    "discard": {
+      "count": 0
+    }
+  },
+  "finalState": {
+    "timestamp": 1761167254658,
+    "stateType": "game_end",
+    "currentPhase": "Battle",
+    "currentPlayer": "human",
+    "turnNumber": 17,
+    "player": {
+      "name": "Player",
+      "type": "human",
+      "health": 14,
+      "hand": {
+        "count": 0,
+        "cards": []
+      },
+      "field": {
+        "monsters": [
+          {
+            "index": 0,
+            "card": {
+              "id": "zvocpv0lqdt7b5zx795wtr",
+              "value": "9",
+              "suit": "clubs",
+              "type": "big",
+              "numericValue": 9,
+              "isFusion": false,
+              "fusionStrength": null,
+              "isJoker": false,
+              "state": "on_field"
+            },
+            "canAttack": true
+          },
+          {
+            "index": 1,
+            "card": null,
+            "canAttack": false
+          },
+          {
+            "index": 2,
+            "card": {
+              "id": "sh61d4lgadf13duis5ol5b",
+              "value": "8",
+              "suit": "hearts",
+              "type": "big",
+              "numericValue": 8,
+              "isFusion": false,
+              "fusionStrength": null,
+              "isJoker": false,
+              "state": "on_field"
+            },
+            "canAttack": true
+          }
+        ],
+        "traps": [
+          {
+            "index": 0,
+            "card": {
+              "id": "gv181e2jnico999rrfi4u",
+              "value": "K",
+              "suit": "hearts",
+              "type": "trap",
+              "numericValue": 13,
+              "isFusion": false,
+              "fusionStrength": null,
+              "isJoker": false,
+              "state": "on_field"
+            }
+          },
+          {
+            "index": 1,
+            "card": {
+              "id": "1mgmfrlvrppwupiqgp9p3o",
+              "value": "Q",
+              "suit": "clubs",
+              "type": "trap",
+              "numericValue": 12,
+              "isFusion": false,
+              "fusionStrength": null,
+              "isJoker": false,
+              "state": "on_field"
+            }
+          },
+          {
+            "index": 2,
+            "card": {
+              "id": "hz81we19b4mkfo0fzo4rom",
+              "value": "Q",
+              "suit": "hearts",
+              "type": "trap",
+              "numericValue": 12,
+              "isFusion": false,
+              "fusionStrength": null,
+              "isJoker": false,
+              "state": "on_field"
+            }
+          }
+        ]
+      }
+    },
+    "bot": {
+      "name": "Bot",
+      "type": "bot",
+      "health": 0,
+      "hand": {
+        "count": 0,
+        "cards": []
+      },
+      "field": {
+        "monsters": [
+          {
+            "index": 0,
+            "card": null,
+            "canAttack": false
+          },
+          {
+            "index": 1,
+            "card": null,
+            "canAttack": false
+          },
+          {
+            "index": 2,
+            "card": null,
+            "canAttack": false
+          }
+        ],
+        "traps": [
+          {
+            "index": 0,
+            "card": null
+          },
+          {
+            "index": 1,
+            "card": null
+          },
+          {
+            "index": 2,
+            "card": null
+          }
+        ]
+      }
+    },
+    "deck": {
+      "remaining": 34
+    },
+    "discard": {
+      "count": 14
+    }
+  },
+  "turns": [
+    {
+      "turnNumber": 1,
+      "currentPlayer": "human",
+      "playerName": "Player",
+      "startState": {
+        "timestamp": 1761166960470,
+        "stateType": "turn_start",
+        "currentPhase": "Draw",
+        "currentPlayer": "human",
+        "turnNumber": 1,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 40,
+          "hand": {
+            "count": 0,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": null
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": null
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 40,
+          "hand": {
+            "count": 0,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": null
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": null
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 54
+        },
+        "discard": {
+          "count": 0
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 2,
+      "currentPlayer": "bot",
+      "playerName": "Bot",
+      "startState": {
+        "timestamp": 1761166967047,
+        "stateType": "turn_start",
+        "currentPhase": "End",
+        "currentPlayer": "bot",
+        "turnNumber": 2,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 40,
+          "hand": {
+            "count": 1,
+            "cards": [
+              {
+                "id": "2wtnujfrca45ea9arwd4df",
+                "value": "10",
+                "suit": "diamonds",
+                "type": "big",
+                "numericValue": 10,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              }
+            ]
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "dyqht6mxbccryajknekv5",
+                  "value": "3",
+                  "suit": "hearts",
+                  "type": "normal",
+                  "numericValue": 3,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "px1qm8k1c71z3ezqj2bt6",
+                  "value": "A",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 1,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "oelstb0q3lgb8nyecla7i",
+                  "value": "J",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 11,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "6pyo32xe3zpd59bz4brlq",
+                  "value": "Q",
+                  "suit": "spades",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 40,
+          "hand": {
+            "count": 0,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": null
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": null
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 49
+        },
+        "discard": {
+          "count": 0
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 3,
+      "currentPlayer": "human",
+      "playerName": "Player",
+      "startState": {
+        "timestamp": 1761166986148,
+        "stateType": "turn_start",
+        "currentPhase": "Setup",
+        "currentPlayer": "human",
+        "turnNumber": 3,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 40,
+          "hand": {
+            "count": 1,
+            "cards": [
+              {
+                "id": "2wtnujfrca45ea9arwd4df",
+                "value": "10",
+                "suit": "diamonds",
+                "type": "big",
+                "numericValue": 10,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              }
+            ]
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "dyqht6mxbccryajknekv5",
+                  "value": "3",
+                  "suit": "hearts",
+                  "type": "normal",
+                  "numericValue": 3,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "px1qm8k1c71z3ezqj2bt6",
+                  "value": "A",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 1,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "6pyo32xe3zpd59bz4brlq",
+                  "value": "Q",
+                  "suit": "spades",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 40,
+          "hand": {
+            "count": 0,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "3hnqh8tioxov7hv0esc33h",
+                  "value": "3",
+                  "suit": "clubs",
+                  "type": "normal",
+                  "numericValue": 3,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "hktbq6nembfykqscqqml5q",
+                  "value": "K",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 13,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "hsnvxop1309mq41niag7v9",
+                  "value": "J",
+                  "suit": "diamonds",
+                  "type": "trap",
+                  "numericValue": 11,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": null
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 44
+        },
+        "discard": {
+          "count": 3
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 4,
+      "currentPlayer": "bot",
+      "playerName": "Bot",
+      "startState": {
+        "timestamp": 1761167000676,
+        "stateType": "turn_start",
+        "currentPhase": "End",
+        "currentPlayer": "bot",
+        "turnNumber": 4,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 40,
+          "hand": {
+            "count": 1,
+            "cards": [
+              {
+                "id": "2wtnujfrca45ea9arwd4df",
+                "value": "10",
+                "suit": "diamonds",
+                "type": "big",
+                "numericValue": 10,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              }
+            ]
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "dyqht6mxbccryajknekv5",
+                  "value": "3",
+                  "suit": "hearts",
+                  "type": "normal",
+                  "numericValue": 3,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "px1qm8k1c71z3ezqj2bt6",
+                  "value": "A",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 1,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "6pyo32xe3zpd59bz4brlq",
+                  "value": "Q",
+                  "suit": "spades",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 37,
+          "hand": {
+            "count": 0,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "hktbq6nembfykqscqqml5q",
+                  "value": "K",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 13,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "hsnvxop1309mq41niag7v9",
+                  "value": "J",
+                  "suit": "diamonds",
+                  "type": "trap",
+                  "numericValue": 11,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": null
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 43
+        },
+        "discard": {
+          "count": 5
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 5,
+      "currentPlayer": "human",
+      "playerName": "Player",
+      "startState": {
+        "timestamp": 1761167016785,
+        "stateType": "turn_start",
+        "currentPhase": "End",
+        "currentPlayer": "human",
+        "turnNumber": 5,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 40,
+          "hand": {
+            "count": 1,
+            "cards": [
+              {
+                "id": "2wtnujfrca45ea9arwd4df",
+                "value": "10",
+                "suit": "diamonds",
+                "type": "big",
+                "numericValue": 10,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              }
+            ]
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "dyqht6mxbccryajknekv5",
+                  "value": "3",
+                  "suit": "hearts",
+                  "type": "normal",
+                  "numericValue": 3,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": null
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "6pyo32xe3zpd59bz4brlq",
+                  "value": "Q",
+                  "suit": "spades",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 37,
+          "hand": {
+            "count": 2,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "4rckwt3oxb6nz0bsw1tj",
+                  "value": "7",
+                  "suit": "diamonds",
+                  "type": "normal",
+                  "numericValue": 7,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "t4bcr8po5tmvz7o8ophcu",
+                  "value": "3",
+                  "suit": "spades",
+                  "type": "normal",
+                  "numericValue": 3,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "hktbq6nembfykqscqqml5q",
+                  "value": "K",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 13,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "hsnvxop1309mq41niag7v9",
+                  "value": "J",
+                  "suit": "diamonds",
+                  "type": "trap",
+                  "numericValue": 11,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "hz81we19b4mkfo0fzo4rom",
+                  "value": "Q",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 38
+        },
+        "discard": {
+          "count": 6
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 6,
+      "currentPlayer": "bot",
+      "playerName": "Bot",
+      "startState": {
+        "timestamp": 1761167037096,
+        "stateType": "turn_start",
+        "currentPhase": "End",
+        "currentPlayer": "bot",
+        "turnNumber": 6,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 40,
+          "hand": {
+            "count": 1,
+            "cards": [
+              {
+                "id": "2wtnujfrca45ea9arwd4df",
+                "value": "10",
+                "suit": "diamonds",
+                "type": "big",
+                "numericValue": 10,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              }
+            ]
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "1mgmfrlvrppwupiqgp9p3o",
+                  "value": "Q",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "6pyo32xe3zpd59bz4brlq",
+                  "value": "Q",
+                  "suit": "spades",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 37,
+          "hand": {
+            "count": 2,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "4rckwt3oxb6nz0bsw1tj",
+                  "value": "7",
+                  "suit": "diamonds",
+                  "type": "normal",
+                  "numericValue": 7,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "hktbq6nembfykqscqqml5q",
+                  "value": "K",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 13,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "hsnvxop1309mq41niag7v9",
+                  "value": "J",
+                  "suit": "diamonds",
+                  "type": "trap",
+                  "numericValue": 11,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "hz81we19b4mkfo0fzo4rom",
+                  "value": "Q",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 37
+        },
+        "discard": {
+          "count": 8
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 7,
+      "currentPlayer": "human",
+      "playerName": "Player",
+      "startState": {
+        "timestamp": 1761167047847,
+        "stateType": "turn_start",
+        "currentPhase": "Setup",
+        "currentPlayer": "human",
+        "turnNumber": 7,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 27,
+          "hand": {
+            "count": 1,
+            "cards": [
+              {
+                "id": "2wtnujfrca45ea9arwd4df",
+                "value": "10",
+                "suit": "diamonds",
+                "type": "big",
+                "numericValue": 10,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              }
+            ]
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "1mgmfrlvrppwupiqgp9p3o",
+                  "value": "Q",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "6pyo32xe3zpd59bz4brlq",
+                  "value": "Q",
+                  "suit": "spades",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 37,
+          "hand": {
+            "count": 2,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "4rckwt3oxb6nz0bsw1tj",
+                  "value": "7",
+                  "suit": "diamonds",
+                  "type": "normal",
+                  "numericValue": 7,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "tn025bvrg3kshh1xsofvxm",
+                  "value": "6",
+                  "suit": "diamonds",
+                  "type": "normal",
+                  "numericValue": 6,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "hktbq6nembfykqscqqml5q",
+                  "value": "K",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 13,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "hsnvxop1309mq41niag7v9",
+                  "value": "J",
+                  "suit": "diamonds",
+                  "type": "trap",
+                  "numericValue": 11,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "hz81we19b4mkfo0fzo4rom",
+                  "value": "Q",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 36
+        },
+        "discard": {
+          "count": 8
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 8,
+      "currentPlayer": "bot",
+      "playerName": "Bot",
+      "startState": {
+        "timestamp": 1761167056315,
+        "stateType": "turn_start",
+        "currentPhase": "End",
+        "currentPlayer": "bot",
+        "turnNumber": 8,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 27,
+          "hand": {
+            "count": 2,
+            "cards": [
+              {
+                "id": "2wtnujfrca45ea9arwd4df",
+                "value": "10",
+                "suit": "diamonds",
+                "type": "big",
+                "numericValue": 10,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              },
+              {
+                "id": "jnqj3b9gj1ikfphnlu63nf",
+                "value": "2",
+                "suit": "clubs",
+                "type": "normal",
+                "numericValue": 2,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              }
+            ]
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "1mgmfrlvrppwupiqgp9p3o",
+                  "value": "Q",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "6pyo32xe3zpd59bz4brlq",
+                  "value": "Q",
+                  "suit": "spades",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 37,
+          "hand": {
+            "count": 2,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "4rckwt3oxb6nz0bsw1tj",
+                  "value": "7",
+                  "suit": "diamonds",
+                  "type": "normal",
+                  "numericValue": 7,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "tn025bvrg3kshh1xsofvxm",
+                  "value": "6",
+                  "suit": "diamonds",
+                  "type": "normal",
+                  "numericValue": 6,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "hktbq6nembfykqscqqml5q",
+                  "value": "K",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 13,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "hsnvxop1309mq41niag7v9",
+                  "value": "J",
+                  "suit": "diamonds",
+                  "type": "trap",
+                  "numericValue": 11,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "hz81we19b4mkfo0fzo4rom",
+                  "value": "Q",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 35
+        },
+        "discard": {
+          "count": 8
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 9,
+      "currentPlayer": "human",
+      "playerName": "Player",
+      "startState": {
+        "timestamp": 1761167066133,
+        "stateType": "turn_start",
+        "currentPhase": "Setup",
+        "currentPlayer": "human",
+        "turnNumber": 9,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 14,
+          "hand": {
+            "count": 2,
+            "cards": [
+              {
+                "id": "2wtnujfrca45ea9arwd4df",
+                "value": "10",
+                "suit": "diamonds",
+                "type": "big",
+                "numericValue": 10,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              },
+              {
+                "id": "jnqj3b9gj1ikfphnlu63nf",
+                "value": "2",
+                "suit": "clubs",
+                "type": "normal",
+                "numericValue": 2,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              }
+            ]
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "1mgmfrlvrppwupiqgp9p3o",
+                  "value": "Q",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "6pyo32xe3zpd59bz4brlq",
+                  "value": "Q",
+                  "suit": "spades",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 37,
+          "hand": {
+            "count": 3,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "4rckwt3oxb6nz0bsw1tj",
+                  "value": "7",
+                  "suit": "diamonds",
+                  "type": "normal",
+                  "numericValue": 7,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "tn025bvrg3kshh1xsofvxm",
+                  "value": "6",
+                  "suit": "diamonds",
+                  "type": "normal",
+                  "numericValue": 6,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "hktbq6nembfykqscqqml5q",
+                  "value": "K",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 13,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "hsnvxop1309mq41niag7v9",
+                  "value": "J",
+                  "suit": "diamonds",
+                  "type": "trap",
+                  "numericValue": 11,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "hz81we19b4mkfo0fzo4rom",
+                  "value": "Q",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 34
+        },
+        "discard": {
+          "count": 8
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 10,
+      "currentPlayer": "bot",
+      "playerName": "Bot",
+      "startState": {
+        "timestamp": 1761167097305,
+        "stateType": "turn_start",
+        "currentPhase": "End",
+        "currentPlayer": "bot",
+        "turnNumber": 10,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 14,
+          "hand": {
+            "count": 0,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "2wtnujfrca45ea9arwd4df",
+                  "value": "10",
+                  "suit": "diamonds",
+                  "type": "big",
+                  "numericValue": 10,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "1mgmfrlvrppwupiqgp9p3o",
+                  "value": "Q",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "6pyo32xe3zpd59bz4brlq",
+                  "value": "Q",
+                  "suit": "spades",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 34,
+          "hand": {
+            "count": 3,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "tn025bvrg3kshh1xsofvxm",
+                  "value": "6",
+                  "suit": "diamonds",
+                  "type": "normal",
+                  "numericValue": 6,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "hktbq6nembfykqscqqml5q",
+                  "value": "K",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 13,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "hsnvxop1309mq41niag7v9",
+                  "value": "J",
+                  "suit": "diamonds",
+                  "type": "trap",
+                  "numericValue": 11,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "hz81we19b4mkfo0fzo4rom",
+                  "value": "Q",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 33
+        },
+        "discard": {
+          "count": 11
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 11,
+      "currentPlayer": "human",
+      "playerName": "Player",
+      "startState": {
+        "timestamp": 1761167102476,
+        "stateType": "turn_start",
+        "currentPhase": "Setup",
+        "currentPlayer": "human",
+        "turnNumber": 11,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 14,
+          "hand": {
+            "count": 0,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "2wtnujfrca45ea9arwd4df",
+                  "value": "10",
+                  "suit": "diamonds",
+                  "type": "big",
+                  "numericValue": 10,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "1mgmfrlvrppwupiqgp9p3o",
+                  "value": "Q",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "6pyo32xe3zpd59bz4brlq",
+                  "value": "Q",
+                  "suit": "spades",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 34,
+          "hand": {
+            "count": 4,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "tn025bvrg3kshh1xsofvxm",
+                  "value": "6",
+                  "suit": "diamonds",
+                  "type": "normal",
+                  "numericValue": 6,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "hktbq6nembfykqscqqml5q",
+                  "value": "K",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 13,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "hsnvxop1309mq41niag7v9",
+                  "value": "J",
+                  "suit": "diamonds",
+                  "type": "trap",
+                  "numericValue": 11,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "hz81we19b4mkfo0fzo4rom",
+                  "value": "Q",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 32
+        },
+        "discard": {
+          "count": 11
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 12,
+      "currentPlayer": "bot",
+      "playerName": "Bot",
+      "startState": {
+        "timestamp": 1761167130974,
+        "stateType": "turn_start",
+        "currentPhase": "End",
+        "currentPlayer": "bot",
+        "turnNumber": 12,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 14,
+          "hand": {
+            "count": 0,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "2wtnujfrca45ea9arwd4df",
+                  "value": "10",
+                  "suit": "diamonds",
+                  "type": "big",
+                  "numericValue": 10,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "ldhdg1pbrzkkphctj99b",
+                  "value": "10",
+                  "suit": "clubs",
+                  "type": "big",
+                  "numericValue": 10,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "a9yztymyvkk8deynuw5iku",
+                  "value": "6",
+                  "suit": "spades",
+                  "type": "normal",
+                  "numericValue": 6,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "1mgmfrlvrppwupiqgp9p3o",
+                  "value": "Q",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "bcalb9uxz0elwmnoblvse",
+                  "value": "A",
+                  "suit": "diamonds",
+                  "type": "trap",
+                  "numericValue": 1,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "6pyo32xe3zpd59bz4brlq",
+                  "value": "Q",
+                  "suit": "spades",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 12,
+          "hand": {
+            "count": 4,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "hktbq6nembfykqscqqml5q",
+                  "value": "K",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 13,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "hsnvxop1309mq41niag7v9",
+                  "value": "J",
+                  "suit": "diamonds",
+                  "type": "trap",
+                  "numericValue": 11,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "hz81we19b4mkfo0fzo4rom",
+                  "value": "Q",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 27
+        },
+        "discard": {
+          "count": 14
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 13,
+      "currentPlayer": "human",
+      "playerName": "Player",
+      "startState": {
+        "timestamp": 1761167141716,
+        "stateType": "turn_start",
+        "currentPhase": "Setup",
+        "currentPlayer": "human",
+        "turnNumber": 13,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 14,
+          "hand": {
+            "count": 5,
+            "cards": [
+              {
+                "id": "wf5zld62qmcax3kig8dri",
+                "value": "6",
+                "suit": "clubs",
+                "type": "normal",
+                "numericValue": 6,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              },
+              {
+                "id": "a9yztymyvkk8deynuw5iku",
+                "value": "6",
+                "suit": "spades",
+                "type": "normal",
+                "numericValue": 6,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              },
+              {
+                "id": "zvocpv0lqdt7b5zx795wtr",
+                "value": "9",
+                "suit": "clubs",
+                "type": "big",
+                "numericValue": 9,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              },
+              {
+                "id": "rjxqfz0nfe8k95w90zxmj",
+                "value": "J",
+                "suit": "hearts",
+                "type": "trap",
+                "numericValue": 11,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              },
+              {
+                "id": "1mgmfrlvrppwupiqgp9p3o",
+                "value": "Q",
+                "suit": "clubs",
+                "type": "trap",
+                "numericValue": 12,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              }
+            ]
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": null
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": null
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 12,
+          "hand": {
+            "count": 1,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "gm6ojh5b4aau6yh8awzy2d",
+                  "value": "7",
+                  "suit": "clubs",
+                  "type": "normal",
+                  "numericValue": 7,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "8mn3vlmc5ph1sxwesl2hsp",
+                  "value": "4",
+                  "suit": "hearts",
+                  "type": "normal",
+                  "numericValue": 4,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "igyznvrchk92kooca1m8n3",
+                  "value": "4",
+                  "suit": "clubs",
+                  "type": "normal",
+                  "numericValue": 4,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "1p4hb5r00fecs7y1pvtk8i",
+                  "value": "A",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 1,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": null
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 43
+        },
+        "discard": {
+          "count": 0
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 14,
+      "currentPlayer": "bot",
+      "playerName": "Bot",
+      "startState": {
+        "timestamp": 1761167156218,
+        "stateType": "turn_start",
+        "currentPhase": "End",
+        "currentPlayer": "bot",
+        "turnNumber": 14,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 14,
+          "hand": {
+            "count": 0,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "zvocpv0lqdt7b5zx795wtr",
+                  "value": "9",
+                  "suit": "clubs",
+                  "type": "big",
+                  "numericValue": 9,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "hktbq6nembfykqscqqml5q",
+                  "value": "K",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 13,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "1mgmfrlvrppwupiqgp9p3o",
+                  "value": "Q",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "rjxqfz0nfe8k95w90zxmj",
+                  "value": "J",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 11,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 12,
+          "hand": {
+            "count": 1,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "gm6ojh5b4aau6yh8awzy2d",
+                  "value": "7",
+                  "suit": "clubs",
+                  "type": "normal",
+                  "numericValue": 7,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "8mn3vlmc5ph1sxwesl2hsp",
+                  "value": "4",
+                  "suit": "hearts",
+                  "type": "normal",
+                  "numericValue": 4,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "igyznvrchk92kooca1m8n3",
+                  "value": "4",
+                  "suit": "clubs",
+                  "type": "normal",
+                  "numericValue": 4,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": null
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": null
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 42
+        },
+        "discard": {
+          "count": 3
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 15,
+      "currentPlayer": "human",
+      "playerName": "Player",
+      "startState": {
+        "timestamp": 1761167183165,
+        "stateType": "turn_start",
+        "currentPhase": "Setup",
+        "currentPlayer": "human",
+        "turnNumber": 15,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 14,
+          "hand": {
+            "count": 0,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "zvocpv0lqdt7b5zx795wtr",
+                  "value": "9",
+                  "suit": "clubs",
+                  "type": "big",
+                  "numericValue": 9,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": null
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "1mgmfrlvrppwupiqgp9p3o",
+                  "value": "Q",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "rjxqfz0nfe8k95w90zxmj",
+                  "value": "J",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 11,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 9,
+          "hand": {
+            "count": 1,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "b1t6gigq86t6e60vt3js4q",
+                  "value": "5",
+                  "suit": "spades",
+                  "type": "normal",
+                  "numericValue": 5,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "igyznvrchk92kooca1m8n3",
+                  "value": "4",
+                  "suit": "clubs",
+                  "type": "normal",
+                  "numericValue": 4,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": null
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": null
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 41
+        },
+        "discard": {
+          "count": 6
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 16,
+      "currentPlayer": "bot",
+      "playerName": "Bot",
+      "startState": {
+        "timestamp": 1761167219997,
+        "stateType": "turn_start",
+        "currentPhase": "End",
+        "currentPlayer": "bot",
+        "turnNumber": 16,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 14,
+          "hand": {
+            "count": 2,
+            "cards": [
+              {
+                "id": "sh61d4lgadf13duis5ol5b",
+                "value": "8",
+                "suit": "hearts",
+                "type": "big",
+                "numericValue": 8,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              },
+              {
+                "id": "hz81we19b4mkfo0fzo4rom",
+                "value": "Q",
+                "suit": "hearts",
+                "type": "trap",
+                "numericValue": 12,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              }
+            ]
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "zvocpv0lqdt7b5zx795wtr",
+                  "value": "9",
+                  "suit": "clubs",
+                  "type": "big",
+                  "numericValue": 9,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "3hnqh8tioxov7hv0esc33h",
+                  "value": "3",
+                  "suit": "clubs",
+                  "type": "normal",
+                  "numericValue": 3,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "jnqj3b9gj1ikfphnlu63nf",
+                  "value": "2",
+                  "suit": "clubs",
+                  "type": "normal",
+                  "numericValue": 2,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "gv181e2jnico999rrfi4u",
+                  "value": "K",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 13,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "1mgmfrlvrppwupiqgp9p3o",
+                  "value": "Q",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "rjxqfz0nfe8k95w90zxmj",
+                  "value": "J",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 11,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 5,
+          "hand": {
+            "count": 1,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 1,
+                "card": null,
+                "canAttack": false
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "igyznvrchk92kooca1m8n3",
+                  "value": "4",
+                  "suit": "clubs",
+                  "type": "normal",
+                  "numericValue": 4,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": null
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": null
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 36
+        },
+        "discard": {
+          "count": 7
+        }
+      },
+      "phases": {},
+      "actions": []
+    },
+    {
+      "turnNumber": 17,
+      "currentPlayer": "human",
+      "playerName": "Player",
+      "startState": {
+        "timestamp": 1761167236466,
+        "stateType": "turn_start",
+        "currentPhase": "Setup",
+        "currentPlayer": "human",
+        "turnNumber": 17,
+        "player": {
+          "name": "Player",
+          "type": "human",
+          "health": 14,
+          "hand": {
+            "count": 2,
+            "cards": [
+              {
+                "id": "sh61d4lgadf13duis5ol5b",
+                "value": "8",
+                "suit": "hearts",
+                "type": "big",
+                "numericValue": 8,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              },
+              {
+                "id": "hz81we19b4mkfo0fzo4rom",
+                "value": "Q",
+                "suit": "hearts",
+                "type": "trap",
+                "numericValue": 12,
+                "isFusion": false,
+                "fusionStrength": null,
+                "isJoker": false,
+                "state": "in_hand"
+              }
+            ]
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "zvocpv0lqdt7b5zx795wtr",
+                  "value": "9",
+                  "suit": "clubs",
+                  "type": "big",
+                  "numericValue": 9,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "3hnqh8tioxov7hv0esc33h",
+                  "value": "3",
+                  "suit": "clubs",
+                  "type": "normal",
+                  "numericValue": 3,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 2,
+                "card": {
+                  "id": "jnqj3b9gj1ikfphnlu63nf",
+                  "value": "2",
+                  "suit": "clubs",
+                  "type": "normal",
+                  "numericValue": 2,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "gv181e2jnico999rrfi4u",
+                  "value": "K",
+                  "suit": "hearts",
+                  "type": "trap",
+                  "numericValue": 13,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "1mgmfrlvrppwupiqgp9p3o",
+                  "value": "Q",
+                  "suit": "clubs",
+                  "type": "trap",
+                  "numericValue": 12,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                }
+              },
+              {
+                "index": 2,
+                "card": null
+              }
+            ]
+          }
+        },
+        "bot": {
+          "name": "Bot",
+          "type": "bot",
+          "health": 4,
+          "hand": {
+            "count": 0,
+            "cards": []
+          },
+          "field": {
+            "monsters": [
+              {
+                "index": 0,
+                "card": {
+                  "id": "gagxfqv3q7m0lv9n8ftsb3b",
+                  "value": "5",
+                  "suit": "clubs",
+                  "type": "normal",
+                  "numericValue": 5,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 1,
+                "card": {
+                  "id": "173348iy3j8knd8pj1xvl",
+                  "value": "3",
+                  "suit": "diamonds",
+                  "type": "normal",
+                  "numericValue": 3,
+                  "isFusion": false,
+                  "fusionStrength": null,
+                  "isJoker": false,
+                  "state": "on_field"
+                },
+                "canAttack": true
+              },
+              {
+                "index": 2,
+                "card": null,
+                "canAttack": false
+              }
+            ],
+            "traps": [
+              {
+                "index": 0,
+                "card": null
+              },
+              {
+                "index": 1,
+                "card": null
+              },
+              {
+                "index": 2,
+                "card": null
+              }
+            ]
+          }
+        },
+        "deck": {
+          "remaining": 35
+        },
+        "discard": {
+          "count": 9
+        }
+      },
+      "phases": {},
+      "actions": []
+    }
+  ],
+  "gameOutcome": "completed",
+  "winner": "human",
+  "reason": "Player won"
+}

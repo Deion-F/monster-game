@@ -379,6 +379,29 @@
   animation: toast-out var(--duration-medium) ease-in forwards;
 }
 
+/* Trap reveal highlight animation - glow effect when bot trap is revealed */
+@keyframes trap-reveal-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.6),
+                0 0 8px 2px rgba(255, 193, 7, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.8),
+                0 0 16px 4px rgba(255, 193, 7, 0.6);
+  }
+}
+
+.trap-reveal-highlight {
+  animation: trap-reveal-glow 1.5s ease-in-out;
+  will-change: box-shadow;
+}
+
+/* Additional styling for revealed trap cards */
+.trap-revealed {
+  transform: scale(1.05);
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+}
+
 /* Reduced motion fallbacks */
 @media (prefers-reduced-motion: reduce) {
   .anim-summon,
@@ -399,6 +422,10 @@
   
   .selected {
     transition: none !important;
+  }
+  
+  .trap-reveal-highlight {
+    animation: none !important;
   }
 }
 
