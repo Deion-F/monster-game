@@ -2152,9 +2152,9 @@ class Bot {
         
         // Check for Jack and King traps for monster attacks
         const activatableTraps = this.game.bot.getActivatableTraps({ type: 'attack' });
-        
-        if (activatableTraps.length === 0 || !resumeFunction) {
-            // No traps or can't resume - continue attack
+
+        // If no activatable attack traps, resume the attack if a resume function was provided
+        if (activatableTraps.length === 0) {
             if (resumeFunction) resumeFunction();
             return;
         }
@@ -2170,6 +2170,15 @@ class Bot {
         const attackingStrength = attackingMonster.isFusion ? 
             attackingMonster.fusionStrength : 
             getCardNumericValue(attackingMonster.value);
+
+        // Debug: log incoming attack context
+        try {
+            const atkVal = attackingMonster.value || attackingStrength;
+            const tgt = (targetIndex === null) ? 'DIRECT' : `SPACE_${targetIndex}`;
+            const msg = `TrapEval START - Attacker=${atkVal} strength=${attackingStrength} target=${tgt} botHealth=${this.game.bot.health}`;
+            console.log(msg);
+            if (this.game.ui && this.game.ui.addBotThinkingMessage) this.game.ui.addBotThinkingMessage(msg);
+        } catch (e) { /* ignore logging errors */ }
         
         // Calculate the optimal trap decision first (as a baseline)
         let optimalTrap = null;
@@ -2186,7 +2195,10 @@ class Bot {
                 // Direct attack: value equals direct damage reduction
                 const halvedStrength = applyKingEffect(attackingStrength);
                 let reduction = attackingStrength - halvedStrength;
-                if (reduction >= 6) reduction += 25; // strong direct reduction bonus
+                // Lower the threshold for strong reduction and increase bonus
+                if (reduction >= 4) reduction += 35; // stronger direct reduction bonus (more aggressive)
+                // Bonus when bot is low on health to encourage desperate plays
+                if (this.game.bot.health <= 12) reduction += 15;
                 trapOptions.push({
                     trap: kingTraps[0],
                     type: 'KING',
@@ -2213,14 +2225,19 @@ class Bot {
                     const baseReduction = attackingStrength - halvedStrength; // raw damage/attack reduction
                     const savesBotMonster = normalDifference > 0 && halvedDifference <= 0;
                     const turnsTieToWin = normalDifference === 0 && halvedDifference < 0;
+                    const destroysAttacker = normalDifference >= 0 && halvedDifference < 0; // King causes attacker destruction
                     const defenderValuable = targetStrength > 6 ? 1 : 0;
-                    
-                    // Score: prioritize saving our monster or flipping outcome, otherwise use raw reduction
+
+                    // Score: prioritize destroying attacker or saving our monster, otherwise use raw reduction
                     let score = baseReduction;
-                    if (savesBotMonster) score += 100;
-                    if (turnsTieToWin) score += 50;
-                    score += defenderValuable * 10;
-                    if (savesBotMonster && attackingStrength >= 8) score += 25; // high-impact flip bonus
+                    if (destroysAttacker) score += 170; // slightly higher priority for destroying attacker
+                    if (savesBotMonster) score += 120; // increased save bonus
+                    if (turnsTieToWin) score += 60;
+                    score += defenderValuable * 12;
+                    if (destroysAttacker && attackingStrength >= 8) score += 35; // bonus for destroying strong attacker
+                    if (savesBotMonster && attackingStrength >= 8) score += 30; // high-impact flip bonus
+                    // Extra urgency when bot low on health
+                    if (this.game.bot.health <= 12) score += 10;
                     
                     trapOptions.push({
                         trap: kingTraps[0],
@@ -2228,6 +2245,7 @@ class Bot {
                         value: score,
                         savesBotMonster,
                         turnsTieToWin,
+                        destroysAttacker,
                         baseReduction
                     });
                     
@@ -2266,15 +2284,15 @@ class Bot {
                         targetCard.fusionStrength : 
                         getCardNumericValue(targetCard.value);
                     
-                    // Base advantage for player infighting: inflicting damage is always good
-                    advantage = 50;
-                    
+                    // Base advantage for player infighting: inflicting damage is usually beneficial
+                    advantage = 60;
+
                     // Bonus if player's stronger monster attacks player's weaker monster (monster dies)
                     if (attackingStrength > targetStrength) {
-                        advantage += 30; // Favorable outcome: player loses a monster and takes damage
+                        advantage += 40; // Favorable outcome: player loses a monster and takes damage
                     }
-                    
-                    // Bonus if this prevents damage to a valuable bot monster  
+
+                    // Bonus if this prevents damage to a valuable bot monster
                     if (targetIndex !== null) {
                         const originalTargetCard = this.game.bot.monsterSpaces[targetIndex].card;
                         if (originalTargetCard) {
@@ -2283,7 +2301,7 @@ class Bot {
                                 getCardNumericValue(originalTargetCard.value);
                             
                             if (originalTargetStrength > 6) {
-                                advantage += 15; // Save valuable monster
+                                advantage += 20; // Save valuable monster (increased)
                             }
                         }
                     }
@@ -2328,7 +2346,7 @@ class Bot {
                     } else if (strengthDifference < 0) {
                         // Attacker dies when it hits the redirect target
                         // Base value: destroying the attacking monster is worth its strength
-                        advantage = attackingStrength + 20; // reward killing attacker via redirect
+                            advantage = attackingStrength + 30; // stronger reward for killing attacker via redirect
                         
                         // Add value from not taking damage on the original target
                         const damageAvoided = Math.max(0, attackingStrength - originalTargetValue);
@@ -2354,9 +2372,16 @@ class Bot {
             }
         }
         
+        // Debug: show computed options and best value
+        try {
+            const optSummary = trapOptions.map(o => ({ t: o.type, v: Math.round(o.value) }));
+            console.log('TrapEval OPTIONS', optSummary, 'best=', Math.round(optimalTrapValue));
+            if (this.game.ui && this.game.ui.addBotThinkingMessage) this.game.ui.addBotThinkingMessage(`TrapEval OPTIONS: ${JSON.stringify(optSummary)} best=${Math.round(optimalTrapValue)}`);
+        } catch (e) {}
+
         // If no good options found or small advantage, maybe don't use a trap
-        // Deterministic: if the best option provides no improvement, skip using a trap
-        if (optimalTrapValue <= 0) {
+        // Deterministic: allow slightly negative small trades to be used (more aggressive).
+        if (optimalTrapValue <= -10) {
             if (resumeFunction) resumeFunction();
             return;
         }
@@ -2500,6 +2525,15 @@ class Bot {
         // Check if bot has a Queen trap available
         const queenTraps = this.game.bot.getActivatableTraps({ type: 'trap' })
             .filter(t => t.value === CARD_VALUES.QUEEN);
+
+        // DEBUG: log queen trap availability and basic context
+        try {
+            const qInfo = queenTraps.map(q => ({ id: q.id, value: q.value }));
+            console.debug('[DEBUG] decideBotQueenCancel - queenTraps:', qInfo, 'trapToCancel:', { id: trapToCancel && trapToCancel.id, value: trapToCancel && trapToCancel.value }, 'botHealth:', this.game.bot.health, 'phase:', this.game.currentPhase);
+            if (this.game && this.game.ui && typeof this.game.ui.addBotThinkingMessage === 'function') {
+                this.game.ui.addBotThinkingMessage(`Queen availability: ${qInfo.length} for canceling ${trapToCancel ? trapToCancel.value : 'unknown'}`);
+            }
+        } catch (e) {}
         
         if (queenTraps.length === 0) {
             // No Queen traps available

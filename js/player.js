@@ -87,8 +87,10 @@ class Player {
                 card.flipFaceUp();
                 card.active = false; // will become active on next turn
             } else {
-                // Bot traps remain face-down and inactive
-                card.flipFaceDown();
+                // Temporary testing change: make bot-placed traps visible to players so
+                // we can observe and debug bot trap logic. To revert, change this to
+                // `card.flipFaceDown()` again.
+                card.flipFaceUp();
                 card.active = false;
             }
         } else {
@@ -113,9 +115,10 @@ class Player {
             // Check if card is in hand
             const handIndex = this.hand.findIndex(c => c.id === card.id);
             if (handIndex !== -1) {
-                this.hand.splice(handIndex, 1);
-                deck.discard(card);
-                totalValue += getCardNumericValue(card.value);
+                // Remove from hand and discard the actual card object
+                const handCard = this.hand.splice(handIndex, 1)[0];
+                deck.discard(handCard);
+                totalValue += getCardNumericValue(handCard.value);
                 continue;
             }
             

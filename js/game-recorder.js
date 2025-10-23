@@ -27,6 +27,8 @@ class GameRecorder {
         this.currentPhaseData = {};
         this.dbReady = false;
         this.initializeDB();
+        // Optional local upload URL (set via enableLocalUpload)
+        this.localUploadUrl = null; // e.g. 'http://localhost:8765/save-recording'
     }
 
     /**
@@ -303,10 +305,70 @@ class GameRecorder {
             URL.revokeObjectURL(url);
             
             console.log(`Game recording auto-downloaded: ${filename}`);
+            // Also attempt to POST to local server if configured (non-blocking)
+            try {
+                const json = this.exportToJSON();
+                if (json && this.localUploadUrl) {
+                    this.tryUploadToLocalServer(json, this.localUploadUrl).catch(err => {
+                        console.warn('Local upload failed:', err);
+                    });
+                }
+            } catch (e) { /* ignore */ }
+
             return filename;
         } catch (error) {
             console.error('Failed to auto-download recording:', error);
             return null;
+        }
+    }
+
+    /**
+     * Enable uploading recordings to a local HTTP server endpoint.
+     * Call with the full URL, e.g. 'http://localhost:8765/save-recording'
+     */
+    enableLocalUpload(url) {
+        this.localUploadUrl = url;
+    }
+
+    /**
+     * Disable local upload
+     */
+    disableLocalUpload() {
+        this.localUploadUrl = null;
+    }
+
+    /**
+     * Try to POST the recording JSON to a local server endpoint.
+     * Non-fatal: errors are caught by callers.
+     */
+    async tryUploadToLocalServer(jsonString, url) {
+        if (!jsonString || !url) return null;
+        if (typeof fetch !== 'function') {
+            // fetch not available in this environment
+            return null;
+        }
+
+        // Fire-and-forget POST with JSON body
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const signal = controller ? controller.signal : undefined;
+        // Timeout after 2500ms
+        let timeoutId = null;
+        if (controller) timeoutId = setTimeout(() => controller.abort(), 2500);
+
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: jsonString,
+                signal
+            });
+            if (timeoutId) clearTimeout(timeoutId);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            try { console.log('Recording uploaded to local server:', url); } catch (e) {}
+            return true;
+        } catch (err) {
+            if (timeoutId) clearTimeout(timeoutId);
+            throw err;
         }
     }
 

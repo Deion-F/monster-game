@@ -16,6 +16,8 @@ function initializeGame() {
     
     // Create game instance
     window.game = new Game();
+    // Expose recorder globally for console access and quick toggling
+    try { window.recorder = window.game.recorder; } catch (e) { /* ignore */ }
     
     // Set up UI event listeners (only once, after window.game is assigned)
     UI.setupGlobalEventListeners();
@@ -54,6 +56,22 @@ function setupEventListeners() {
             const welcomeDialog = document.getElementById('welcome-dialog');
             if (welcomeDialog && typeof welcomeDialog.close === 'function') welcomeDialog.close();
             startNewGame(playerName, difficulty, recordingEnabled);
+
+            // Local upload option
+            const localUploadCheckbox = document.getElementById('enable-local-upload');
+            const localUploadUrlInput = document.getElementById('local-upload-url');
+            const localUploadEnabled = localUploadCheckbox ? localUploadCheckbox.checked : false;
+            const localUrl = localUploadUrlInput && localUploadUrlInput.value ? localUploadUrlInput.value.trim() : 'http://localhost:8765/save-recording';
+            try {
+                if (localUploadEnabled && window.game && window.game.recorder) {
+                    window.game.recorder.enableLocalUpload(localUrl);
+                    console.log('Local recording upload enabled ->', localUrl);
+                } else if (window.game && window.game.recorder) {
+                    window.game.recorder.disableLocalUpload();
+                }
+                // Reflect to global helper
+                window.recorder = window.game.recorder;
+            } catch (e) { console.warn('Failed to configure local upload', e); }
         });
     }
 
@@ -131,6 +149,25 @@ function setupEventListeners() {
             if (window.game && window.game.recorder) {
                 window.game.recorder.downloadRecording();
             }
+        });
+    }
+
+    // Live toggle for local upload checkbox (works any time after game is created)
+    const localUploadCheckbox = document.getElementById('enable-local-upload');
+    if (localUploadCheckbox) {
+        localUploadCheckbox.addEventListener('change', () => {
+            const localUploadUrlInput = document.getElementById('local-upload-url');
+            const localUrl = localUploadUrlInput && localUploadUrlInput.value ? localUploadUrlInput.value.trim() : 'http://localhost:8765/save-recording';
+            try {
+                if (localUploadCheckbox.checked && window.game && window.game.recorder) {
+                    window.game.recorder.enableLocalUpload(localUrl);
+                    console.log('Local recording upload enabled ->', localUrl);
+                } else if (window.game && window.game.recorder) {
+                    window.game.recorder.disableLocalUpload();
+                    console.log('Local recording upload disabled');
+                }
+                window.recorder = window.game.recorder;
+            } catch (e) { console.warn('Failed to toggle local upload', e); }
         });
     }
 
@@ -266,6 +303,8 @@ function startNewGame(playerName, difficulty, recordingEnabled = false) {
 
     // Initialize new game
     window.game = new Game();
+    // expose recorder for console access
+    try { window.recorder = window.game.recorder; } catch (e) {}
     
     // Set player name and bot difficulty directly
     window.game.player.name = playerName;
@@ -273,6 +312,9 @@ function startNewGame(playerName, difficulty, recordingEnabled = false) {
     
     // Initialize recording
     window.game.startNewGame(playerName, difficulty, recordingEnabled);
+
+    // Ensure global recorder reference points to the active recorder
+    try { window.recorder = window.game.recorder; } catch (e) {}
     
     // Start the first turn to automatically draw cards
     window.game.startTurn();

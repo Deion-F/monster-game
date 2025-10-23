@@ -2009,7 +2009,30 @@ class UI {
             }
             
             const activatable = defender.getActivatableTraps({ type: ttype, trapValue: context.trapValue });
-            if (!activatable || activatable.length === 0) return resolve({ activated: false });
+            // Debug: record activatable traps and container presence
+            try {
+                console.log('[DEBUG] promptTrapResponse - defender:', defender === this.game.player ? 'human' : 'bot', 'ttype:', ttype, 'trapValue:', context.trapValue);
+                console.log('[DEBUG] promptTrapResponse - activatable traps:', activatable && activatable.length ? activatable.map(t => ({ id: t.id, value: t.value })) : activatable);
+                const containerExists = !!document.getElementById('trap-reaction-container');
+                console.log('[DEBUG] promptTrapResponse - trap-reaction-container exists:', containerExists);
+            } catch (e) { console.warn('Failed to log promptTrapResponse debug info', e); }
+
+            if (!activatable || activatable.length === 0) {
+                try {
+                    // Log detailed trap space states for diagnosis
+                    const details = defender.trapSpaces.map((s, i) => ({
+                        index: i,
+                        hasCard: !!s.card,
+                        id: s.card ? s.card.id : null,
+                        value: s.card ? s.card.value : null,
+                        active: s.card ? !!s.card.active : null,
+                        justPlaced: s.card ? !!s.card.justPlaced : null,
+                        usedThisTurn: s.card ? defender.usedTrapTypes.has(s.card.value) : null
+                    }));
+                    console.log('[DEBUG] promptTrapResponse - no activatable traps; trapSpaces:', details);
+                } catch (e) { console.warn('Failed to log trapSpaces details', e); }
+                return resolve({ activated: false });
+            }
 
             // Highlight activatable traps (only for human player)
             for (let i = 0; i < defender.trapSpaces.length; i++) {
@@ -2157,8 +2180,90 @@ class UI {
             
             footer.appendChild(cancelBtn);
             container.appendChild(footer);
-
             this._reactiveResolve = resolve;
+
+            // Fallback: if the sidebar container is not visible (e.g., off-canvas or hidden by CSS),
+            // create a temporary centered dialog so the player still sees the reactive prompt.
+            setTimeout(() => {
+                try {
+                    const rect = container.getBoundingClientRect ? container.getBoundingClientRect() : { width: 0, height: 0 };
+                    const isVisible = rect.width > 0 && rect.height > 0 && window.getComputedStyle(container).display !== 'none';
+                    if (!isVisible) {
+                        console.warn('[DEBUG] promptTrapResponse - sidebar container not visible; showing fallback modal');
+                        // Build a simple modal listing the same clickable trap options
+                        const temp = document.createElement('div');
+                        temp.className = 'temp-dialog';
+                        temp.style.position = 'fixed';
+                        temp.style.left = '50%';
+                        temp.style.top = '50%';
+                        temp.style.transform = 'translate(-50%, -50%)';
+                        temp.style.zIndex = '99999';
+                        temp.style.background = 'var(--surface, #fff)';
+                        temp.style.border = '1px solid rgba(0,0,0,0.1)';
+                        temp.style.padding = '12px';
+                        temp.style.borderRadius = '8px';
+                        temp.style.boxShadow = '0 6px 24px rgba(0,0,0,0.15)';
+                        temp.style.maxWidth = '320px';
+
+                        const title = document.createElement('div');
+                        title.textContent = 'Opponent is attacking! Click a trap to respond';
+                        title.style.fontWeight = '600';
+                        title.style.marginBottom = '8px';
+                        temp.appendChild(title);
+
+                        const list = document.createElement('div');
+                        list.className = 'temp-trap-list';
+                        // populate with same trap elements as in container (clone them)
+                        const trapEls = container.querySelectorAll('.reaction-trap-list .card, .reaction-trap-option');
+                        if (trapEls && trapEls.length > 0) {
+                            trapEls.forEach((el) => {
+                                const clone = el.cloneNode(true);
+                                clone.style.cursor = 'pointer';
+                                clone.addEventListener('click', (e) => {
+                                    e.stopPropagation();
+                                    // Simulate clicking the original element's handler by dispatching a click on original if present
+                                    try {
+                                        // Find original by matching data-card-id
+                                        const id = clone.dataset.cardId;
+                                        if (id) {
+                                            const orig = container.querySelector(`.card[data-card-id="${id}"]`);
+                                            if (orig) orig.click();
+                                        }
+                                    } catch (err) { console.warn('Fallback click proxy failed', err); }
+                                    // Remove the temp dialog after interaction
+                                    if (temp && temp.parentNode) temp.parentNode.removeChild(temp);
+                                });
+                                list.appendChild(clone);
+                            });
+                        } else {
+                            // If we couldn't clone items, add a simple Close button so player isn't blocked
+                            const info = document.createElement('div');
+                            info.textContent = 'No traps available to display here.';
+                            info.style.marginBottom = '8px';
+                            list.appendChild(info);
+                        }
+
+                        temp.appendChild(list);
+                        const btnRow = document.createElement('div');
+                        btnRow.style.textAlign = 'right';
+                        btnRow.style.marginTop = '8px';
+                        const cancelBtn = document.createElement('button');
+                        cancelBtn.className = 'dialog-button';
+                        cancelBtn.textContent = 'Close';
+                        cancelBtn.addEventListener('click', () => {
+                            if (temp && temp.parentNode) temp.parentNode.removeChild(temp);
+                            try {
+                                if (this._reactiveResolve) this._reactiveResolve({ activated: false });
+                            } catch (e) { console.warn('Error resolving reactive prompt from fallback close', e); }
+                            this._clearReactiveState();
+                        });
+                        btnRow.appendChild(cancelBtn);
+                        temp.appendChild(btnRow);
+
+                        document.body.appendChild(temp);
+                    }
+                } catch (e) { console.warn('Fallback visibility check failed', e); }
+            }, 50);
         });
     }
 

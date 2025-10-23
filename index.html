@@ -33,6 +33,16 @@
                         for analysis to improve the bot's strategy.
                     </p>
                 </div>
+                <div class="input-group recording-toggle">
+                    <label for="enable-local-upload">
+                        <input type="checkbox" id="enable-local-upload" name="enable-local-upload" />
+                        <span>Upload recording to local server (dev)</span>
+                    </label>
+                    <div style="margin-top:6px;">
+                        <input id="local-upload-url" type="text" value="http://localhost:8765/save-recording" placeholder="http://localhost:8765/save-recording" style="width:100%;" />
+                        <p class="recording-help-text" style="margin-top:6px;">When enabled, the recording will be POSTed to the provided local URL (for dev automation). This is optional and for local development only.</p>
+                    </div>
+                </div>
             </div>
             <div class="dialog-buttons">
                 <button id="start-game" class="dialog-button primary">Start Game</button>

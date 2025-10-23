@@ -375,15 +375,25 @@ class Board {
      */
     breakFusions(player, paidCount = 0) {
         const results = [];
-        // Gather fusion spaces in board order
+        // Gather fusion spaces in board order with their strength
         const fusionSpaces = [];
         for (let i = 0; i < player.monsterSpaces.length; i++) {
             const space = player.monsterSpaces[i];
-            if (space.card && space.card.isFusion) fusionSpaces.push({ spaceIndex: i, fusion: space.card });
+            if (space.card && space.card.isFusion) {
+                fusionSpaces.push({ 
+                    spaceIndex: i, 
+                    fusion: space.card,
+                    strength: space.card.fusionStrength || 0
+                });
+            }
         }
 
-        // Determine which fusions to break: those after paidCount
-        const toBreak = fusionSpaces.slice(paidCount);
+        // Sort fusions by strength (descending) to preserve strongest fusions first
+        // This ensures partial sacrifices save the most valuable fusions
+        const sortedFusions = [...fusionSpaces].sort((a, b) => b.strength - a.strength);
+        
+        // Determine which fusions to break: the weakest ones when paidCount < total
+        const toBreak = sortedFusions.slice(paidCount);
 
         for (const item of toBreak) {
             const { spaceIndex, fusion } = item;

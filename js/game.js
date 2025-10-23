@@ -227,13 +227,18 @@ class Game {
         const need = (this.board && typeof this.board.countActiveFusions === 'function') ? this.board.countActiveFusions(player) : 0;
         if (!sacrificeCards) sacrificeCards = [];
 
+        // First, sacrifice the provided cards
+        if (sacrificeCards.length > 0 && typeof player.sacrificeCards === 'function') {
+            player.sacrificeCards(sacrificeCards, this.deck);
+        }
+
+        // Then, if we don't have enough sacrifices, break the weakest remaining fusions
         if (sacrificeCards.length < need) {
             if (this.board && typeof this.board.breakFusions === 'function') {
                 this.board.breakFusions(player, sacrificeCards.length);
             }
             this.ui.addLogMessage(`${player.name} couldn't pay all fusion upkeep`);
         } else {
-            if (typeof player.sacrificeCards === 'function') player.sacrificeCards(sacrificeCards, this.deck);
             this.ui.addLogMessage(`${player.name} pays fusion upkeep`);
         }
         this.ui.updateGameState();
@@ -446,6 +451,15 @@ class Game {
 
         if (defender && defender.getActivatableTraps) {
             const activatable = defender.getActivatableTraps({ type: defenderIndex === null ? 'battle-phase' : 'attack' });
+            // Debug: log activatable traps for diagnosis
+            try {
+                if (defender === this.player) {
+                    console.log('[DEBUG] processAttack - human defender activatable traps:', activatable && activatable.length ? activatable.map(t => ({ id: t.id, value: t.value })) : activatable);
+                } else {
+                    console.log('[DEBUG] processAttack - bot defender activatable traps:', activatable && activatable.length ? activatable.map(t => ({ id: t.id, value: t.value })) : activatable);
+                }
+            } catch (e) { console.warn('Failed to log activatable traps', e); }
+
             if (activatable && activatable.length > 0) {
                 // If defender is human, show UI prompt and wait for player decision
                 if (defender === this.player) {
@@ -675,9 +689,22 @@ class Game {
                     // Ask UI to prompt cancelation; if canceled, do not apply Ace effect
                     const cancelResp = await this.ui.promptCancelTrap(trap);
                     if (cancelResp && cancelResp.canceled) {
-                        this.ui.addLogMessage('Ace activation was cancelled by Queen');
+                        // If the responder activated a trap that ended the battle (e.g., Ace), propagate that effect
+                        if (cancelResp.result && cancelResp.result.effect && cancelResp.result.effect.endBattlePhase) {
+                            this.ui.addLogMessage('Ace (response) ended the battle phase and prevented the activation');
+                            this.ui.updateGameState();
+                            return { success: true, canceledByResponse: true, effect: cancelResp.result.effect };
+                        }
+                        // If they used a Queen to cancel, respect that
+                        if (cancelResp.trap && cancelResp.trap.value === CARD_VALUES.QUEEN) {
+                            this.ui.addLogMessage('Ace activation was cancelled by Queen');
+                            this.ui.updateGameState();
+                            return { success: true, canceledByQueen: true };
+                        }
+                        // Generic cancel (fallback)
+                        this.ui.addLogMessage('Ace activation was cancelled by response');
                         this.ui.updateGameState();
-                        return { success: true, canceledByQueen: true };
+                        return { success: true, canceledByResponse: true };
                     }
                 } catch (err) {
                     console.warn('Error prompting for Queen cancel', err);
@@ -686,7 +713,10 @@ class Game {
             
             // If opponent is the bot, ask bot to decide on Queen cancellation
             if (opponent === this.bot && this.botPlayer && typeof this.botPlayer.decideBotQueenCancel === 'function') {
+                // DEBUG: log that we're asking the bot to consider cancel
+                console.debug('[DEBUG] game.js - asking bot.decideBotQueenCancel for trap', { id: trap && trap.id, value: trap && trap.value, owner: owner && owner.name });
                 const shouldCancel = await this.botPlayer.decideBotQueenCancel(trap, owner);
+                console.debug('[DEBUG] game.js - bot.decideBotQueenCancel returned', shouldCancel);
                 if (shouldCancel) {
                     this.ui.addLogMessage('Ace activation was cancelled by Queen');
                     this.ui.updateGameState();
@@ -750,9 +780,22 @@ class Game {
                     // Ask UI to prompt cancelation; if canceled, do not apply King effect
                     const cancelResp = await this.ui.promptCancelTrap(trap);
                     if (cancelResp && cancelResp.canceled) {
-                        this.ui.addLogMessage('King activation was cancelled by Queen');
+                        // If the responder activated an Ace (or other trap with an effect that ends the battle), propagate that effect
+                        if (cancelResp.result && cancelResp.result.effect && cancelResp.result.effect.endBattlePhase) {
+                            this.ui.addLogMessage('Opponent trap ended the battle phase and prevented King from taking effect');
+                            this.ui.updateGameState();
+                            return { success: true, canceledByResponse: true, effect: cancelResp.result.effect };
+                        }
+                        // Queen cancel
+                        if (cancelResp.trap && cancelResp.trap.value === CARD_VALUES.QUEEN) {
+                            this.ui.addLogMessage('King activation was cancelled by Queen');
+                            this.ui.updateGameState();
+                            return { success: true, canceledByQueen: true };
+                        }
+                        // Generic cancel
+                        this.ui.addLogMessage('King activation was cancelled by response');
                         this.ui.updateGameState();
-                        return { success: true, canceledByQueen: true };
+                        return { success: true, canceledByResponse: true };
                     }
                 } catch (err) {
                     console.warn('Error prompting for Queen cancel', err);
@@ -761,7 +804,9 @@ class Game {
             
             // If opponent is the bot, ask bot to decide on Queen cancellation
             if (opponent === this.bot && this.botPlayer && typeof this.botPlayer.decideBotQueenCancel === 'function') {
+                console.debug('[DEBUG] game.js - asking bot.decideBotQueenCancel for King trap', { id: trap && trap.id, value: trap && trap.value, owner: owner && owner.name });
                 const shouldCancel = await this.botPlayer.decideBotQueenCancel(trap, owner);
+                console.debug('[DEBUG] game.js - bot.decideBotQueenCancel returned for King', shouldCancel);
                 if (shouldCancel) {
                     this.ui.addLogMessage('King activation was cancelled by Queen');
                     this.ui.updateGameState();
@@ -826,9 +871,22 @@ class Game {
                     // Ask UI to prompt cancelation; if canceled, do not apply Jack effect
                     const cancelResp = await this.ui.promptCancelTrap(trap);
                     if (cancelResp && cancelResp.canceled) {
-                        this.ui.addLogMessage('Jack activation was cancelled by Queen');
+                        // If the responder activated an Ace (or other trap that ends the battle), propagate effect
+                        if (cancelResp.result && cancelResp.result.effect && cancelResp.result.effect.endBattlePhase) {
+                            this.ui.addLogMessage('Opponent trap ended the battle phase and prevented Jack from taking effect');
+                            this.ui.updateGameState();
+                            return { success: true, canceledByResponse: true, effect: cancelResp.result.effect };
+                        }
+                        // Queen cancel
+                        if (cancelResp.trap && cancelResp.trap.value === CARD_VALUES.QUEEN) {
+                            this.ui.addLogMessage('Jack activation was cancelled by Queen');
+                            this.ui.updateGameState();
+                            return { success: true, canceledByQueen: true };
+                        }
+                        // Generic cancel
+                        this.ui.addLogMessage('Jack activation was cancelled by response');
                         this.ui.updateGameState();
-                        return { success: true, canceledByQueen: true };
+                        return { success: true, canceledByResponse: true };
                     }
                 } catch (err) {
                     console.warn('Error prompting for Queen cancel', err);
@@ -837,7 +895,9 @@ class Game {
             
             // If opponent is the bot, ask bot to decide on Queen cancellation
             if (opponent === this.bot && this.botPlayer && typeof this.botPlayer.decideBotQueenCancel === 'function') {
+                console.debug('[DEBUG] game.js - asking bot.decideBotQueenCancel for Jack trap', { id: trap && trap.id, value: trap && trap.value, owner: owner && owner.name });
                 const shouldCancel = await this.botPlayer.decideBotQueenCancel(trap, owner);
+                console.debug('[DEBUG] game.js - bot.decideBotQueenCancel returned for Jack', shouldCancel);
                 if (shouldCancel) {
                     this.ui.addLogMessage('Jack activation was cancelled by Queen');
                     this.ui.updateGameState();
