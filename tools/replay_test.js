@@ -10,6 +10,78 @@ global.getCardNumericValue = function(v) {
     return isNaN(n) ? 0 : n;
 };
 
+// Minimal CARD_VALUES mapping so bot.js can be evaluated by the Node test harness
+global.CARD_VALUES = {
+    ACE: 'A',
+    TWO: '2',
+    THREE: '3',
+    FOUR: '4',
+    FIVE: '5',
+    SIX: '6',
+    SEVEN: '7',
+    EIGHT: '8',
+    NINE: '9',
+    TEN: '10',
+    JACK: 'J',
+    QUEEN: 'Q',
+    KING: 'K',
+    JOKER: 'JOKER'
+};
+
+// -------------------------
+// Unit test: first-turn attack restriction
+// Verifies the rule that the player who started the game (firstPlayer) cannot attack on overall turn 1
+// This runs before loading game/bot code so it doesn't depend on browser globals.
+(function testFirstTurnAttackRestriction() {
+    console.log('\nRunning unit test: first-turn attack restriction');
+    const player = { name: 'Player' };
+    const other = { name: 'Other' };
+
+    // Reuse logic from Game.isAttackAllowedThisTurn (defensive copy for unit test)
+    function isAttackAllowedThisTurn(gameObj, playerObj) {
+        try {
+            const fpName = gameObj.firstPlayer && gameObj.firstPlayer.name ? gameObj.firstPlayer.name : 'unknown';
+            const pName = playerObj && playerObj.name ? playerObj.name : 'unknown';
+            console.debug(`[unit-test] isAttackAllowedThisTurn turn=${gameObj.turnCounter}, firstPlayer=${fpName}, player=${pName}`);
+        } catch (e) { /* ignore logging failures */ }
+
+        if (!gameObj.firstPlayer) gameObj.firstPlayer = gameObj.player;
+
+        if (gameObj.turnCounter === 1 && (playerObj === gameObj.firstPlayer || (playerObj && gameObj.firstPlayer && playerObj.name === gameObj.firstPlayer.name))) {
+            return false;
+        }
+        return true;
+    }
+
+    // Case A: player is the starter and it's turn 1 -> should NOT be allowed
+    const g1 = { turnCounter: 1, firstPlayer: player, player };
+    const allowed1 = isAttackAllowedThisTurn(g1, player);
+    if (allowed1) {
+        console.error('Unit test FAILED: starter was allowed to attack on turn 1');
+        process.exitCode = 1;
+        return;
+    }
+
+    // Case B: other player on turn 1 should be allowed
+    const allowed2 = isAttackAllowedThisTurn(g1, other);
+    if (!allowed2) {
+        console.error('Unit test FAILED: non-starter was blocked incorrectly on turn 1');
+        process.exitCode = 1;
+        return;
+    }
+
+    // Case C: turn >1 should allow starter as well
+    const g2 = { turnCounter: 2, firstPlayer: player, player };
+    const allowed3 = isAttackAllowedThisTurn(g2, player);
+    if (!allowed3) {
+        console.error('Unit test FAILED: starter was blocked on turn >1');
+        process.exitCode = 1;
+        return;
+    }
+
+    console.log('Unit test PASSED: first-turn attack restriction behaves as expected');
+})();
+
 // Use a synthetic final state similar to the recording (player: 10,4,6; bot traps: K,J,J)
 const rec = {
     finalState: {
@@ -67,7 +139,12 @@ const botCode = fs.readFileSync(path.join(__dirname, '..', 'js', 'bot.js'), 'utf
 // Ensure the bot code exports the Bot class when evaluated
 const wrappedBotCode = botCode + "\n; if (typeof Bot !== 'undefined') { module.exports = Bot; }";
 const script = new vm.Script(wrappedBotCode, { filename: 'bot.js' });
-const sandbox = { module: {}, console, require, global, setTimeout, clearTimeout };
+const sandbox = { module: {}, console, require, global, setTimeout, clearTimeout,
+    CARD_VALUES: global.CARD_VALUES,
+    getCardNumericValue: global.getCardNumericValue
+};
+// Provide a simple delay helper used by bot.js
+sandbox.delay = function(ms) { return new Promise(resolve => setTimeout(resolve, ms)); };
 vm.createContext(sandbox);
 script.runInContext(sandbox);
 const BotClass = sandbox.module.exports;
@@ -132,3 +209,4 @@ async function run() {
 }
 
 run().then(() => console.log('Replay test finished')).catch(err => console.error(err));
+

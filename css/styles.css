@@ -331,6 +331,88 @@ html, body {
   box-shadow: 0 0 6px rgba(0,0,0,0.2);
 }
 
+/* Explicit visual for attack-ready lifecycle marker. This makes the ready state
+   unmistakable even if .can-attack is not visible for some reason. */
+.game-board.phase-player-BATTLE .monster-space .card.attack-ready,
+.game-board.phase-bot-BATTLE .monster-space .card.attack-ready {
+  transform: translateY(-10px);
+  transition: transform 160ms var(--duration-fast), box-shadow 160ms var(--duration-fast);
+  /* stronger border and glow for high contrast on dark themes */
+  border: 3px solid rgba(3,169,244,0.95); /* bright cyan */
+  box-shadow: 0 0 0 6px rgba(3,169,244,0.12), 0 12px 36px rgba(3,169,244,0.24);
+  z-index: 30;
+}
+
+/* Only animate when an explicit animate class is present (added after player clicks) */
+.game-board.phase-player-BATTLE .monster-space .card.attack-ready.attack-ready-animate,
+.game-board.phase-bot-BATTLE .monster-space .card.attack-ready.attack-ready-animate {
+  animation: attack-ready-pulse 1300ms ease-in-out infinite;
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .game-board .card.attack-ready.attack-ready-animate {
+    animation: none !important;
+  }
+}
+
+.game-board.phase-player-BATTLE .monster-space .card.attack-ready::after,
+.game-board.phase-bot-BATTLE .monster-space .card.attack-ready::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #40C4FF, #00B0FF);
+  box-shadow: 0 0 10px rgba(3,169,244,0.36);
+}
+
+/* Also support marking the whole monster-space element as attack-ready */
+.game-board.phase-player-BATTLE .monster-space.attack-ready,
+.game-board.phase-bot-BATTLE .monster-space.attack-ready {
+  outline: 3px solid rgba(3,169,244,0.08);
+  box-shadow: 0 8px 28px rgba(3,169,244,0.06) inset;
+}
+
+/* Container-level styling: make the card inside the highlighted space inherit the lift/glow
+   so the highlight visually surrounds the space rather than only the inner card */
+.game-board.phase-player-BATTLE .monster-space.attack-ready .card,
+.game-board.phase-bot-BATTLE .monster-space.attack-ready .card {
+  transform: translateY(-8px);
+  border: 3px solid rgba(3,169,244,0.95);
+  box-shadow: 0 0 0 6px rgba(3,169,244,0.12), 0 12px 36px rgba(3,169,244,0.24);
+  z-index: 20;
+}
+
+/* Add a subtle outer ring around the monster-space itself for clearer alignment */
+.game-board .monster-space.attack-ready::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: calc(var(--card-radius) + 6px);
+  box-shadow: 0 0 24px rgba(3,169,244,0.12);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Pulse animation for attack-ready highlight */
+@keyframes attack-ready-pulse {
+  0% {
+    transform: translateY(-8px) scale(1);
+    box-shadow: 0 0 0 6px rgba(3,169,244,0.06), 0 12px 36px rgba(3,169,244,0.14);
+  }
+  50% {
+    transform: translateY(-12px) scale(1.02);
+    box-shadow: 0 0 0 10px rgba(3,169,244,0.12), 0 18px 48px rgba(3,169,244,0.22);
+  }
+  100% {
+    transform: translateY(-8px) scale(1);
+    box-shadow: 0 0 0 6px rgba(3,169,244,0.06), 0 12px 36px rgba(3,169,244,0.14);
+  }
+}
+
 /* Already attacked: desaturated and show a small check badge */
 .game-board.phase-player-BATTLE .monster-space .card.attacked,
 .game-board.phase-bot-BATTLE .monster-space .card.attacked {

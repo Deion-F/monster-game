@@ -48,8 +48,10 @@ class Game {
 
         this.currentPhase = PHASES.DRAW;
         this.currentPlayer = this.player;
-        this.turnCounter = 1;
-        this.firstTurnRestriction = true;
+    this.turnCounter = 1;
+    // Track who is first player for the first-turn attack restriction.
+    // When recreating players we must update firstPlayer to point to the new player object.
+    this.firstPlayer = this.player;
 
         // Initialize game recorder
         this.recorder = new GameRecorder(recordingEnabled);
@@ -500,6 +502,21 @@ class Game {
 
                                 if (this.ui) this.ui.updateGameState();
                                 if (typeof this.checkForGameOver === 'function') this.checkForGameOver();
+                                // Ensure the original attacking monster is marked as having attacked
+                                try {
+                                    const attackingMonsterSpace = attacker.monsterSpaces[attackerIndex];
+                                    if (attackingMonsterSpace && attackingMonsterSpace.card) {
+                                        attackingMonsterSpace.card.attackedThisTurn = true;
+                                    }
+                                } catch (e) { /* ignore */ }
+
+                                // Clear any attack highlights that may remain after a redirected attack
+                                try {
+                                    if (this.ui && typeof this.ui.clearAttackHighlights === 'function') this.ui.clearAttackHighlights();
+                                    document.querySelectorAll('.monster-space, .player-area').forEach(el => el.classList.remove('highlight'));
+                                } catch (e) { /* ignore DOM clearing errors in non-browser contexts */ }
+
+                                if (this.ui) this.ui.updateGameState();
                                 return finalRes;
                             }
 
@@ -574,6 +591,21 @@ class Game {
 
                             if (this.ui) this.ui.updateGameState();
                             if (typeof this.checkForGameOver === 'function') this.checkForGameOver();
+                            // Ensure the original attacking monster is marked as having attacked
+                            try {
+                                const attackingMonsterSpace = attacker.monsterSpaces[attackerIndex];
+                                if (attackingMonsterSpace && attackingMonsterSpace.card) {
+                                    attackingMonsterSpace.card.attackedThisTurn = true;
+                                }
+                            } catch (e) { /* ignore */ }
+
+                            // Clear highlights that may be left from target selection
+                            try {
+                                if (this.ui && typeof this.ui.clearAttackHighlights === 'function') this.ui.clearAttackHighlights();
+                                document.querySelectorAll('.monster-space, .player-area').forEach(el => el.classList.remove('highlight'));
+                            } catch (e) { /* ignore DOM clearing errors in non-browser contexts */ }
+
+                            if (this.ui) this.ui.updateGameState();
                             return finalRes;
                         }
                     } catch (e) {
@@ -993,6 +1025,19 @@ class Game {
             }
         });
 
+        // Also ensure any UI attack-ready highlights are cleared at end of battle
+        try {
+            if (this.ui && typeof this.ui.clearAttackHighlights === 'function') this.ui.clearAttackHighlights();
+            if (typeof document !== 'undefined') {
+                document.querySelectorAll('.monster-space .card.attack-ready, .monster-space.attack-ready').forEach(el => {
+                    // card element might be inner child or the space itself
+                    el.classList.remove('attack-ready');
+                });
+                // Also remove attack-ready class from monster-space containers if present
+                document.querySelectorAll('.monster-space').forEach(spaceEl => spaceEl.classList.remove('attack-ready'));
+            }
+        } catch (e) { /* ignore if not in browser context */ }
+
         if (this.ui) this.ui.updateGameState();
     }
 
@@ -1054,8 +1099,20 @@ class Game {
      * @returns {boolean}
      */
     isAttackAllowedThisTurn(player) {
+        // Defensive logging to help ensure the first-turn restriction is honored
+        try {
+            const fpName = this.firstPlayer && this.firstPlayer.name ? this.firstPlayer.name : 'unknown';
+            const pName = player && player.name ? player.name : 'unknown';
+            console.debug(`[isAttackAllowedThisTurn] turn=${this.turnCounter}, firstPlayer=${fpName}, player=${pName}`);
+        } catch (e) { /* ignore logging failures */ }
+
+        // If firstPlayer wasn't set for some reason, fall back to assuming the current player who started the game
+        if (!this.firstPlayer) this.firstPlayer = this.player;
+
         // If it's the very first overall turn, the player who started cannot attack
-        if (this.turnCounter === 1 && player === this.firstPlayer) return false;
+        if (this.turnCounter === 1 && (player === this.firstPlayer || (player && this.firstPlayer && player.name === this.firstPlayer.name))) {
+            return false;
+        }
         return true;
     }
 }

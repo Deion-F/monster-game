@@ -460,14 +460,46 @@ class UI {
                     card.canAttack() &&
                     this.game.isAttackAllowedThisTurn(this.game.player)) {
                     cardElement.classList.add('can-attack');
+                    // Add a visible 'attack-ready' highlight at the start of battle phase
+                    // This indicates the monster is available to attack; removed when it attacks.
+                    if (!cardElement.classList.contains('attack-ready')) {
+                        console.log('UI: adding attack-ready to', card.id, 'value', card.value);
+                        cardElement.classList.add('attack-ready');
+                        // Also mark the container space so the highlight surrounds the field space
+                        if (space) space.classList.add('attack-ready');
+                        // For player cards: defer the breathing/pulse animation until the user clicks the card.
+                        // We add a one-time click listener that toggles the animate class.
+                        if (this.game.currentPlayer === this.game.player) {
+                            const onFirstClick = (ev) => {
+                                try {
+                                    cardElement.classList.add('attack-ready-animate');
+                                    if (space) space.classList.add('attack-ready-animate');
+                                } catch (e) {}
+                                cardElement.removeEventListener('click', onFirstClick);
+                            };
+                            // Use once option to auto-remove listener after firing
+                            cardElement.addEventListener('click', onFirstClick, { once: true });
+                        }
+                    }
                 }
                 
                 // Mark visually if this monster already attacked this turn
-                if (card.attackedThisTurn) {
-                    cardElement.classList.add('attacked');
-                } else {
-                    cardElement.classList.remove('attacked');
-                }
+                    if (card.attackedThisTurn) {
+                        cardElement.classList.add('attacked');
+                        // Once the monster has attacked, it should no longer show as attack-ready
+                        if (cardElement.classList.contains('attack-ready')) {
+                            console.log('UI: removing attack-ready from (attacked)', card.id);
+                            cardElement.classList.remove('attack-ready');
+                        }
+                        if (cardElement.classList.contains('attack-ready-animate')) {
+                            cardElement.classList.remove('attack-ready-animate');
+                        }
+                        if (space && space.classList.contains('attack-ready')) space.classList.remove('attack-ready');
+                        if (space && space.classList.contains('attack-ready-animate')) space.classList.remove('attack-ready-animate');
+                    } else {
+                        // ensure attacked class removed
+                        cardElement.classList.remove('attacked');
+                    }
                 
                 space.appendChild(cardElement);
                 // Forward clicks on the inner card element to the monster-space container
@@ -520,8 +552,29 @@ class UI {
                 }
                 const cardElement = card.getElement();
                     // Visual attacked state for bot monsters as well
+                    // Add attack-ready highlight for bot monsters when it's the bot's battle phase
+                    if (this.game.currentPhase === PHASES.BATTLE &&
+                        this.game.currentPlayer !== this.game.player &&
+                        card.canAttack() &&
+                        this.game.isAttackAllowedThisTurn(this.game.bot)) {
+                        cardElement.classList.add('can-attack');
+                        cardElement.classList.add('attack-ready');
+                        // Bot monsters should show the animated highlight immediately
+                        cardElement.classList.add('attack-ready-animate');
+                        if (space) {
+                            space.classList.add('attack-ready');
+                            space.classList.add('attack-ready-animate');
+                        }
+                    }
                     if (card.attackedThisTurn) {
                         cardElement.classList.add('attacked');
+                        // remove attack-ready once it attacked
+                        cardElement.classList.remove('attack-ready');
+                        cardElement.classList.remove('attack-ready-animate');
+                        if (space) {
+                            space.classList.remove('attack-ready');
+                            space.classList.remove('attack-ready-animate');
+                        }
                     }
                 space.appendChild(cardElement);
                 // Forward clicks on the inner card element to the monster-space container (ensure fusion cards clickable)
@@ -642,7 +695,9 @@ class UI {
                     'phase-bot-SETUP','phase-bot-BATTLE','phase-bot-END'
                 );
                 const owner = this.game.currentPlayer === this.game.player ? 'player' : 'bot';
-                boardEl.classList.add(`phase-${owner}-${this.game.currentPhase}`);
+                // CSS phase classes use uppercase phase names (e.g. BATTLE). Normalize here.
+                const phaseClass = `phase-${owner}-${String(this.game.currentPhase).toUpperCase()}`;
+                boardEl.classList.add(phaseClass);
             }
 
             // Add subtle accent to the active player's area
