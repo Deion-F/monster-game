@@ -72,7 +72,7 @@ html, body {
 
 .game-board {
   display: grid;
-  grid-template-columns: 220px 1fr 280px;
+  grid-template-columns: 220px 1fr 360px;
   grid-template-rows: 1fr;
   gap: var(--space-lg);
   padding: var(--space-md);
@@ -329,6 +329,88 @@ html, body {
   border-radius: 50%;
   background: var(--md-primary);
   box-shadow: 0 0 6px rgba(0,0,0,0.2);
+}
+
+/* Explicit visual for attack-ready lifecycle marker. This makes the ready state
+   unmistakable even if .can-attack is not visible for some reason. */
+.game-board.phase-player-BATTLE .monster-space .card.attack-ready,
+.game-board.phase-bot-BATTLE .monster-space .card.attack-ready {
+  transform: translateY(-10px);
+  transition: transform 160ms var(--duration-fast), box-shadow 160ms var(--duration-fast);
+  /* stronger border and glow for high contrast on dark themes */
+  border: 3px solid rgba(3,169,244,0.95); /* bright cyan */
+  box-shadow: 0 0 0 6px rgba(3,169,244,0.12), 0 12px 36px rgba(3,169,244,0.24);
+  z-index: 30;
+}
+
+/* Only animate when an explicit animate class is present (added after player clicks) */
+.game-board.phase-player-BATTLE .monster-space .card.attack-ready.attack-ready-animate,
+.game-board.phase-bot-BATTLE .monster-space .card.attack-ready.attack-ready-animate {
+  animation: attack-ready-pulse 1300ms ease-in-out infinite;
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .game-board .card.attack-ready.attack-ready-animate {
+    animation: none !important;
+  }
+}
+
+.game-board.phase-player-BATTLE .monster-space .card.attack-ready::after,
+.game-board.phase-bot-BATTLE .monster-space .card.attack-ready::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #40C4FF, #00B0FF);
+  box-shadow: 0 0 10px rgba(3,169,244,0.36);
+}
+
+/* Also support marking the whole monster-space element as attack-ready */
+.game-board.phase-player-BATTLE .monster-space.attack-ready,
+.game-board.phase-bot-BATTLE .monster-space.attack-ready {
+  outline: 3px solid rgba(3,169,244,0.08);
+  box-shadow: 0 8px 28px rgba(3,169,244,0.06) inset;
+}
+
+/* Container-level styling: make the card inside the highlighted space inherit the lift/glow
+   so the highlight visually surrounds the space rather than only the inner card */
+.game-board.phase-player-BATTLE .monster-space.attack-ready .card,
+.game-board.phase-bot-BATTLE .monster-space.attack-ready .card {
+  transform: translateY(-8px);
+  border: 3px solid rgba(3,169,244,0.95);
+  box-shadow: 0 0 0 6px rgba(3,169,244,0.12), 0 12px 36px rgba(3,169,244,0.24);
+  z-index: 20;
+}
+
+/* Add a subtle outer ring around the monster-space itself for clearer alignment */
+.game-board .monster-space.attack-ready::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: calc(var(--card-radius) + 6px);
+  box-shadow: 0 0 24px rgba(3,169,244,0.12);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Pulse animation for attack-ready highlight */
+@keyframes attack-ready-pulse {
+  0% {
+    transform: translateY(-8px) scale(1);
+    box-shadow: 0 0 0 6px rgba(3,169,244,0.06), 0 12px 36px rgba(3,169,244,0.14);
+  }
+  50% {
+    transform: translateY(-12px) scale(1.02);
+    box-shadow: 0 0 0 10px rgba(3,169,244,0.12), 0 18px 48px rgba(3,169,244,0.22);
+  }
+  100% {
+    transform: translateY(-8px) scale(1);
+    box-shadow: 0 0 0 6px rgba(3,169,244,0.06), 0 12px 36px rgba(3,169,244,0.14);
+  }
 }
 
 /* Already attacked: desaturated and show a small check badge */
@@ -998,6 +1080,20 @@ html, body {
   }
 }
 
+/* Right-sidebar logs: each should occupy half the viewport height and be independently scrollable.
+   This rule overrides earlier sticky/max-height rules and keeps mobile rules intact. */
+.right-sidebar .game-log {
+  height: 50vh;
+  overflow: hidden; /* container won't scroll itself, inner .log-content will */
+}
+
+.right-sidebar .game-log .log-content {
+  /* Ensure the inner area fills the game-log container and becomes the scrollable area */
+  flex: 1 1 auto;
+  max-height: none;
+  overflow-y: auto;
+}
+
 /* Inline reactive trap area container */
 .reactive-trap-area {
   display: flex;
@@ -1051,6 +1147,228 @@ html, body {
   overflow-y: auto;
 }
 
+/* ============ CARD SELECTION STYLING ============ */
+
+/* Base selected state for all cards in dialogs */
+.card.selected {
+  outline: 4px solid var(--md-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 20px rgba(var(--md-primary-rgb), 0.6), var(--elevation-2);
+  transform: scale(1.05);
+  transition: all var(--duration-fast);
+  filter: brightness(1.1);
+}
+
+/* Sacrifice cards - specific styling */
+.sacrifice-card-wrapper,
+.discard-card-wrapper {
+  position: relative;
+  transition: all var(--duration-fast);
+}
+
+.sacrifice-card-wrapper .card.selected,
+.discard-card-wrapper .card.selected {
+  outline: 4px solid var(--color-monster-big);
+  outline-offset: 2px;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.7), var(--elevation-3);
+  transform: scale(1.08) translateY(-4px);
+  position: relative;
+}
+
+/* Add checkmark or indicator to selected sacrifice cards */
+.sacrifice-card-wrapper .card.selected::after,
+.discard-card-wrapper .card.selected::after {
+  content: '✓';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--color-monster-big);
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  animation: scaleIn 0.3s ease-out;
+  z-index: 10;
+}
+
+/* Fusion card selection - when a candidate is selected */
+.fusion-card-wrapper .card.selected {
+  outline: 4px solid var(--md-secondary);
+  outline-offset: 2px;
+  box-shadow: 0 0 20px rgba(var(--md-secondary-rgb), 0.6), var(--elevation-3);
+  transform: scale(1.08) translateY(-4px);
+  position: relative;
+}
+
+.fusion-card-wrapper .card.selected::after {
+  content: '✓';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--md-secondary);
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  animation: scaleIn 0.3s ease-out;
+  z-index: 10;
+}
+
+/* Redirect targets - special styling for Jack trap redirects */
+.redirect-target-wrapper {
+  position: relative;
+  transition: all var(--duration-fast);
+}
+
+/* Section headers for sacrifice/fusion/upkeep dialogs */
+.sacrifice-section-header,
+.fusion-section-header,
+.upkeep-section-header {
+  width: 100%;
+  font-size: var(--font-subtitle2);
+  font-weight: 600;
+  color: var(--md-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: var(--space-md) var(--space-sm);
+  margin-top: var(--space-md);
+  margin-bottom: var(--space-sm);
+  border-bottom: 2px solid var(--md-outline);
+  text-align: left;
+}
+
+.redirect-target-wrapper .card.selected {
+  outline: 4px solid var(--md-error);
+  outline-offset: 2px;
+  box-shadow: 0 0 20px rgba(var(--md-error-rgb), 0.6), var(--elevation-3);
+  transform: scale(1.08) translateY(-4px);
+  position: relative;
+}
+
+.redirect-target-wrapper .card.selected::after {
+  content: '→';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--md-error);
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  animation: scaleIn 0.3s ease-out;
+  z-index: 10;
+}
+
+/* Fusion target spaces selection */
+#fusion-target-spaces .monster-space.selected {
+  outline: 4px solid var(--md-primary);
+  outline-offset: 4px;
+  background: rgba(var(--md-primary-rgb), 0.15);
+  border-radius: var(--space-md);
+  box-shadow: inset 0 0 20px rgba(var(--md-primary-rgb), 0.3), var(--elevation-2);
+}
+
+#fusion-target-spaces .monster-space.selected::before {
+  content: '✓ TARGET';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--md-primary);
+  color: white;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: var(--font-body2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  animation: fadeInScale 0.3s ease-out;
+}
+
+/* Animation for selection indicators */
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Hover state for selectable cards in dialogs */
+.sacrifice-card-wrapper:hover .card,
+.discard-card-wrapper:hover .card,
+.fusion-card-wrapper:hover .card,
+.redirect-target-wrapper:hover .card {
+  filter: brightness(1.15);
+  cursor: pointer;
+  transform: translateY(-2px);
+  transition: all var(--duration-fast);
+}
+
+/* Card list selections (deck/discard viewers) */
+.card-list .card.selected {
+  outline: 4px solid var(--md-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 20px rgba(var(--md-primary-rgb), 0.6), var(--elevation-2);
+  transform: scale(1.05);
+  filter: brightness(1.1);
+}
+
+/* Ensure selected state takes precedence over hover */
+.sacrifice-card-wrapper:hover .card.selected,
+.discard-card-wrapper:hover .card.selected,
+.fusion-card-wrapper:hover .card.selected,
+.redirect-target-wrapper:hover .card.selected {
+  transform: scale(1.08) translateY(-4px);
+}
+
+/* Board redirect highlights - cards on the field that can be redirect targets */
+.card.redirect-highlight {
+  outline: 3px dashed var(--md-error);
+  outline-offset: 2px;
+  box-shadow: inset 0 0 15px rgba(var(--md-error-rgb), 0.4), var(--elevation-2);
+  filter: brightness(1.1);
+  cursor: pointer;
+}
+
+.card.redirect-highlight:hover {
+  outline: 3px solid var(--md-error);
+  box-shadow: inset 0 0 20px rgba(var(--md-error-rgb), 0.5), 0 0 15px rgba(var(--md-error-rgb), 0.4), var(--elevation-3);
+  transform: scale(1.03);
+}
+
 .bot-hand-display {
   display: flex;
   flex-wrap: wrap;
@@ -1093,6 +1411,64 @@ html, body {
 .input-group input[type="text"]:focus {
   outline: none;
   border-color: var(--md-primary);
+}
+
+.input-group textarea {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid var(--md-outline);
+  border-radius: var(--space-sm);
+  font-size: var(--font-body1);
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  font-family: 'Roboto', sans-serif;
+  resize: vertical;
+  transition: border-color var(--duration-fast);
+}
+
+.input-group textarea:focus {
+  outline: none;
+  border-color: var(--md-primary);
+}
+
+/* Recording toggle checkbox styles */
+.input-group input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: var(--md-primary);
+  margin-right: var(--space-sm);
+}
+
+.input-group.recording-toggle label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.recording-help-text {
+  font-size: var(--font-body2);
+  color: var(--md-on-surface-variant);
+  margin-top: var(--space-xs);
+  margin-left: 28px;
+  line-height: 1.4;
+}
+
+.recording-options {
+  background: rgba(var(--md-primary-rgb), 0.05);
+  border-left: 4px solid var(--md-primary);
+  padding: var(--space-md);
+  margin-top: var(--space-md);
+  border-radius: var(--space-sm);
+}
+
+.recording-options p {
+  margin: 0 0 var(--space-sm) 0;
+  font-size: var(--font-body2);
+}
+
+.recording-options p strong {
+  font-weight: 600;
 }
 
 .difficulty-select {

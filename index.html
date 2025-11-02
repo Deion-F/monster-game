@@ -19,18 +19,35 @@
                     <label for="player-name">Your Name:</label>
                     <input type="text" id="player-name" name="player-name" maxlength="20" placeholder="Enter your name" autocomplete="off" />
                 </div>
-                <div class="difficulty-select">
-                    <p>Select Difficulty:</p>
-                    <div class="radio-group">
-                        <label><input type="radio" name="difficulty" id="difficulty-easy" value="easy"> Easy</label>
-                        <label><input type="radio" name="difficulty" id="difficulty-medium" value="medium" checked> Medium</label>
-                        <label><input type="radio" name="difficulty" id="difficulty-hard" value="hard"> Hard</label>
+                <!-- Difficulty selection removed: bot now uses a deterministic playstyle. -->
+                
+                <!-- Game Recording Toggle -->
+                <div class="input-group recording-toggle">
+                    <label for="enable-recording">
+                        <input type="checkbox" id="enable-recording" name="enable-recording" />
+                        <span>Record game for AI analysis</span>
+                    </label>
+                    <p class="recording-help-text">
+                        When enabled, the game will be recorded in JSON format. 
+                        After the game ends, you can download the recording and upload it to an AI chat 
+                        for analysis to improve the bot's strategy.
+                    </p>
+                </div>
+                <div class="input-group recording-toggle">
+                    <label for="enable-local-upload">
+                        <input type="checkbox" id="enable-local-upload" name="enable-local-upload" />
+                        <span>Upload recording to local server (dev)</span>
+                    </label>
+                    <div style="margin-top:6px;">
+                        <input id="local-upload-url" type="text" value="http://localhost:8765/save-recording" placeholder="http://localhost:8765/save-recording" style="width:100%;" />
+                        <p class="recording-help-text" style="margin-top:6px;">When enabled, the recording will be POSTed to the provided local URL (for dev automation). This is optional and for local development only.</p>
                     </div>
                 </div>
             </div>
             <div class="dialog-buttons">
                 <button id="start-game" class="dialog-button primary">Start Game</button>
                 <button id="show-tutorial" class="dialog-button" onclick="openTutorialFromWelcome(event)">How to Play</button>
+                <button id="view-recordings" class="dialog-button">View Saved Recordings</button>
             </div>
         </div>
     </dialog>
@@ -150,6 +167,10 @@
                     <div class="log-header">Game Log</div>
                     <div id="log-content" class="log-content"></div>
                 </div>
+                <div id="bot-thinking-log" class="game-log">
+                    <div class="log-header">Bot Thinking</div>
+                    <div id="bot-thinking-content" class="log-content"></div>
+                </div>
             </div>
         </div>
 
@@ -256,10 +277,36 @@
             </div>
         </div>
         
+        <!-- Saved Recordings List Dialog -->
+        <dialog id="recordings-dialog" class="modal-dialog">
+            <div class="dialog-content">
+                <h2>Saved Game Recordings</h2>
+                <div id="recordings-list-container" style="max-height: 400px; overflow-y: auto;">
+                    <p id="recordings-empty-message">No saved recordings yet.</p>
+                    <div id="recordings-list" style="display: none;"></div>
+                </div>
+                <div class="dialog-buttons">
+                    <button id="close-recordings-btn" class="dialog-button primary">Close</button>
+                </div>
+            </div>
+        </dialog>
+        
         <div id="game-over-dialog" class="dialog">
             <div class="dialog-content">
                 <h2 id="game-result">Game Over</h2>
                 <p id="game-over-message"></p>
+                <div id="recording-options" class="recording-options" style="display: none;">
+                    <p><strong>Game Recording Available</strong></p>
+                    <p>Download your recorded game to analyze with an AI.</p>
+                    <div class="input-group">
+                        <label for="analysis-notes">Optional notes about your strategy:</label>
+                        <textarea id="analysis-notes" placeholder="What was your main strategy? Any specific decisions you'd like analyzed?" rows="3"></textarea>
+                    </div>
+                    <div class="dialog-buttons">
+                        <button id="download-recording" class="dialog-button">Download Raw Recording</button>
+                        <button id="download-ai-analysis" class="dialog-button">Download for AI Analysis</button>
+                    </div>
+                </div>
                 <div class="dialog-buttons">
                     <button id="new-game" class="dialog-button primary">New Game</button>
                 </div>
@@ -286,9 +333,7 @@
             </div>
         </dialog>
 
-        <button id="help-button" class="help-button">
-            <span class="material-icons">help_outline</span>
-        </button>
+        <!-- Help button removed per user request -->
     </div>
 
         <!-- Initialize game and ensure welcome dialog is shown -->
@@ -319,21 +364,19 @@
                 const startGameBtn = document.getElementById('start-game');
                 if (startGameBtn) {
                     startGameBtn.addEventListener('click', function() {
-                        const playerName = (document.getElementById('player-name') && document.getElementById('player-name').value) || 'Player';
-                        let difficulty = 'medium';
-                        if (document.getElementById('difficulty-easy') && document.getElementById('difficulty-easy').checked) difficulty = 'easy';
-                        else if (document.getElementById('difficulty-hard') && document.getElementById('difficulty-hard').checked) difficulty = 'hard';
+                            const playerName = (document.getElementById('player-name') && document.getElementById('player-name').value) || 'Player';
+                            const difficulty = 'medium'; // Default difficulty (deterministic bot)
 
-                        console.log('Starting game with player:', playerName, 'difficulty:', difficulty);
-                        if (welcomeDialog && typeof welcomeDialog.close === 'function') welcomeDialog.close();
+                            console.log('Starting game with player:', playerName, 'difficulty:', difficulty);
+                            if (welcomeDialog && typeof welcomeDialog.close === 'function') welcomeDialog.close();
 
-                        // Call the global startNewGame function which sets up everything
-                        if (typeof startNewGame === 'function') {
-                            startNewGame(playerName, difficulty);
-                        } else {
-                            console.error('startNewGame function not found');
-                        }
-                    });
+                            // Call the global startNewGame function which sets up everything
+                            if (typeof startNewGame === 'function') {
+                                startNewGame(playerName, difficulty);
+                            } else {
+                                console.error('startNewGame function not found');
+                            }
+                        });
                 }
                 
                 // Set up tutorial button
@@ -354,6 +397,7 @@
         <script src="js/deck.js"></script>
         <script src="js/player.js"></script>
         <script src="js/board.js"></script>
+        <script src="js/game-recorder.js"></script>
         <script src="js/ui.js"></script>
         <script src="js/bot.js"></script>
         <script src="js/game.js"></script>

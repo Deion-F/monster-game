@@ -23,6 +23,9 @@ class Game {
         this.battlePhaseEnded = false; // Flag to indicate if Ace trap ended the battle phase
         this.turnForcefullyEnded = false; // Flag to indicate if turn was ended by Ace trap
 
+        // Game recording
+        this.recorder = new GameRecorder(false);
+
         // Don't draw starting hands here - they will be drawn in startTurn() 
         // to avoid duplicate draw messages
 
@@ -30,7 +33,7 @@ class Game {
         if (this.ui && typeof this.ui.initialize === 'function') this.ui.initialize();
     }
 
-    startNewGame(playerName, difficulty) {
+    startNewGame(playerName, difficulty, recordingEnabled = false) {
         // Preserve name if provided
         if (playerName) this.player.name = playerName;
         if (this.botPlayer) this.botPlayer.difficulty = difficulty || (this.botPlayer.difficulty || 'medium');
@@ -45,8 +48,17 @@ class Game {
 
         this.currentPhase = PHASES.DRAW;
         this.currentPlayer = this.player;
-        this.turnCounter = 1;
-        this.firstTurnRestriction = true;
+    this.turnCounter = 1;
+    // Track who is first player for the first-turn attack restriction.
+    // When recreating players we must update firstPlayer to point to the new player object.
+    this.firstPlayer = this.player;
+
+        // Initialize game recorder
+        this.recorder = new GameRecorder(recordingEnabled);
+        if (recordingEnabled) {
+            this.recorder.initializeRecording(playerName || 'Player', difficulty);
+            this.recorder.recordInitialState(this);
+        }
 
         // Don't draw starting hands here - they will be drawn in startTurn()
         // to avoid duplicate draw messages
@@ -66,6 +78,11 @@ class Game {
 
         if (typeof this.currentPlayer.resetForNewTurn === 'function') {
             this.currentPlayer.resetForNewTurn();
+        }
+
+        // Record turn start
+        if (this.recorder && this.recorder.isEnabled()) {
+            this.recorder.recordTurnStart(this, this.turnCounter);
         }
 
         this.currentPhase = PHASES.DRAW;
@@ -104,9 +121,18 @@ class Game {
         // Only allow player to advance phases via UI shortcuts
         if (this.currentPlayer !== this.player) return;
 
+        console.log(`[endCurrentPhase] Current phase: ${this.currentPhase}, Player: ${this.currentPlayer.name}`);
+        console.log(`[endCurrentPhase] skipBattleThisTurn flag: ${this.currentPlayer.skipBattleThisTurn}`);
+
+        // Record phase end
+        if (this.recorder && this.recorder.isEnabled()) {
+            this.recorder.recordPhaseEnd(this, this.currentPhase);
+        }
+
         switch (this.currentPhase) {
             case PHASES.SETUP:
                 this.ui.addLogMessage(`${this.currentPlayer.name} ended Setup phase`);
+                console.log(`[endCurrentPhase] In SETUP case - checking skipBattleThisTurn: ${this.currentPlayer.skipBattleThisTurn}`);
                 // If the current player played a Joker this turn, skip their battle phase
                 if (this.currentPlayer && this.currentPlayer.skipBattleThisTurn) {
                     this.ui.addLogMessage(`${this.currentPlayer.name}'s Battle phase is skipped due to Joker`);
@@ -119,9 +145,15 @@ class Game {
                     this.handleEndPhase();
                     return;
                 } else {
+                    console.log(`[endCurrentPhase] No Joker flag - transitioning to BATTLE phase`);
                     this.currentPhase = PHASES.BATTLE;
+                    // Immediately return after transitioning to BATTLE phase
+                    // Player must manually advance from BATTLE to END
+                    console.log(`[endCurrentPhase] SETUP → BATTLE transition complete, updating UI`);
+                    this.ui.updateTurnAndPhase();
+                    this.ui.updateBoard();
+                    return;
                 }
-                break;
             case PHASES.BATTLE:
                 this.ui.addLogMessage(`${this.currentPlayer.name} ended Battle phase`);
                 this.currentPhase = PHASES.END;
@@ -143,6 +175,7 @@ class Game {
                 return;
         }
 
+        console.log(`[endCurrentPhase] After switch, phase is: ${this.currentPhase}, updating UI`);
         this.ui.updateTurnAndPhase();
         this.ui.updateBoard();
     }
@@ -196,13 +229,18 @@ class Game {
         const need = (this.board && typeof this.board.countActiveFusions === 'function') ? this.board.countActiveFusions(player) : 0;
         if (!sacrificeCards) sacrificeCards = [];
 
+        // First, sacrifice the provided cards
+        if (sacrificeCards.length > 0 && typeof player.sacrificeCards === 'function') {
+            player.sacrificeCards(sacrificeCards, this.deck);
+        }
+
+        // Then, if we don't have enough sacrifices, break the weakest remaining fusions
         if (sacrificeCards.length < need) {
             if (this.board && typeof this.board.breakFusions === 'function') {
                 this.board.breakFusions(player, sacrificeCards.length);
             }
             this.ui.addLogMessage(`${player.name} couldn't pay all fusion upkeep`);
         } else {
-            if (typeof player.sacrificeCards === 'function') player.sacrificeCards(sacrificeCards, this.deck);
             this.ui.addLogMessage(`${player.name} pays fusion upkeep`);
         }
         this.ui.updateGameState();
@@ -415,6 +453,15 @@ class Game {
 
         if (defender && defender.getActivatableTraps) {
             const activatable = defender.getActivatableTraps({ type: defenderIndex === null ? 'battle-phase' : 'attack' });
+            // Debug: log activatable traps for diagnosis
+            try {
+                if (defender === this.player) {
+                    console.log('[DEBUG] processAttack - human defender activatable traps:', activatable && activatable.length ? activatable.map(t => ({ id: t.id, value: t.value })) : activatable);
+                } else {
+                    console.log('[DEBUG] processAttack - bot defender activatable traps:', activatable && activatable.length ? activatable.map(t => ({ id: t.id, value: t.value })) : activatable);
+                }
+            } catch (e) { console.warn('Failed to log activatable traps', e); }
+
             if (activatable && activatable.length > 0) {
                 // If defender is human, show UI prompt and wait for player decision
                 if (defender === this.player) {
@@ -455,6 +502,21 @@ class Game {
 
                                 if (this.ui) this.ui.updateGameState();
                                 if (typeof this.checkForGameOver === 'function') this.checkForGameOver();
+                                // Ensure the original attacking monster is marked as having attacked
+                                try {
+                                    const attackingMonsterSpace = attacker.monsterSpaces[attackerIndex];
+                                    if (attackingMonsterSpace && attackingMonsterSpace.card) {
+                                        attackingMonsterSpace.card.attackedThisTurn = true;
+                                    }
+                                } catch (e) { /* ignore */ }
+
+                                // Clear any attack highlights that may remain after a redirected attack
+                                try {
+                                    if (this.ui && typeof this.ui.clearAttackHighlights === 'function') this.ui.clearAttackHighlights();
+                                    document.querySelectorAll('.monster-space, .player-area').forEach(el => el.classList.remove('highlight'));
+                                } catch (e) { /* ignore DOM clearing errors in non-browser contexts */ }
+
+                                if (this.ui) this.ui.updateGameState();
                                 return finalRes;
                             }
 
@@ -529,6 +591,21 @@ class Game {
 
                             if (this.ui) this.ui.updateGameState();
                             if (typeof this.checkForGameOver === 'function') this.checkForGameOver();
+                            // Ensure the original attacking monster is marked as having attacked
+                            try {
+                                const attackingMonsterSpace = attacker.monsterSpaces[attackerIndex];
+                                if (attackingMonsterSpace && attackingMonsterSpace.card) {
+                                    attackingMonsterSpace.card.attackedThisTurn = true;
+                                }
+                            } catch (e) { /* ignore */ }
+
+                            // Clear highlights that may be left from target selection
+                            try {
+                                if (this.ui && typeof this.ui.clearAttackHighlights === 'function') this.ui.clearAttackHighlights();
+                                document.querySelectorAll('.monster-space, .player-area').forEach(el => el.classList.remove('highlight'));
+                            } catch (e) { /* ignore DOM clearing errors in non-browser contexts */ }
+
+                            if (this.ui) this.ui.updateGameState();
                             return finalRes;
                         }
                     } catch (e) {
@@ -637,41 +714,55 @@ class Game {
             this.ui.addLogMessage(`${owner.name} activates Ace`);
             // Before applying Ace effect, allow the opponent to cancel using a Queen if available
             const opponent = (owner === this.player) ? this.bot : this.player;
-            // Only prompt the human player (UI) if they are opponent and have a UI
+            
+            // If opponent is the player, prompt via UI
             if (this.ui && opponent === this.player) {
                 try {
                     // Ask UI to prompt cancelation; if canceled, do not apply Ace effect
                     const cancelResp = await this.ui.promptCancelTrap(trap);
                     if (cancelResp && cancelResp.canceled) {
-                        this.ui.addLogMessage('Ace activation was cancelled by Queen');
+                        // If the responder activated a trap that ended the battle (e.g., Ace), propagate that effect
+                        if (cancelResp.result && cancelResp.result.effect && cancelResp.result.effect.endBattlePhase) {
+                            this.ui.addLogMessage('Ace (response) ended the battle phase and prevented the activation');
+                            this.ui.updateGameState();
+                            return { success: true, canceledByResponse: true, effect: cancelResp.result.effect };
+                        }
+                        // If they used a Queen to cancel, respect that
+                        if (cancelResp.trap && cancelResp.trap.value === CARD_VALUES.QUEEN) {
+                            this.ui.addLogMessage('Ace activation was cancelled by Queen');
+                            this.ui.updateGameState();
+                            return { success: true, canceledByQueen: true };
+                        }
+                        // Generic cancel (fallback)
+                        this.ui.addLogMessage('Ace activation was cancelled by response');
                         this.ui.updateGameState();
-                        return { success: true, canceledByQueen: true };
+                        return { success: true, canceledByResponse: true };
                     }
                 } catch (err) {
                     console.warn('Error prompting for Queen cancel', err);
                 }
             }
+            
+            // If opponent is the bot, ask bot to decide on Queen cancellation
+            if (opponent === this.bot && this.botPlayer && typeof this.botPlayer.decideBotQueenCancel === 'function') {
+                // DEBUG: log that we're asking the bot to consider cancel
+                console.debug('[DEBUG] game.js - asking bot.decideBotQueenCancel for trap', { id: trap && trap.id, value: trap && trap.value, owner: owner && owner.name });
+                const shouldCancel = await this.botPlayer.decideBotQueenCancel(trap, owner);
+                console.debug('[DEBUG] game.js - bot.decideBotQueenCancel returned', shouldCancel);
+                if (shouldCancel) {
+                    this.ui.addLogMessage('Ace activation was cancelled by Queen');
+                    this.ui.updateGameState();
+                    return { success: true, canceledByQueen: true };
+                }
+            }
 
             const effect = this.board.handleAceTrap();
             if (effect && effect.endBattlePhase) {
-                // Ace ends the current player's battle phase
+                // Ace ends the current attacker's battle phase (does not end the full turn, just stops attacks)
                 this.ui.addLogMessage('Ace trap ended the battle phase');
                 this.battlePhaseEnded = true;
                 
-                // Immediately transition to end phase
-                if (this.currentPhase === PHASES.BATTLE) {
-                    this.currentPhase = PHASES.END;
-                    
-                    // Mark that the turn was forcefully ended by Ace trap
-                    this.turnForcefullyEnded = true;
-                    
-                    // Clear attack highlights since turn is ending
-                    this.ui.clearAttackHighlights();
-                    
-                    // Process end phase logic (including fusion upkeep) when Ace forces phase transition
-                    this.handleEndPhase();
-                }
-                
+                // Reset attacked flags so players can see monsters are no longer attacking
                 this.resetAttackedFlags();
                 // Clear king-weakened flags from all monsters (they only last until end of battle)
                 [this.player, this.bot].forEach(p => {
@@ -682,7 +773,6 @@ class Game {
                     });
                 });
                 this.ui.updateGameState();
-                this.ui.updateTurnAndPhase();
             }
             // Attach effect to the result so callers can observe special effects (e.g., endBattlePhase)
             try { res.effect = effect; } catch (e) { /* ignore */ }
@@ -715,18 +805,44 @@ class Game {
 
             // Before applying King effect, allow the opponent to cancel using a Queen if available
             const opponent = (owner === this.player) ? this.bot : this.player;
-            // Only prompt the human player (UI) if they are opponent and have a UI
+            
+            // If opponent is the player, prompt via UI
             if (this.ui && opponent === this.player) {
                 try {
                     // Ask UI to prompt cancelation; if canceled, do not apply King effect
                     const cancelResp = await this.ui.promptCancelTrap(trap);
                     if (cancelResp && cancelResp.canceled) {
-                        this.ui.addLogMessage('King activation was cancelled by Queen');
+                        // If the responder activated an Ace (or other trap with an effect that ends the battle), propagate that effect
+                        if (cancelResp.result && cancelResp.result.effect && cancelResp.result.effect.endBattlePhase) {
+                            this.ui.addLogMessage('Opponent trap ended the battle phase and prevented King from taking effect');
+                            this.ui.updateGameState();
+                            return { success: true, canceledByResponse: true, effect: cancelResp.result.effect };
+                        }
+                        // Queen cancel
+                        if (cancelResp.trap && cancelResp.trap.value === CARD_VALUES.QUEEN) {
+                            this.ui.addLogMessage('King activation was cancelled by Queen');
+                            this.ui.updateGameState();
+                            return { success: true, canceledByQueen: true };
+                        }
+                        // Generic cancel
+                        this.ui.addLogMessage('King activation was cancelled by response');
                         this.ui.updateGameState();
-                        return { success: true, canceledByQueen: true };
+                        return { success: true, canceledByResponse: true };
                     }
                 } catch (err) {
                     console.warn('Error prompting for Queen cancel', err);
+                }
+            }
+            
+            // If opponent is the bot, ask bot to decide on Queen cancellation
+            if (opponent === this.bot && this.botPlayer && typeof this.botPlayer.decideBotQueenCancel === 'function') {
+                console.debug('[DEBUG] game.js - asking bot.decideBotQueenCancel for King trap', { id: trap && trap.id, value: trap && trap.value, owner: owner && owner.name });
+                const shouldCancel = await this.botPlayer.decideBotQueenCancel(trap, owner);
+                console.debug('[DEBUG] game.js - bot.decideBotQueenCancel returned for King', shouldCancel);
+                if (shouldCancel) {
+                    this.ui.addLogMessage('King activation was cancelled by Queen');
+                    this.ui.updateGameState();
+                    return { success: true, canceledByQueen: true };
                 }
             }
 
@@ -780,18 +896,44 @@ class Game {
 
             // Before applying Jack effect, allow the opponent to cancel using a Queen if available
             const opponent = (owner === this.player) ? this.bot : this.player;
-            // Only prompt the human player (UI) if they are opponent and have a UI
+            
+            // If opponent is the player, prompt via UI
             if (this.ui && opponent === this.player) {
                 try {
                     // Ask UI to prompt cancelation; if canceled, do not apply Jack effect
                     const cancelResp = await this.ui.promptCancelTrap(trap);
                     if (cancelResp && cancelResp.canceled) {
-                        this.ui.addLogMessage('Jack activation was cancelled by Queen');
+                        // If the responder activated an Ace (or other trap that ends the battle), propagate effect
+                        if (cancelResp.result && cancelResp.result.effect && cancelResp.result.effect.endBattlePhase) {
+                            this.ui.addLogMessage('Opponent trap ended the battle phase and prevented Jack from taking effect');
+                            this.ui.updateGameState();
+                            return { success: true, canceledByResponse: true, effect: cancelResp.result.effect };
+                        }
+                        // Queen cancel
+                        if (cancelResp.trap && cancelResp.trap.value === CARD_VALUES.QUEEN) {
+                            this.ui.addLogMessage('Jack activation was cancelled by Queen');
+                            this.ui.updateGameState();
+                            return { success: true, canceledByQueen: true };
+                        }
+                        // Generic cancel
+                        this.ui.addLogMessage('Jack activation was cancelled by response');
                         this.ui.updateGameState();
-                        return { success: true, canceledByQueen: true };
+                        return { success: true, canceledByResponse: true };
                     }
                 } catch (err) {
                     console.warn('Error prompting for Queen cancel', err);
+                }
+            }
+            
+            // If opponent is the bot, ask bot to decide on Queen cancellation
+            if (opponent === this.bot && this.botPlayer && typeof this.botPlayer.decideBotQueenCancel === 'function') {
+                console.debug('[DEBUG] game.js - asking bot.decideBotQueenCancel for Jack trap', { id: trap && trap.id, value: trap && trap.value, owner: owner && owner.name });
+                const shouldCancel = await this.botPlayer.decideBotQueenCancel(trap, owner);
+                console.debug('[DEBUG] game.js - bot.decideBotQueenCancel returned for Jack', shouldCancel);
+                if (shouldCancel) {
+                    this.ui.addLogMessage('Jack activation was cancelled by Queen');
+                    this.ui.updateGameState();
+                    return { success: true, canceledByQueen: true };
                 }
             }
 
@@ -883,6 +1025,19 @@ class Game {
             }
         });
 
+        // Also ensure any UI attack-ready highlights are cleared at end of battle
+        try {
+            if (this.ui && typeof this.ui.clearAttackHighlights === 'function') this.ui.clearAttackHighlights();
+            if (typeof document !== 'undefined') {
+                document.querySelectorAll('.monster-space .card.attack-ready, .monster-space.attack-ready').forEach(el => {
+                    // card element might be inner child or the space itself
+                    el.classList.remove('attack-ready');
+                });
+                // Also remove attack-ready class from monster-space containers if present
+                document.querySelectorAll('.monster-space').forEach(spaceEl => spaceEl.classList.remove('attack-ready'));
+            }
+        } catch (e) { /* ignore if not in browser context */ }
+
         if (this.ui) this.ui.updateGameState();
     }
 
@@ -893,28 +1048,37 @@ class Game {
      * @param {Player} owner - The bot player who owns the trap
      */
     async handleBotTrapReveal(trap, trapIndex, owner) {
-        // Get the trap space element to animate
-        const trapSpaceEl = document.querySelector(`.bot-trap-space:nth-child(${trapIndex + 1}) .card`);
+        // Get the trap space element
+        const trapSpaceEl = document.getElementById(`bot-trap-${trapIndex}`);
         
         if (trapSpaceEl) {
-            // Add flip animation to reveal the card
-            trapSpaceEl.classList.add('card-flipping');
+            // Log the reveal
+            this.ui.addLogMessage(`Bot reveals ${getTrapName(trap.value)}!`);
             
-            // Update the card display to show the actual trap
-            this.ui.addLogMessage(`Bot reveals ${trap.name}!`);
+            // Flip the trap card face-up to show it
+            trap.flipFaceUp();
+            
+            // Re-render the trap space with the face-up card
+            trapSpaceEl.innerHTML = '';
+            const cardElement = trap.getElement();
+            
+            // Add the flip animation class
+            cardElement.classList.add('anim-flip');
+            cardElement.classList.add('trap-revealed');
+            
+            trapSpaceEl.appendChild(cardElement);
             
             // Wait for flip animation to complete
             await new Promise(resolve => setTimeout(resolve, 600));
             
-            // Add reveal highlight animation
-            trapSpaceEl.classList.remove('card-flipping');
-            trapSpaceEl.classList.add('trap-revealing');
+            // Add a highlight to show the trap is active/revealed
+            cardElement.classList.add('trap-reveal-highlight');
             
-            // Show the revealed trap for a moment
+            // Keep the trap visible for 1.5 seconds so player can see it
             await new Promise(resolve => setTimeout(resolve, 1500));
             
-            // Remove highlight and proceed with discard
-            trapSpaceEl.classList.remove('trap-revealing');
+            // Remove the highlight
+            cardElement.classList.remove('trap-reveal-highlight');
         }
         
         // Now discard the trap (remove from field and add to discard pile)
@@ -935,8 +1099,20 @@ class Game {
      * @returns {boolean}
      */
     isAttackAllowedThisTurn(player) {
+        // Defensive logging to help ensure the first-turn restriction is honored
+        try {
+            const fpName = this.firstPlayer && this.firstPlayer.name ? this.firstPlayer.name : 'unknown';
+            const pName = player && player.name ? player.name : 'unknown';
+            console.debug(`[isAttackAllowedThisTurn] turn=${this.turnCounter}, firstPlayer=${fpName}, player=${pName}`);
+        } catch (e) { /* ignore logging failures */ }
+
+        // If firstPlayer wasn't set for some reason, fall back to assuming the current player who started the game
+        if (!this.firstPlayer) this.firstPlayer = this.player;
+
         // If it's the very first overall turn, the player who started cannot attack
-        if (this.turnCounter === 1 && player === this.firstPlayer) return false;
+        if (this.turnCounter === 1 && (player === this.firstPlayer || (player && this.firstPlayer && player.name === this.firstPlayer.name))) {
+            return false;
+        }
         return true;
     }
 }

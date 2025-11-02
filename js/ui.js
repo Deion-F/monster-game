@@ -2,6 +2,9 @@
  * UI class for handling game interface
  */
 class UI {
+    // Static flag to track if event listeners have been set up
+    static listenersInitialized = false;
+    
     /**
      * Create UI manager
      * @param {Game} game - Game instance
@@ -20,16 +23,24 @@ class UI {
         // Track message numbers - simply increment for each log entry
         this.nextMessageNumber = 1;
         
-        this.setupEventListeners();
+        // Event listeners will be set up by calling UI.setupGlobalEventListeners()
+        // after window.game is assigned (done in main.js)
     }
 
     /**
-     * Set up event listeners
+     * Set up global event listeners (static method - called once after window.game is set)
+     * Uses window.game.ui to reference the current UI instance
      */
-    setupEventListeners() {
+    static setupGlobalEventListeners() {
+        // Only set up once
+        if (UI.listenersInitialized) return;
+        UI.listenersInitialized = true;
+        
         // End phase button
         document.getElementById('end-phase-btn').addEventListener('click', () => {
-            this.game.endCurrentPhase();
+            if (window.game) {
+                window.game.endCurrentPhase();
+            }
         });
         
         // Card selection in hand
@@ -38,12 +49,16 @@ class UI {
             if (!cardElement) return;
             
             const cardId = cardElement.dataset.cardId;
-            this.handleCardSelection(cardId);
+            if (window.game && window.game.ui) {
+                window.game.ui.handleCardSelection(cardId);
+            }
         });
         
         // Delegated listener for monster and trap spaces (more robust when innerHTML changes)
         const boardEl = document.querySelector('.game-board') || document.body;
         boardEl.addEventListener('click', (e) => {
+            if (!window.game || !window.game.ui) return;
+            
             // Ignore clicks that occur inside a visible dialog or on a button to
             // prevent dialog/button clicks from being mistaken for board interactions.
             if (e.target.closest && (e.target.closest('.dialog') || e.target.closest('dialog') || e.target.closest('button'))) return;
@@ -56,8 +71,8 @@ class UI {
                 const spaceId = spaceEl.id;
                 const isPlayer = spaceId.startsWith('player');
                 const spaceIndex = parseInt(spaceEl.dataset.index);
-                if (isPlayer) this.handlePlayerMonsterSpaceClick(spaceIndex);
-                else this.handleBotMonsterSpaceClick(spaceIndex);
+                if (isPlayer) window.game.ui.handlePlayerMonsterSpaceClick(spaceIndex);
+                else window.game.ui.handleBotMonsterSpaceClick(spaceIndex);
                 return;
             }
             const trapEl = e.target.closest('.trap-space');
@@ -65,7 +80,7 @@ class UI {
                 const spaceId = trapEl.id;
                 const isPlayer = spaceId.startsWith('player');
                 const spaceIndex = parseInt(trapEl.dataset.index);
-                if (isPlayer) this.handlePlayerTrapSpaceClick(spaceIndex);
+                if (isPlayer) window.game.ui.handlePlayerTrapSpaceClick(spaceIndex);
                 return;
             }
         });
@@ -73,51 +88,52 @@ class UI {
         // Trap spaces for playing cards
         document.querySelectorAll('.trap-space').forEach(space => {
             space.addEventListener('click', (e) => {
+                if (!window.game || !window.game.ui) return;
                 const spaceId = e.currentTarget.id;
                 const isPlayer = spaceId.startsWith('player');
                 const spaceIndex = parseInt(e.currentTarget.dataset.index);
                 
                 if (isPlayer) {
-                    this.handlePlayerTrapSpaceClick(spaceIndex);
+                    window.game.ui.handlePlayerTrapSpaceClick(spaceIndex);
                 }
             });
         });
         
         // Dialog buttons
         document.getElementById('cancel-sacrifice').addEventListener('click', () => {
-            this.closeSacrificeDialog();
+            if (window.game && window.game.ui) window.game.ui.closeSacrificeDialog();
         });
         
         document.getElementById('confirm-sacrifice').addEventListener('click', () => {
-            this.confirmSacrifice();
+            if (window.game && window.game.ui) window.game.ui.confirmSacrifice();
         });
         
         document.getElementById('cancel-fusion').addEventListener('click', () => {
-            this.closeFusionDialog();
+            if (window.game && window.game.ui) window.game.ui.closeFusionDialog();
         });
         
         document.getElementById('confirm-fusion').addEventListener('click', () => {
-            this.confirmFusion();
+            if (window.game && window.game.ui) window.game.ui.confirmFusion();
         });
         
         document.getElementById('cancel-trap-activation').addEventListener('click', () => {
-            this.cancelTrapActivation();
+            if (window.game && window.game.ui) window.game.ui.cancelTrapActivation();
         });
         
         document.getElementById('confirm-trap-activation').addEventListener('click', () => {
-            this.confirmTrapActivation();
+            if (window.game && window.game.ui) window.game.ui.confirmTrapActivation();
         });
         
         document.getElementById('confirm-redirect').addEventListener('click', () => {
-            this.confirmRedirect();
+            if (window.game && window.game.ui) window.game.ui.confirmRedirect();
         });
         
         document.getElementById('confirm-fusion-upkeep').addEventListener('click', () => {
-            this.confirmFusionUpkeep();
+            if (window.game && window.game.ui) window.game.ui.confirmFusionUpkeep();
         });
         
         document.getElementById('confirm-discard').addEventListener('click', () => {
-            this.confirmDiscard();
+            if (window.game && window.game.ui) window.game.ui.confirmDiscard();
         });
         
         document.getElementById('new-game').addEventListener('click', () => {
@@ -156,18 +172,21 @@ class UI {
             });
         }
 
+        
         // Deck and discard pile click handlers (open listing dialogs)
         const deckEl = document.getElementById('deck');
         if (deckEl) {
-            deckEl.addEventListener('click', () => this.showDeckListDialog());
+            deckEl.addEventListener('click', () => {
+                if (window.game && window.game.ui) window.game.ui.showDeckListDialog();
+            });
         }
 
         const discardEl = document.getElementById('discard-pile');
         if (discardEl) {
-            discardEl.addEventListener('click', () => this.showDiscardListDialog());
-        }
-
-        const closeDeckBtn = document.getElementById('close-deck-list');
+            discardEl.addEventListener('click', () => {
+                if (window.game && window.game.ui) window.game.ui.showDiscardListDialog();
+            });
+        }        const closeDeckBtn = document.getElementById('close-deck-list');
         if (closeDeckBtn) closeDeckBtn.addEventListener('click', () => {
             document.getElementById('deck-list-dialog').classList.remove('visible');
         });
@@ -177,19 +196,20 @@ class UI {
             document.getElementById('discard-list-dialog').classList.remove('visible');
         });
 
+        
         // Bot hand viewer button
         const viewBotHandBtn = document.getElementById('view-bot-hand-btn');
         if (viewBotHandBtn) {
             viewBotHandBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.showBotHandDialog();
+                if (window.game && window.game.ui) window.game.ui.showBotHandDialog();
             });
         }
 
         const closeBotHandBtn = document.getElementById('close-bot-hand-btn');
         if (closeBotHandBtn) {
             closeBotHandBtn.addEventListener('click', () => {
-                this.closeBotHandDialog();
+                if (window.game && window.game.ui) window.game.ui.closeBotHandDialog();
             });
         }
 
@@ -198,7 +218,7 @@ class UI {
         if (botHandDialog) {
             botHandDialog.addEventListener('click', (e) => {
                 if (e.target === botHandDialog) {
-                    this.closeBotHandDialog();
+                    if (window.game && window.game.ui) window.game.ui.closeBotHandDialog();
                 }
             });
         }
@@ -209,24 +229,26 @@ class UI {
             const dialog = document.getElementById('redirect-dialog');
             if (dialog) dialog.classList.remove('visible');
                 // User explicitly cancels the countdown window: resolve the prompt as not activated
-                try {
-                    if (this._reactiveResolve) this._reactiveResolve({ activated: false });
-                } catch (e) { console.warn('Error resolving reactive prompt on cancel', e); }
-                this._clearReactiveState();
-        });
-
-        // Cancel-trap dialog handlers
+                if (window.game && window.game.ui) {
+                    try {
+                        if (window.game.ui._reactiveResolve) window.game.ui._reactiveResolve({ activated: false });
+                    } catch (e) { console.warn('Error resolving reactive prompt on cancel', e); }
+                    window.game.ui._clearReactiveState();
+                }
+        });        // Cancel-trap dialog handlers
         const cancelTrapCancel = document.getElementById('cancel-trap-cancel');
         if (cancelTrapCancel) cancelTrapCancel.addEventListener('click', () => {
             const dlg = document.getElementById('cancel-trap-dialog');
             if (dlg) dlg.classList.remove('visible');
-            this._resumeReactiveAfterCancel();
+            if (window.game && window.game.ui) window.game.ui._resumeReactiveAfterCancel();
         });
 
         const cancelTrapConfirm = document.getElementById('cancel-trap-confirm');
         if (cancelTrapConfirm) cancelTrapConfirm.addEventListener('click', () => {
             const selected = document.querySelector('#cancel-trap-list .card.selected');
             if (!selected) return;
+            if (!window.game || !window.game.ui) return;
+            
             const targetId = selected.dataset.cardId;
             // Close dialog
             const dlg = document.getElementById('cancel-trap-dialog');
@@ -234,24 +256,24 @@ class UI {
 
             // Find the target trap Card object from game state
             let targetTrap = null;
-            for (const space of this.game.player.trapSpaces) if (space.card && space.card.id === targetId) targetTrap = space.card;
-            for (const space of this.game.bot.trapSpaces) if (space.card && space.card.id === targetId) targetTrap = space.card;
+            for (const space of window.game.player.trapSpaces) if (space.card && space.card.id === targetId) targetTrap = space.card;
+            for (const space of window.game.bot.trapSpaces) if (space.card && space.card.id === targetId) targetTrap = space.card;
 
             // Activate Queen with the selected target
-            if (this.activatingTrap && this.activatingTrap.trap) {
+            if (window.game.ui.activatingTrap && window.game.ui.activatingTrap.trap) {
                 (async () => {
-                    const queen = this.activatingTrap.trap;
+                    const queen = window.game.ui.activatingTrap.trap;
                     try {
-                        const res = await this.game.activateQueenTrap(queen, targetTrap);
-                        if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: queen, result: { type: 'QUEEN', target: targetTrap, res } });
-                        this._clearReactiveState();
+                        const res = await window.game.activateQueenTrap(queen, targetTrap);
+                        if (window.game.ui._reactiveResolve) window.game.ui._reactiveResolve({ activated: true, trap: queen, result: { type: 'QUEEN', target: targetTrap, res } });
+                        window.game.ui._clearReactiveState();
                     } catch (err) {
                         console.warn('Failed to activate Queen via confirm dialog', err);
-                        this._resumeReactiveAfterCancel();
+                        window.game.ui._resumeReactiveAfterCancel();
                     }
                 })();
             } else {
-                this._resumeReactiveAfterCancel();
+                window.game.ui._resumeReactiveAfterCancel();
             }
         });
     }
@@ -438,14 +460,46 @@ class UI {
                     card.canAttack() &&
                     this.game.isAttackAllowedThisTurn(this.game.player)) {
                     cardElement.classList.add('can-attack');
+                    // Add a visible 'attack-ready' highlight at the start of battle phase
+                    // This indicates the monster is available to attack; removed when it attacks.
+                    if (!cardElement.classList.contains('attack-ready')) {
+                        console.log('UI: adding attack-ready to', card.id, 'value', card.value);
+                        cardElement.classList.add('attack-ready');
+                        // Also mark the container space so the highlight surrounds the field space
+                        if (space) space.classList.add('attack-ready');
+                        // For player cards: defer the breathing/pulse animation until the user clicks the card.
+                        // We add a one-time click listener that toggles the animate class.
+                        if (this.game.currentPlayer === this.game.player) {
+                            const onFirstClick = (ev) => {
+                                try {
+                                    cardElement.classList.add('attack-ready-animate');
+                                    if (space) space.classList.add('attack-ready-animate');
+                                } catch (e) {}
+                                cardElement.removeEventListener('click', onFirstClick);
+                            };
+                            // Use once option to auto-remove listener after firing
+                            cardElement.addEventListener('click', onFirstClick, { once: true });
+                        }
+                    }
                 }
                 
                 // Mark visually if this monster already attacked this turn
-                if (card.attackedThisTurn) {
-                    cardElement.classList.add('attacked');
-                } else {
-                    cardElement.classList.remove('attacked');
-                }
+                    if (card.attackedThisTurn) {
+                        cardElement.classList.add('attacked');
+                        // Once the monster has attacked, it should no longer show as attack-ready
+                        if (cardElement.classList.contains('attack-ready')) {
+                            console.log('UI: removing attack-ready from (attacked)', card.id);
+                            cardElement.classList.remove('attack-ready');
+                        }
+                        if (cardElement.classList.contains('attack-ready-animate')) {
+                            cardElement.classList.remove('attack-ready-animate');
+                        }
+                        if (space && space.classList.contains('attack-ready')) space.classList.remove('attack-ready');
+                        if (space && space.classList.contains('attack-ready-animate')) space.classList.remove('attack-ready-animate');
+                    } else {
+                        // ensure attacked class removed
+                        cardElement.classList.remove('attacked');
+                    }
                 
                 space.appendChild(cardElement);
                 // Forward clicks on the inner card element to the monster-space container
@@ -498,8 +552,43 @@ class UI {
                 }
                 const cardElement = card.getElement();
                     // Visual attacked state for bot monsters as well
+                    // Add attack-ready highlight for bot monsters when it's the bot's battle phase
+                    // Primary check: bot can attack per normal rules
+                    const botPrimary = (this.game.currentPhase === PHASES.BATTLE &&
+                        this.game.currentPlayer !== this.game.player &&
+                        card.canAttack() &&
+                        this.game.isAttackAllowedThisTurn(this.game.bot));
+                    // Fallback visual-only check: during the bot's battle phase, show highlight for any
+                    // face-up monster that hasn't attacked yet so players can follow bot actions.
+                    const botFallback = (this.game.currentPhase === PHASES.BATTLE &&
+                        this.game.currentPlayer !== this.game.player &&
+                        isMonsterCard(card) &&
+                        !card.attackedThisTurn);
+
+                    if (botPrimary || botFallback) {
+                        console.log('UI(bot): highlight path=', botPrimary ? 'primary' : 'fallback',
+                            ' phase=', this.game.currentPhase,
+                            ' card.canAttack=', card.canAttack(),
+                            ' isAttackAllowed=', this.game.isAttackAllowedThisTurn(this.game.bot),
+                            ' space=', space ? space.id : '(no-space)');
+                        cardElement.classList.add('can-attack');
+                        cardElement.classList.add('attack-ready');
+                        // Bot monsters should show the animated highlight immediately
+                        cardElement.classList.add('attack-ready-animate');
+                        if (space) {
+                            space.classList.add('attack-ready');
+                            space.classList.add('attack-ready-animate');
+                        }
+                    }
                     if (card.attackedThisTurn) {
                         cardElement.classList.add('attacked');
+                        // remove attack-ready once it attacked
+                        cardElement.classList.remove('attack-ready');
+                        cardElement.classList.remove('attack-ready-animate');
+                        if (space) {
+                            space.classList.remove('attack-ready');
+                            space.classList.remove('attack-ready-animate');
+                        }
                     }
                 space.appendChild(cardElement);
                 // Forward clicks on the inner card element to the monster-space container (ensure fusion cards clickable)
@@ -620,7 +709,9 @@ class UI {
                     'phase-bot-SETUP','phase-bot-BATTLE','phase-bot-END'
                 );
                 const owner = this.game.currentPlayer === this.game.player ? 'player' : 'bot';
-                boardEl.classList.add(`phase-${owner}-${this.game.currentPhase}`);
+                // CSS phase classes use uppercase phase names (e.g. BATTLE). Normalize here.
+                const phaseClass = `phase-${owner}-${String(this.game.currentPhase).toUpperCase()}`;
+                boardEl.classList.add(phaseClass);
             }
 
             // Add subtle accent to the active player's area
@@ -785,6 +876,12 @@ class UI {
         }
         // Battle phase - select attacker
         else if (this.game.currentPhase === PHASES.BATTLE) {
+            // Check if battle phase ended (e.g., Ace trap was activated)
+            if (this.game.battlePhaseEnded) {
+                this.addLogMessage('Battle phase has ended');
+                return;
+            }
+            
             // First turn restriction
             if (!this.game.isAttackAllowedThisTurn(this.game.player)) {
                 this.addLogMessage('Cannot attack on the first turn');
@@ -855,6 +952,12 @@ class UI {
             this.game.currentPlayer === this.game.player &&
             this.selectedSpace !== null) {
             
+            // Check if battle phase ended (e.g., Ace trap was activated)
+            if (this.game.battlePhaseEnded) {
+                this.addLogMessage('Battle phase has ended');
+                return;
+            }
+            
             // First turn restriction
             if (!this.game.isAttackAllowedThisTurn(this.game.player)) {
                 this.addLogMessage('Cannot attack on the first turn');
@@ -908,6 +1011,12 @@ class UI {
         if (this.game.currentPhase === PHASES.BATTLE && 
             this.game.currentPlayer === this.game.player &&
             this.selectedSpace !== null) {
+            
+            // Check if battle phase ended (e.g., Ace trap was activated)
+            if (this.game.battlePhaseEnded) {
+                this.addLogMessage('Battle phase has ended');
+                return;
+            }
             
             // First turn restriction
             if (!this.game.isAttackAllowedThisTurn(this.game.player)) {
@@ -1710,7 +1819,7 @@ class UI {
         
         // Activate Jack trap with redirect target
         (async () => {
-            const result = this.game.activateJackTrap(
+            const result = await this.game.activateJackTrap(
                 trap,
                 target.index,
                 target.player
@@ -1969,7 +2078,30 @@ class UI {
             }
             
             const activatable = defender.getActivatableTraps({ type: ttype, trapValue: context.trapValue });
-            if (!activatable || activatable.length === 0) return resolve({ activated: false });
+            // Debug: record activatable traps and container presence
+            try {
+                console.log('[DEBUG] promptTrapResponse - defender:', defender === this.game.player ? 'human' : 'bot', 'ttype:', ttype, 'trapValue:', context.trapValue);
+                console.log('[DEBUG] promptTrapResponse - activatable traps:', activatable && activatable.length ? activatable.map(t => ({ id: t.id, value: t.value })) : activatable);
+                const containerExists = !!document.getElementById('trap-reaction-container');
+                console.log('[DEBUG] promptTrapResponse - trap-reaction-container exists:', containerExists);
+            } catch (e) { console.warn('Failed to log promptTrapResponse debug info', e); }
+
+            if (!activatable || activatable.length === 0) {
+                try {
+                    // Log detailed trap space states for diagnosis
+                    const details = defender.trapSpaces.map((s, i) => ({
+                        index: i,
+                        hasCard: !!s.card,
+                        id: s.card ? s.card.id : null,
+                        value: s.card ? s.card.value : null,
+                        active: s.card ? !!s.card.active : null,
+                        justPlaced: s.card ? !!s.card.justPlaced : null,
+                        usedThisTurn: s.card ? defender.usedTrapTypes.has(s.card.value) : null
+                    }));
+                    console.log('[DEBUG] promptTrapResponse - no activatable traps; trapSpaces:', details);
+                } catch (e) { console.warn('Failed to log trapSpaces details', e); }
+                return resolve({ activated: false });
+            }
 
             // Highlight activatable traps (only for human player)
             for (let i = 0; i < defender.trapSpaces.length; i++) {
@@ -2117,8 +2249,90 @@ class UI {
             
             footer.appendChild(cancelBtn);
             container.appendChild(footer);
-
             this._reactiveResolve = resolve;
+
+            // Fallback: if the sidebar container is not visible (e.g., off-canvas or hidden by CSS),
+            // create a temporary centered dialog so the player still sees the reactive prompt.
+            setTimeout(() => {
+                try {
+                    const rect = container.getBoundingClientRect ? container.getBoundingClientRect() : { width: 0, height: 0 };
+                    const isVisible = rect.width > 0 && rect.height > 0 && window.getComputedStyle(container).display !== 'none';
+                    if (!isVisible) {
+                        console.warn('[DEBUG] promptTrapResponse - sidebar container not visible; showing fallback modal');
+                        // Build a simple modal listing the same clickable trap options
+                        const temp = document.createElement('div');
+                        temp.className = 'temp-dialog';
+                        temp.style.position = 'fixed';
+                        temp.style.left = '50%';
+                        temp.style.top = '50%';
+                        temp.style.transform = 'translate(-50%, -50%)';
+                        temp.style.zIndex = '99999';
+                        temp.style.background = 'var(--surface, #fff)';
+                        temp.style.border = '1px solid rgba(0,0,0,0.1)';
+                        temp.style.padding = '12px';
+                        temp.style.borderRadius = '8px';
+                        temp.style.boxShadow = '0 6px 24px rgba(0,0,0,0.15)';
+                        temp.style.maxWidth = '320px';
+
+                        const title = document.createElement('div');
+                        title.textContent = 'Opponent is attacking! Click a trap to respond';
+                        title.style.fontWeight = '600';
+                        title.style.marginBottom = '8px';
+                        temp.appendChild(title);
+
+                        const list = document.createElement('div');
+                        list.className = 'temp-trap-list';
+                        // populate with same trap elements as in container (clone them)
+                        const trapEls = container.querySelectorAll('.reaction-trap-list .card, .reaction-trap-option');
+                        if (trapEls && trapEls.length > 0) {
+                            trapEls.forEach((el) => {
+                                const clone = el.cloneNode(true);
+                                clone.style.cursor = 'pointer';
+                                clone.addEventListener('click', (e) => {
+                                    e.stopPropagation();
+                                    // Simulate clicking the original element's handler by dispatching a click on original if present
+                                    try {
+                                        // Find original by matching data-card-id
+                                        const id = clone.dataset.cardId;
+                                        if (id) {
+                                            const orig = container.querySelector(`.card[data-card-id="${id}"]`);
+                                            if (orig) orig.click();
+                                        }
+                                    } catch (err) { console.warn('Fallback click proxy failed', err); }
+                                    // Remove the temp dialog after interaction
+                                    if (temp && temp.parentNode) temp.parentNode.removeChild(temp);
+                                });
+                                list.appendChild(clone);
+                            });
+                        } else {
+                            // If we couldn't clone items, add a simple Close button so player isn't blocked
+                            const info = document.createElement('div');
+                            info.textContent = 'No traps available to display here.';
+                            info.style.marginBottom = '8px';
+                            list.appendChild(info);
+                        }
+
+                        temp.appendChild(list);
+                        const btnRow = document.createElement('div');
+                        btnRow.style.textAlign = 'right';
+                        btnRow.style.marginTop = '8px';
+                        const cancelBtn = document.createElement('button');
+                        cancelBtn.className = 'dialog-button';
+                        cancelBtn.textContent = 'Close';
+                        cancelBtn.addEventListener('click', () => {
+                            if (temp && temp.parentNode) temp.parentNode.removeChild(temp);
+                            try {
+                                if (this._reactiveResolve) this._reactiveResolve({ activated: false });
+                            } catch (e) { console.warn('Error resolving reactive prompt from fallback close', e); }
+                            this._clearReactiveState();
+                        });
+                        btnRow.appendChild(cancelBtn);
+                        temp.appendChild(btnRow);
+
+                        document.body.appendChild(temp);
+                    }
+                } catch (e) { console.warn('Fallback visibility check failed', e); }
+            }, 50);
         });
     }
 
@@ -2193,6 +2407,12 @@ class UI {
         upkeepContainer.appendChild(titleElement);
         
         // Add monster cards from hand (exclude traps and jokers)
+        // Section header for hand cards
+        const handHeader = document.createElement('div');
+        handHeader.classList.add('upkeep-section-header');
+        handHeader.textContent = 'Cards in Hand';
+        upkeepContainer.appendChild(handHeader);
+
         this.game.player.hand.forEach(handCard => {
             const cardType = getCardType(handCard.value);
             if (cardType !== CARD_TYPES.TRAP && handCard.value !== CARD_VALUES.JOKER) {
@@ -2208,6 +2428,12 @@ class UI {
         });
         
         // Add non-fusion monsters from field
+        // Section header for field monsters
+        const fieldHeader = document.createElement('div');
+        fieldHeader.classList.add('upkeep-section-header');
+        fieldHeader.textContent = 'Monsters on Field';
+        upkeepContainer.appendChild(fieldHeader);
+
         this.game.player.monsterSpaces.forEach((space, index) => {
             if (space.card && !space.card.isFusion) {
                 const cardWrapper = document.createElement('div');
@@ -2413,6 +2639,7 @@ class UI {
         const dialog = document.getElementById('game-over-dialog');
         const resultElement = document.getElementById('game-result');
         const messageElement = document.getElementById('game-over-message');
+        const recordingOptions = document.getElementById('recording-options');
         
         if (winner === 'player') {
             resultElement.textContent = 'Victory!';
@@ -2420,6 +2647,40 @@ class UI {
         } else {
             resultElement.textContent = 'Defeat';
             messageElement.textContent = 'Your opponent has defeated you.';
+        }
+        
+        // Show recording options if recording is enabled
+        if (this.game && this.game.recorder && this.game.recorder.isEnabled() && recordingOptions) {
+            recordingOptions.style.display = 'block';
+            
+            // Record game end (this triggers auto-save and auto-download)
+            this.game.recorder.recordGameEnd(
+                this.game,
+                winner === 'player' ? this.game.player : this.game.bot,
+                winner === 'player' ? 'Player won' : 'Bot won'
+            );
+
+            // Show auto-save status
+            const autoSaveStatus = document.createElement('div');
+            autoSaveStatus.className = 'auto-save-status';
+            autoSaveStatus.innerHTML = '✓ <strong>Recording auto-saved and downloaded!</strong><br><small>Check your Downloads folder for the JSON file.</small>';
+            autoSaveStatus.style.cssText = `
+                margin: 10px 0;
+                padding: 10px;
+                background-color: #d4edda;
+                border: 1px solid #c3e6cb;
+                border-radius: 4px;
+                color: #155724;
+                font-size: 0.9em;
+            `;
+            
+            // Insert after the recording options title
+            const recordingTitle = recordingOptions.querySelector('p:first-child');
+            if (recordingTitle) {
+                recordingTitle.parentNode.insertBefore(autoSaveStatus, recordingTitle.nextSibling);
+            }
+        } else if (recordingOptions) {
+            recordingOptions.style.display = 'none';
         }
         
         dialog.classList.add('visible');
@@ -2442,6 +2703,31 @@ class UI {
         
         logContent.appendChild(logEntry);
         logContent.scrollTop = logContent.scrollHeight;
+    }
+
+    /**
+     * Add message to Bot Thinking log (deterministic bot rationale)
+     * @param {string} message - Rationale message
+     */
+    addBotThinkingMessage(message) {
+        const thinkingContent = document.getElementById('bot-thinking-content');
+        if (!thinkingContent) return;
+
+        const entry = document.createElement('div');
+        entry.classList.add('log-entry');
+        // Bot thinking entries are unnumbered but timestamped for readability
+        const ts = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+        entry.textContent = `[${ts}] ${message}`;
+        thinkingContent.appendChild(entry);
+        thinkingContent.scrollTop = thinkingContent.scrollHeight;
+    }
+
+    /**
+     * Clear the Bot Thinking log
+     */
+    clearBotThinkingLog() {
+        const thinkingContent = document.getElementById('bot-thinking-content');
+        if (thinkingContent) thinkingContent.innerHTML = '';
     }
 
     /**
