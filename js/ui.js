@@ -553,10 +553,24 @@ class UI {
                 const cardElement = card.getElement();
                     // Visual attacked state for bot monsters as well
                     // Add attack-ready highlight for bot monsters when it's the bot's battle phase
-                    if (this.game.currentPhase === PHASES.BATTLE &&
+                    // Primary check: bot can attack per normal rules
+                    const botPrimary = (this.game.currentPhase === PHASES.BATTLE &&
                         this.game.currentPlayer !== this.game.player &&
                         card.canAttack() &&
-                        this.game.isAttackAllowedThisTurn(this.game.bot)) {
+                        this.game.isAttackAllowedThisTurn(this.game.bot));
+                    // Fallback visual-only check: during the bot's battle phase, show highlight for any
+                    // face-up monster that hasn't attacked yet so players can follow bot actions.
+                    const botFallback = (this.game.currentPhase === PHASES.BATTLE &&
+                        this.game.currentPlayer !== this.game.player &&
+                        isMonsterCard(card) &&
+                        !card.attackedThisTurn);
+
+                    if (botPrimary || botFallback) {
+                        console.log('UI(bot): highlight path=', botPrimary ? 'primary' : 'fallback',
+                            ' phase=', this.game.currentPhase,
+                            ' card.canAttack=', card.canAttack(),
+                            ' isAttackAllowed=', this.game.isAttackAllowedThisTurn(this.game.bot),
+                            ' space=', space ? space.id : '(no-space)');
                         cardElement.classList.add('can-attack');
                         cardElement.classList.add('attack-ready');
                         // Bot monsters should show the animated highlight immediately
