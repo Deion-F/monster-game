@@ -95,58 +95,71 @@ function getTotalCardValue(cards) {
 }
 
 /**
- * Check if a card can be played
+ * Check if a card can be played by the current player right now
  * @param {Card} card - Card to check
  * @param {Game} game - Current game state
  * @returns {boolean} - Whether card can be played
  */
 function canPlayCard(card, game) {
     const player = game.currentPlayer;
-    const cardType = getCardType(card.value);
-    
-    // Cannot play if it's not setup phase
-    if (game.currentPhase !== PHASES.SETUP) return false;
-    
-    // Previously Joker blocked playing cards; Joker should now only skip the battle phase
-    // so allow playing cards even if a Joker was played this turn.
-    
-    // Check space availability
-    if (cardType === CARD_TYPES.MONSTER_NORMAL || cardType === CARD_TYPES.MONSTER_BIG) {
-        if (!player.hasAvailableMonsterSpace()) return false;
-    } else if (cardType === CARD_TYPES.TRAP) {
-        if (!player.hasAvailableTrapSpace()) return false;
+
+    if (game.gameOver || game.currentPhase !== PHASES.SETUP) return false;
+    if (!player.hand.some(c => c.id === card.id)) return false;
+
+    switch (getCardType(card.value)) {
+        case CARD_TYPES.JOKER:
+            return true;
+        case CARD_TYPES.TRAP:
+            return player.hasAvailableTrapSpace();
+        case CARD_TYPES.MONSTER_NORMAL:
+            return player.hasAvailableMonsterSpace();
+        case CARD_TYPES.MONSTER_BIG: {
+            // With no free space, at least one field monster must be sacrificed to make room
+            const fieldValue = getFieldSacrificeValue(player);
+            if (!player.hasAvailableMonsterSpace() && fieldValue === 0) return false;
+            return getTotalPotentialSacrificeValue(player, card) >= getRequiredSacrificeValue(card);
+        }
+        default:
+            return false;
     }
-    
-    // Special case for big monsters - need to check if sacrifice is possible
-    if (cardType === CARD_TYPES.MONSTER_BIG) {
-        const requiredValue = getRequiredSacrificeValue(card);
-        const availableSacrificeValue = getTotalPotentialSacrificeValue(player);
-        return availableSacrificeValue >= requiredValue;
-    }
-    
-    return true;
 }
 
 /**
- * Get total potential sacrifice value from player's hand and field
+ * Get total strength of the monsters on a player's field (fusions count at fusion strength)
  * @param {Player} player - Player object
+ * @returns {number} - Total field monster value
+ */
+function getFieldSacrificeValue(player) {
+    return player.monsterSpaces.reduce((sum, space) =>
+        space.card ? sum + calculateMonsterStrength(space.card) : sum, 0);
+}
+
+/**
+ * Get total potential sacrifice value from player's hand and field.
+ * Only monsters can be sacrificed.
+ * @param {Player} player - Player object
+ * @param {Card} [excludeCard] - Card being summoned, which can't pay for itself
  * @returns {number} - Total potential sacrifice value
  */
-function getTotalPotentialSacrificeValue(player) {
-    const handValue = player.hand.reduce((sum, card) => 
-        sum + getCardNumericValue(card.value), 0);
-    
-    const fieldValue = player.monsterSpaces.reduce((sum, space) => {
-        if (space.card) {
-            if (space.card.isFusion) {
-                return sum + space.card.fusionStrength;
-            }
-            return sum + getCardNumericValue(space.card.value);
-        }
-        return sum;
+function getTotalPotentialSacrificeValue(player, excludeCard = null) {
+    const handValue = player.hand.reduce((sum, card) => {
+        if (excludeCard && card.id === excludeCard.id) return sum;
+        return isMonsterCard(card) ? sum + getCardNumericValue(card.value) : sum;
     }, 0);
-    
-    return handValue + fieldValue;
+
+    return handValue + getFieldSacrificeValue(player);
+}
+
+/**
+ * Short human-readable label for a card, e.g. "7♣" or "Fusion (9)"
+ * @param {Card} card - Card to describe
+ * @returns {string} - Label
+ */
+function describeCard(card) {
+    if (!card) return 'Unknown';
+    if (card.isFusion) return `Fusion (${card.fusionStrength})`;
+    if (card.value === CARD_VALUES.JOKER) return 'Joker';
+    return `${card.value}${card.getSuitSymbol ? card.getSuitSymbol() : ''}`;
 }
 
 /**
@@ -191,6 +204,16 @@ function shuffleArray(array) {
 function generateId() {
     return Math.random().toString(36).substring(2, 15) + 
            Math.random().toString(36).substring(2, 15);
+}
+
+/**
+ * Artwork for a card face, if it has any
+ * @param {Card} card
+ * @returns {string|null} - image path
+ */
+function getCardArt(card) {
+    if (!card || card.isFusion) return null;
+    return CARD_ART[`${card.suit}-${card.value}`] || null;
 }
 
 /**

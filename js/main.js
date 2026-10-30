@@ -22,7 +22,6 @@ function initializeGame() {
     
     // Set default game settings
     document.getElementById('player-name').value = 'Player';
-    document.getElementById('difficulty-medium').checked = true;
 }
 
 /**
@@ -36,56 +35,15 @@ function setupEventListeners() {
             const playerInput = document.getElementById('player-name');
             const playerName = (playerInput && playerInput.value.trim()) ? playerInput.value.trim() : 'Player';
 
-            let difficulty = 'medium';
-            const easy = document.getElementById('difficulty-easy');
-            const medium = document.getElementById('difficulty-medium');
-            const hard = document.getElementById('difficulty-hard');
-            if (easy && easy.checked) difficulty = 'easy';
-            else if (hard && hard.checked) difficulty = 'hard';
-
             const welcomeDialog = document.getElementById('welcome-dialog');
             if (welcomeDialog && typeof welcomeDialog.close === 'function') welcomeDialog.close();
-            startNewGame(playerName, difficulty);
+            startNewGame(playerName);
         });
     }
 
-    const showTutorialBtn = document.getElementById('show-tutorial');
-    if (showTutorialBtn) {
-        showTutorialBtn.addEventListener('click', (event) => {
-            event.preventDefault();
-            const welcomeDialog = document.getElementById('welcome-dialog');
-            const tutorialDialog = document.getElementById('tutorial-dialog');
-            try {
-                if (welcomeDialog && typeof welcomeDialog.close === 'function') welcomeDialog.close();
-            } catch (err) {
-                if (welcomeDialog) welcomeDialog.style.display = 'none';
-            }
-            if (!tutorialDialog) return console.warn('Tutorial dialog element not found');
-            if (typeof tutorialDialog.showModal === 'function') {
-                try { tutorialDialog.showModal(); } catch (err) { tutorialDialog.classList.add('visible'); }
-            } else {
-                tutorialDialog.classList.add('visible');
-            }
-        });
-    }
+    // 'How to Play' uses the inline openTutorialFromWelcome handler in index.html
 
-    // Delegated tutorial navigation (works if buttons are present or recreated)
-    document.addEventListener('click', (e) => {
-        const btn = e.target.closest && e.target.closest('button');
-        if (!btn) return;
-        const id = btn.id;
-
-        if (id === 'prev-tutorial') return TutorialManager.showPreviousPage();
-        if (id === 'next-tutorial') return TutorialManager.showNextPage();
-        if (id === 'back-to-welcome') {
-            const tutorialDialog = document.getElementById('tutorial-dialog');
-            const welcomeDialog = document.getElementById('welcome-dialog');
-            try { if (tutorialDialog && typeof tutorialDialog.close === 'function') tutorialDialog.close(); }
-            catch (err) { if (tutorialDialog) tutorialDialog.style.display = 'none'; }
-            setTimeout(() => { if (welcomeDialog && typeof welcomeDialog.showModal === 'function') welcomeDialog.showModal(); }, 40);
-            return;
-        }
-    });
+    // Tutorial Previous/Next/Back buttons use inline onclick handlers in index.html
 
     // Close tutorial (top-right X)
     const closeTutorialBtn = document.getElementById('close-tutorial');
@@ -97,42 +55,15 @@ function setupEventListeners() {
         });
     }
 
-    // Back to welcome screen (guarded)
-    const backToWelcomeBtn = document.getElementById('back-to-welcome');
-    if (backToWelcomeBtn) {
-        backToWelcomeBtn.addEventListener('click', () => {
-            const tutorialDialog = document.getElementById('tutorial-dialog');
-            const welcomeDialog = document.getElementById('welcome-dialog');
-            try { if (tutorialDialog && typeof tutorialDialog.close === 'function') tutorialDialog.close(); }
-            catch (err) { if (tutorialDialog) tutorialDialog.style.display = 'none'; }
-            setTimeout(() => { if (welcomeDialog && typeof welcomeDialog.showModal === 'function') welcomeDialog.showModal(); }, 60);
-        });
-    }
-
-    // Game action buttons (guarded)
-    const endPhaseBtn = document.getElementById('end-phase-btn');
-    if (endPhaseBtn) endPhaseBtn.addEventListener('click', () => window.game.endCurrentPhase());
-
-    const directAttackBtn = document.getElementById('direct-attack-btn');
-    if (directAttackBtn) directAttackBtn.addEventListener('click', () => window.game.startDirectAttack && window.game.startDirectAttack());
+    // End Phase, Help and other game buttons are bound once by UI.setupEventListeners
 
     // Victory/defeat dialog - use 'new-game' which exists in HTML
     const newGameBtn = document.getElementById('new-game');
     if (newGameBtn) {
         newGameBtn.addEventListener('click', () => {
-            const gameOverDialog = document.getElementById('game-over-dialog');
-            if (gameOverDialog && typeof gameOverDialog.close === 'function') gameOverDialog.close();
-            startNewGame(window.game.player ? window.game.player.name : 'Player', window.game.botPlayer ? window.game.botPlayer.difficulty : 'medium');
+            startNewGame(window.game.player ? window.game.player.name : 'Player');
         });
     }
-
-    // Help button (id in index.html is 'help-button')
-    const helpButton = document.getElementById('help-button');
-    if (helpButton) helpButton.addEventListener('click', () => {
-        const tutorialDialog = document.getElementById('tutorial-dialog');
-        if (!tutorialDialog) return;
-        if (typeof tutorialDialog.showModal === 'function') tutorialDialog.showModal(); else tutorialDialog.classList.add('visible');
-    });
 
     // Confirm and selection dialogs - guard existence before binding
     const confirmYes = document.getElementById('confirm-yes');
@@ -157,7 +88,11 @@ function setupEventListeners() {
 
     // Setup key shortcuts
     document.addEventListener('keydown', (e) => {
-        if (e.code === 'Space' && document.activeElement && document.activeElement.tagName !== 'INPUT') {
+        // Let Space activate a focused button normally instead of also ending the phase
+        const active = document.activeElement;
+        const typing = active && (['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT'].includes(active.tagName) || active.getAttribute('role') === 'button');
+        const dialogOpen = document.querySelector('.dialog.visible, dialog[open]') || document.body.classList.contains('prompting');
+        if (e.code === 'Space' && !typing && !dialogOpen) {
             e.preventDefault();
             window.game.endCurrentPhase();
         }
@@ -235,34 +170,19 @@ function backToWelcome() {
 /**
  * Start a new game with the given settings
  * @param {string} playerName - Name of the human player
- * @param {string} difficulty - Game difficulty (easy, medium, hard)
  */
-function startNewGame(playerName, difficulty) {
-    // Reset UI (guard elements that may not exist)
-    const gameContainer = document.getElementById('game-container') || document.querySelector('.game-container');
-    if (gameContainer) gameContainer.innerHTML = gameContainer.innerHTML; // keep structure; UI.updateGameState will render into existing elements
-    const infoPanel = document.getElementById('info-panel');
-    if (infoPanel) infoPanel.innerHTML = '';
+function startNewGame(playerName) {
+    const logContent = document.getElementById('log-content');
+    if (logContent) logContent.innerHTML = '';
+    const gameOverDialog = document.getElementById('game-over-dialog');
+    if (gameOverDialog) gameOverDialog.classList.remove('visible');
 
-    // Initialize new game
-    window.game = new Game();
-    
-    // Set player name and bot difficulty directly
-    window.game.player.name = playerName;
-    window.game.botPlayer.difficulty = difficulty;
-    
-    // Start the first turn to automatically draw cards
-    window.game.startTurn();
-    
-    // Update UI
-    window.game.ui.updateGameState();
-    window.game.ui.updateTurnAndPhase();
-    
-    // Enable help button (id in HTML is 'help-button')
-    const helpBtn = document.getElementById('help-button') || document.getElementById('help-btn');
+    // Reuse the same Game; startNewGame resets all match state and starts turn 1
+    window.game.startNewGame(playerName);
+
+    const helpBtn = document.getElementById('help-button');
     if (helpBtn) helpBtn.disabled = false;
-    
-    console.log(`Starting new game: Player '${playerName}' vs Bot (${difficulty})`);
+
 }
 
 /**

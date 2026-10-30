@@ -155,11 +155,11 @@ class Board {
         // 3. Shuffle discard pile into deck
         this.deck.returnDiscardsToDeck();
         
-        // 4. Both players draw 5 cards
-        this.player.drawCards(this.deck, 5);
-        this.bot.drawCards(this.deck, 5);
+        // 4. Both players draw a fresh starting hand
+        this.player.drawCards(this.deck, GAME_SETTINGS.STARTING_HAND_SIZE);
+        this.bot.drawCards(this.deck, GAME_SETTINGS.STARTING_HAND_SIZE);
         
-        // 5. Remove Joker from game
+        // 5. Remove Joker from play for the rest of the match
         this.deck.removeFromGame(joker);
     }
 
@@ -301,63 +301,31 @@ class Board {
     }
 
     /**
-     * Break fusions for a player. If paidCount is provided, that many fusions are considered paid
-     * and only the remainder are broken. If paidCount is 0, break all fusions.
-     * When breaking a fusion, discard the smaller-value component and restore the larger-value
-     * component to the same monster space as a regular monster card (not a fusion).
+     * Break apart every fusion whose upkeep wasn't paid. The first `paidCount` fusions
+     * (in board order) are kept. Each remaining fusion splits: its stronger card stays
+     * in the space as a normal monster and the weaker card goes to the discard pile.
      * @param {Player} player
-     * @param {number} paidCount - how many fusions were covered by sacrifices
-     * @returns {Array} - list of broken fusion info {spaceIndex, fusion, remainingCard, discardedCard}
+     * @param {number} paidCount - how many fusions were covered by upkeep
+     * @returns {Array} - list of broken fusions {spaceIndex, fusion, kept, discarded}
      */
-    breakFusions(player, paidCount = 0) {
-        const results = [];
-        // Gather fusion spaces in board order
-        const fusionSpaces = [];
-        for (let i = 0; i < player.monsterSpaces.length; i++) {
-            const space = player.monsterSpaces[i];
-            if (space.card && space.card.isFusion) fusionSpaces.push({ spaceIndex: i, fusion: space.card });
-        }
+    breakUnpaidFusions(player, paidCount = 0) {
+        const fusionIndexes = [];
+        player.monsterSpaces.forEach((space, i) => {
+            if (space.card && space.card.isFusion) fusionIndexes.push(i);
+        });
 
-        // Determine which fusions to break: those after paidCount
-        const toBreak = fusionSpaces.slice(paidCount);
+        return fusionIndexes.slice(paidCount).map(spaceIndex => {
+            const fusion = player.monsterSpaces[spaceIndex].card;
+            const [kept, discarded] = [...fusion.fusionCards]
+                .sort((a, b) => calculateMonsterStrength(b) - calculateMonsterStrength(a));
 
-        for (const item of toBreak) {
-            const { spaceIndex, fusion } = item;
-            if (!fusion) continue;
-
-            // Determine high/low component by numeric value (or fusionStrength ordering was used when created)
-            const compA = fusion.fusionCards[0];
-            const compB = fusion.fusionCards[1];
-            const valA = compA.isFusion ? compA.fusionStrength : getCardNumericValue(compA.value);
-            const valB = compB.isFusion ? compB.fusionStrength : getCardNumericValue(compB.value);
-
-            let remaining = null;
-            let discarded = null;
-            if (valA >= valB) {
-                remaining = compA;
-                discarded = compB;
-            } else {
-                remaining = compB;
-                discarded = compA;
-            }
-
-            // Place a clone of the remaining card back into the monster space as a normal monster
-            const restored = remaining.clone ? remaining.clone() : new Card(remaining.suit, remaining.value);
-            restored.isFusion = false;
-            restored.fusionCards = [];
-            restored.fusionStrength = 0;
-            restored.faceUp = true;
-            restored.state = CARD_STATES.ON_FIELD;
-
-            // Discard the smaller component
-            try { this.deck.discard(discarded); } catch (e) { console.warn('Discard failed for broken fusion component', e); }
-
-            // Replace fusion with restored card
-            player.monsterSpaces[spaceIndex].card = restored;
-
-            results.push({ spaceIndex, fusion, remaining: restored, discarded });
-        }
-
-        return results;
+            kept.state = CARD_STATES.ON_FIELD;
+            kept.faceUp = true;
+            kept.attackedThisTurn = false;
+            kept.kingWeakened = false;
+            player.monsterSpaces[spaceIndex].card = kept;
+            this.deck.discard(discarded);
+            return { spaceIndex, fusion, kept, discarded };
+        });
     }
 }

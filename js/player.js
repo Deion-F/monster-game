@@ -79,17 +79,11 @@ class Player {
         card.state = CARD_STATES.ON_FIELD;
         card.justPlaced = true;
 
-        // Special handling for traps
+        // Traps are always set face-down and stay inactive until the end of this turn.
+        // The UI may still show a player their own traps, but the card itself is hidden.
         if (cardType === CARD_TYPES.TRAP) {
-            // Human-placed traps are visible but inactive until next turn
-            if (this.type === PLAYER_TYPES.HUMAN) {
-                card.flipFaceUp();
-                card.active = false; // will become active on next turn
-            } else {
-                // Bot traps remain face-down and inactive
-                card.flipFaceDown();
-                card.active = false;
-            }
+            card.flipFaceDown();
+            card.active = false;
         } else {
             card.flipFaceUp();
         }
@@ -153,6 +147,15 @@ class Player {
      * @returns {Object} - Fusion result
      */
     createFusion(monster1, monster2, targetSpaceIndex) {
+        if (!isMonsterCard(monster1) || !isMonsterCard(monster2)) {
+            return { success: false, message: 'Only monsters can be fused' };
+        }
+
+        // A fusion holds exactly two cards, so an existing fusion can't be fused again
+        if (monster1.isFusion || monster2.isFusion) {
+            return { success: false, message: 'A fusion cannot be fused again' };
+        }
+
         // Check if monsters are different strength
         const value1 = monster1.isFusion ? monster1.fusionStrength : getCardNumericValue(monster1.value);
         const value2 = monster2.isFusion ? monster2.fusionStrength : getCardNumericValue(monster2.value);
@@ -223,100 +226,6 @@ class Player {
     }
 
     /**
-     * Handle upkeep for fusions
-     * @param {Array} sacrificeCards - Cards to sacrifice for upkeep
-     * @param {Deck} deck - Game deck for discards
-     * @returns {Object} - Upkeep results
-     */
-    handleFusionUpkeep(sacrificeCards, deck) {
-        const fusionSpaces = this.monsterSpaces.filter(space => 
-            space.card && space.card.isFusion
-        );
-        
-        const results = {
-            success: true,
-            brokenFusions: []
-        };
-        
-        // If player provided sacrifices, calculate total sacrificed value (allow hand or field non-fusion or fusion cards)
-        let totalSacrificeValue = 0;
-        for (const card of sacrificeCards) {
-            if (!card) continue;
-
-            // If it's a fusion on field, sacrifice its fusion strength
-            if (card.isFusion) {
-                // Find the fusion on field and remove it
-                for (let i = 0; i < this.monsterSpaces.length; i++) {
-                    const space = this.monsterSpaces[i];
-                    if (space.card && space.card.id === card.id) {
-                        totalSacrificeValue += space.card.fusionStrength || 0;
-                        // discard fusion components
-                        for (const comp of space.card.fusionCards) deck.discard(comp);
-                        space.card = null;
-                        break;
-                    }
-                }
-                continue;
-            }
-
-            // Check hand first
-            const handIndex = this.hand.findIndex(c => c.id === card.id);
-            if (handIndex !== -1) {
-                const hc = this.hand.splice(handIndex, 1)[0];
-                totalSacrificeValue += getCardNumericValue(hc.value);
-                deck.discard(hc);
-                continue;
-            }
-
-            // Check field (non-fusion)
-            for (let i = 0; i < this.monsterSpaces.length; i++) {
-                const space = this.monsterSpaces[i];
-                if (space.card && !space.card.isFusion && space.card.id === card.id) {
-                    const fieldCard = space.card;
-                    totalSacrificeValue += getCardNumericValue(fieldCard.value);
-                    space.card = null;
-                    deck.discard(fieldCard);
-                    break;
-                }
-            }
-        }
-
-        // If the player didn't provide any sacrifices (skipped), break the fusions as per rulebook
-        if (!sacrificeCards || sacrificeCards.length === 0) {
-            // Break all fusions (replace each fusion with its high-value component and discard low-value)
-            for (const space of fusionSpaces) {
-                const fusion = space.card;
-                if (!fusion) continue;
-                const highValueCard = fusion.fusionCards[0];
-                const lowValueCard = fusion.fusionCards[1];
-                space.card = highValueCard;
-                deck.discard(lowValueCard);
-                results.brokenFusions.push({ fusion, remaining: highValueCard });
-            }
-            results.success = false;
-            return results;
-        }
-
-        // If provided sacrifices but not enough in value to cover fusion count, break remaining fusions
-        const fusionCount = fusionSpaces.length;
-        // We treat each fusion upkeep as needing 1 unit; earlier logic used count of cards, but now we accept value-based sacrifices
-        if (sacrificeCards.length < fusionCount) {
-            results.success = false;
-            const remainingFusions = fusionSpaces.slice(sacrificeCards.length);
-            for (const space of remainingFusions) {
-                const fusion = space.card;
-                const highValueCard = fusion.fusionCards[0];
-                const lowValueCard = fusion.fusionCards[1];
-                space.card = highValueCard;
-                deck.discard(lowValueCard);
-                results.brokenFusions.push({ fusion, remaining: highValueCard });
-            }
-        }
-        
-        return results;
-    }
-
-    /**
      * Activate a trap card
      * @param {Card} trap - Trap to activate
      * @param {Deck} deck - Game deck for discards
@@ -382,14 +291,8 @@ class Player {
      * @returns {number} - New health
      */
     takeDamage(amount) {
+        // Game over is checked by the Game after each damage event
         this.health = Math.max(0, this.health - amount);
-        // Notify global game instance (if present) to check for game over
-        try {
-            if (window && window.game && typeof window.game.checkForGameOver === 'function') {
-                window.game.checkForGameOver();
-            }
-        } catch (e) {}
-
         return this.health;
     }
 
@@ -457,20 +360,11 @@ class Player {
      * Reset for new turn
      */
     resetForNewTurn() {
-        this.usedTrapTypes.clear();
-        
-        // Reset monster attack flags
+        // Trap-type limits are cleared for both players by Game.startTurn;
+        // traps are armed by Game.endTurn at the end of the turn they were set.
         for (const space of this.monsterSpaces) {
             if (space.card) {
                 space.card.resetForNewTurn();
-            }
-        }
-        
-        // Activate traps placed last turn
-        for (const space of this.trapSpaces) {
-            if (space.card && space.card.justPlaced) {
-                space.card.justPlaced = false;
-                space.card.active = true;
             }
         }
     }
