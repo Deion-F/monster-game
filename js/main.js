@@ -35,6 +35,10 @@ function setupEventListeners() {
             const playerInput = document.getElementById('player-name');
             const playerName = (playerInput && playerInput.value.trim()) ? playerInput.value.trim() : 'Player';
 
+            const godMode = document.getElementById('god-mode');
+            window.game.godMode = !!(godMode && godMode.checked);
+            document.body.classList.toggle('god-mode', window.game.godMode);
+
             const welcomeDialog = document.getElementById('welcome-dialog');
             if (welcomeDialog && typeof welcomeDialog.close === 'function') welcomeDialog.close();
             startNewGame(playerName);
@@ -174,10 +178,11 @@ function backToWelcome() {
 function startNewGame(playerName) {
     const logContent = document.getElementById('log-content');
     if (logContent) logContent.innerHTML = '';
-    const gameOverDialog = document.getElementById('game-over-dialog');
-    if (gameOverDialog) gameOverDialog.classList.remove('visible');
+    const gameOverPop = document.getElementById('game-over-pop');
+    if (gameOverPop) gameOverPop.hidden = true;
 
     // Reuse the same Game; startNewGame resets all match state and starts turn 1
+    Sfx.play('shuffle');
     window.game.startNewGame(playerName);
 
     const helpBtn = document.getElementById('help-button');
@@ -304,22 +309,5 @@ function showSacrificeDialog(title, cards, requiredValue, callback, cancelCallba
     window.sacrificeCancelCallback = cancelCallback;
     
     // Show dialog
-    dialog.showModal();
-}
-
-/**
- * Show the game over dialog
- * @param {boolean} victory - Whether the player won
- * @param {string} message - Result message
- */
-function showGameOver(victory, message) {
-    const dialog = document.getElementById('game-over-dialog');
-    const title = document.getElementById('game-over-title');
-    const result = document.getElementById('game-over-result');
-    
-    title.textContent = victory ? 'Victory!' : 'Defeat';
-    title.className = victory ? 'victory-text' : 'defeat-text';
-    result.textContent = message;
-    
     dialog.showModal();
 }

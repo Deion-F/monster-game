@@ -132,7 +132,7 @@ class Fx {
      * Draw an arrow between two elements, from edge to edge
      * @returns {SVGElement|null}
      */
-    static arrow(fromEl, toEl, tone = 'you', { dashed = false } = {}) {
+    static arrow(fromEl, toEl, tone = 'you', { dashed = false, breathing = false } = {}) {
         if (!fromEl || !toEl) return null;
         const a = fromEl.getBoundingClientRect();
         const b = toEl.getBoundingClientRect();
@@ -155,7 +155,7 @@ class Fx {
 
         const ns = 'http://www.w3.org/2000/svg';
         const svg = document.createElementNS(ns, 'svg');
-        svg.setAttribute('class', `fx-arrow tone-${tone}`);
+        svg.setAttribute('class', `fx-arrow tone-${tone}${breathing ? ' breathing' : ''}`);
         svg.setAttribute('width', window.innerWidth);
         svg.setAttribute('height', window.innerHeight);
 
@@ -188,6 +188,64 @@ class Fx {
             Fx.play(head, [{ opacity: 0 }, { opacity: 0, offset: 0.7 }, { opacity: 1 }], { duration: 300 });
         }
         return svg;
+    }
+
+    /**
+     * An arrow arcing over the board from one card to another, so it stays easy to see even
+     * between neighbouring cards. It leaves from the upper part of the first card and lands on
+     * the upper part of the second, bowing away from the board's middle.
+     */
+    static curvedArrow(fromEl, toEl, tone = 'redirect', { breathing = false } = {}) {
+        if (!fromEl || !toEl) return null;
+        const a = fromEl.getBoundingClientRect();
+        const b = toEl.getBoundingClientRect();
+        const p = { x: a.left + a.width / 2, y: a.top + a.height * 0.3 };
+        const q = { x: b.left + b.width / 2, y: b.top + b.height * 0.3 };
+        const len = Math.hypot(q.x - p.x, q.y - p.y);
+        if (len < 1) return null;
+        // Bow perpendicular to the line, toward the top of the screen (or left, for a vertical line)
+        let nx = -(q.y - p.y) / len, ny = (q.x - p.x) / len;
+        if (ny > 0 || (ny === 0 && nx > 0)) { nx = -nx; ny = -ny; }
+        const bow = Math.max(70, len * 0.45);
+        const c = { x: (p.x + q.x) / 2 + nx * bow, y: (p.y + q.y) / 2 + ny * bow };
+
+        const ns = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(ns, 'svg');
+        svg.setAttribute('class', `fx-arrow tone-${tone}${breathing ? ' breathing' : ''}`);
+        svg.setAttribute('width', window.innerWidth);
+        svg.setAttribute('height', window.innerHeight);
+
+        // Stop short of the target so the head sits on its edge of the curve
+        const tx = q.x - c.x, ty = q.y - c.y, tl = Math.hypot(tx, ty);
+        const ux = tx / tl, uy = ty / tl;
+        const size = 14;
+        const end = { x: q.x - ux * size, y: q.y - uy * size };
+        const path = document.createElementNS(ns, 'path');
+        path.setAttribute('d', `M ${p.x} ${p.y} Q ${c.x} ${c.y} ${end.x} ${end.y}`);
+        path.setAttribute('fill', 'none');
+        svg.appendChild(path);
+
+        const px = -uy, py = ux;
+        const head = document.createElementNS(ns, 'polygon');
+        head.setAttribute('points', [
+            `${q.x},${q.y}`,
+            `${end.x + px * size * 0.6},${end.y + py * size * 0.6}`,
+            `${end.x - px * size * 0.6},${end.y - py * size * 0.6}`
+        ].join(' '));
+        svg.appendChild(head);
+
+        Fx.layer().appendChild(svg);
+        (Fx._arrows = Fx._arrows || []).push(svg);
+        return svg;
+    }
+
+    /**
+     * Remove one arrow right away
+     */
+    static removeArrow(svg) {
+        if (!svg) return;
+        svg.remove();
+        Fx._arrows = (Fx._arrows || []).filter(a => a !== svg);
     }
 
     static clearArrows() {

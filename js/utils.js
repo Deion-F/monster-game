@@ -184,6 +184,18 @@ function applyKingEffect(strength) {
 }
 
 /**
+ * Strength after a number of Kings, each halving it again (rounding up)
+ * @param {number} strength
+ * @param {number} times
+ * @returns {number}
+ */
+function applyKingHalvings(strength, times) {
+    let result = strength;
+    for (let i = 0; i < times; i++) result = applyKingEffect(result);
+    return result;
+}
+
+/**
  * Shuffle an array (Fisher-Yates algorithm)
  * @param {Array} array - Array to shuffle
  * @returns {Array} - Shuffled array

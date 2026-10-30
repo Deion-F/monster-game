@@ -56,7 +56,7 @@ Monster Card Battle is a 2-player strategic card game where each player tries to
 - **Traps (A, J, Q, K)**: Set face-down; armed at the end of the turn they were set. One trap of each type per player per turn
   - **Ace**: End opponent's Battle Phase immediately
   - **Jack**: Redirect an attack to any other monster, including the attacker's own
-  - **Queen**: Cancel an opponent's trap as it activates (except Joker)
+  - **Queen**: Cancel an opponent's trap as it activates, including their Queen (except Joker)
   - **King**: Halve attacking monster's strength (round up)
 - **Joker**: Setup Phase only. Resets the board and both hands, skips your Battle Phase, and is removed from the match
 
@@ -72,13 +72,13 @@ Monster Card Battle is a 2-player strategic card game where each player tries to
 - The weaker monster is destroyed and its controller takes the difference in strength as damage (this can be the attacker)
 - Equal strength: both destroyed, no damage
 - Direct attacks deal the attacker's full strength
-- The defender may answer an attack with one armed trap; the attacker may cancel it with a Queen. No time limit
+- Traps chain: the player an attack is aimed at answers first, then the players take turns answering each trap until both pass. Any trap goes unless it makes no sense: a King only against an attack aimed at you (Kings stack, halving again), an Ace for the attacker only once their attack has been turned on them, and a Queen cancels the trap just played (including a Queen). One trap of each type per player per turn. No time limit
 
 ### Special Mechanics
 
 - **Fusions**: Fuse two monsters of different values, at least one on your field; strength is the sum. A fusion can't be fused again
 - **Fusion upkeep**: One monster card per fusion each End Phase; an unpaid fusion breaks apart, leaving its stronger card on the field and discarding the weaker one
-- **Deck reshuffle**: When the deck runs out, the discard pile becomes the new deck and both players take 10 damage
+- **Deck reshuffle**: When the deck runs out, the discard pile becomes the new deck
 - **Draws**: If both players reach 0 health together, the game is a draw
 
 Rules under evaluation are tracked in [BALANCE_NOTES.md](BALANCE_NOTES.md).

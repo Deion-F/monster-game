@@ -130,9 +130,31 @@ class HumanProxy {
         const g = this.game;
         const attacker = context.attacker.monsterSpaces[context.attackerIndex].card;
         const target = context.defenderIndex === null ? null : context.defender.monsterSpaces[context.defenderIndex].card;
-        const A = this.str(attacker);
+        const A = applyKingHalvings(this.str(attacker), Number(context.halved) || 0);
         const D = target ? this.str(target) : 0;
         const has = v => context.traps.find(t => t.value === v);
+
+        // My attack on a bot monster was answered (say, halved by its King): if it now loses,
+        // send it on to a bot monster it still beats
+        if (context.responder === context.attacker && context.defender !== context.attacker) {
+            const jack = has(CARD_VALUES.JACK);
+            if (!jack || !target || A > D) return null;
+            const prey = g.board.getValidRedirectTargets(context.attackerIndex, context.attacker, context.defenderIndex, context.defender)
+                .find(o => o.player === context.defender && this.str(o.player.monsterSpaces[o.index].card) < A);
+            return prey ? { trap: jack, target: prey } : null;
+        }
+
+        // The bot's Jack turned my own attack on my own monster: halve it if that saves my monster,
+        // otherwise send it on to a bot monster it beats
+        if (context.attacker === context.defender) {
+            const jack = has(CARD_VALUES.JACK);
+            const options = jack ? g.board.getValidRedirectTargets(context.attackerIndex, context.attacker, context.defenderIndex, context.defender) : [];
+            const prey = options.find(o => o.player !== context.attacker && this.str(o.player.monsterSpaces[o.index].card) < A);
+            if (prey) return { trap: jack, target: prey };
+            const king = has(CARD_VALUES.KING);
+            if (king && A >= D && applyKingEffect(A) < D) return { trap: king };
+            return null;
+        }
 
         // Jack: send the attack into another bot monster (the bot loses either way), or into my monster that beats it
         const jack = has(CARD_VALUES.JACK);

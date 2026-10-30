@@ -20,6 +20,13 @@
                     <label for="player-name">Your Name:</label>
                     <input type="text" id="player-name" name="player-name" maxlength="20" placeholder="Enter your name" value="Player" autocomplete="off" />
                 </div>
+                <label class="check-group" for="god-mode">
+                    <input type="checkbox" id="god-mode" name="god-mode" />
+                    <span>
+                        <span class="check-title">God mode</span>
+                        <span class="check-note">For testing: hover the bot's hand and set traps to see them</span>
+                    </span>
+                </label>
             </div>
             <div class="dialog-buttons">
                 <button id="start-game" class="dialog-button primary">Start Game</button>
@@ -52,7 +59,6 @@
             <!-- Bot corner: face-down hand (top-right) -->
             <section class="bot-hand-corner" aria-label="Bot hand">
                 <div id="bot-hand-fan" class="bot-hand-fan" aria-hidden="true"></div>
-                <span id="bot-hand-count" class="count-badge bot-badge">5 cards</span>
             </section>
 
             <!-- Deck (left of the midline) -->
@@ -124,14 +130,13 @@
 
             <!-- Your hand: a fan in the bottom-left corner -->
             <section class="hand-corner" aria-label="Your hand">
-                <span id="player-hand-count" class="count-badge">5 in hand</span>
+                <!-- Choices made on the board (sacrifices, traps, upkeep...) are explained and confirmed here -->
+                <section id="prompt-panel" class="prompt-panel" aria-live="polite" hidden></section>
                 <div id="player-hand" class="player-hand"></div>
             </section>
 
             <!-- Your corner: hint, health and controls (bottom-right) -->
             <section class="player-corner" aria-label="Your status and controls">
-                <!-- Choices made on the board (sacrifices, traps, upkeep...) are explained and confirmed here -->
-                <section id="prompt-panel" class="prompt-panel" aria-live="polite" hidden></section>
                 <p id="hint-line" class="hint-line" aria-live="polite"></p>
                 <div class="crest-group player-stats">
                     <div class="crest-label">
@@ -162,6 +167,7 @@
                         </button>
                         <div id="game-menu" class="game-menu" hidden>
                             <button id="help-button" class="menu-item">Rules</button>
+                            <button id="sound-btn" class="menu-item" aria-pressed="true">Sound: on</button>
                             <button id="new-game-btn" class="menu-item">New game</button>
                             <button id="concede-btn" class="menu-item danger">Concede</button>
                         </div>
@@ -192,7 +198,7 @@
         <div id="attack-preview" class="attack-preview" role="tooltip" hidden></div>
         <div id="card-zoom" class="card-zoom" aria-hidden="true" hidden></div>
 
-        <!-- Pile viewers and the end of the match stay as dialogs; game choices are made on the board -->
+        <!-- Pile viewers stay as dialogs; game choices are made on the board -->
         <div id="deck-list-dialog" class="dialog">
             <div class="dialog-content">
                 <h2 id="deck-list-title">Deck</h2>
@@ -214,15 +220,15 @@
             </div>
         </div>
         
-        <div id="game-over-dialog" class="dialog">
-            <div class="dialog-content">
-                <h2 id="game-result">Game Over</h2>
-                <p id="game-over-message"></p>
-                <div class="dialog-buttons">
-                    <button id="new-game" class="dialog-button primary">New Game</button>
-                </div>
+        <!-- End of the match: a popup that leaves the board and battle log usable -->
+        <section id="game-over-pop" class="game-over-pop" role="status" aria-labelledby="game-result" hidden>
+            <h2 id="game-result">Game Over</h2>
+            <p id="game-over-message"></p>
+            <div class="game-over-actions">
+                <button id="game-over-log" class="dialog-button">Battle log</button>
+                <button id="new-game" class="dialog-button primary">New game</button>
             </div>
-        </div>
+        </section>
 
         <!-- Tutorial modal -->
         <dialog id="tutorial-dialog" class="modal-dialog">
@@ -255,6 +261,7 @@
         <script src="js/player.js"></script>
         <script src="js/board.js"></script>
         <script src="js/fx.js"></script>
+        <script src="js/sfx.js"></script>
         <script src="js/ui.js"></script>
         <script src="js/bot.js"></script>
         <script src="js/game.js"></script>

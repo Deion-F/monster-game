@@ -119,10 +119,17 @@ class Game {
     }
 
     /**
-     * The empty deck was rebuilt from the discard pile: both players take damage
+     * The empty deck was rebuilt from the discard pile: both players take damage, if that rule is on
      */
     handleDeckReshuffle() {
         const damage = GAME_SETTINGS.RESHUFFLE_DAMAGE;
+        this.ui.playSound('shuffle');
+        if (damage <= 0) {
+            this.ui.addLogMessage('The deck ran out and was reshuffled from the discard pile');
+            this.ui.announcePlay(null, 'Deck reshuffled', [], 'neutral');
+            this.ui.updateGameState();
+            return;
+        }
         this.player.takeDamage(damage);
         this.bot.takeDamage(damage);
         this.ui.addLogMessage(`The deck ran out and was reshuffled. Both players take ${damage} damage`);
@@ -140,7 +147,11 @@ class Game {
 
         switch (this.currentPhase) {
             case PHASES.SETUP:
-                if (this.player.skipBattleThisTurn) {
+                if (!this.isAttackAllowedThisTurn(this.player)) {
+                    this.ui.addLogMessage(`${this.player.name}'s Battle phase is skipped: no attacks on the first turn`);
+                    this.ui.showFirstTurnSkip();
+                    this.endBattlePhase();
+                } else if (this.player.skipBattleThisTurn) {
                     this.player.skipBattleThisTurn = false;
                     this.ui.addLogMessage(`${this.player.name}'s Battle phase is skipped due to Joker`);
                     this.endBattlePhase();
@@ -240,22 +251,32 @@ class Game {
     }
 
     /**
-     * Pay fusion upkeep: one monster card per fusion. Unpaid fusions break apart, keeping their stronger card.
+     * Pay fusion upkeep: one monster card per fusion kept. The fusions not kept break apart, keeping their stronger card.
      * @param {Array} sacrificeCards - monster cards from hand or field (not fusions)
      * @param {boolean} isBot
+     * @param {number[]} [keep] - monster spaces of the fusions to pay for; by default the strongest ones
      */
-    handleFusionUpkeep(sacrificeCards, isBot = false) {
+    handleFusionUpkeep(sacrificeCards, isBot = false, keep = null) {
         const player = isBot ? this.bot : this.player;
-        const need = this.board.countActiveFusions(player);
+        const fusionSpaces = player.monsterSpaces
+            .map((space, i) => (space.card && space.card.isFusion ? i : null))
+            .filter(i => i !== null);
+        const strength = i => calculateMonsterStrength(player.monsterSpaces[i].card);
+        let kept = keep
+            ? [...new Set(keep)].filter(i => fusionSpaces.includes(i))
+            : [...fusionSpaces].sort((a, b) => strength(b) - strength(a));
 
         const valid = (sacrificeCards || [])
             .filter(card => card && isMonsterCard(card) && !card.isFusion)
-            .slice(0, need);
+            .slice(0, kept.length);
+        // Each kept fusion needs its own card
+        kept = kept.slice(0, valid.length);
 
         if (valid.length > 0) player.sacrificeCards(valid, this.deck);
 
-        // Sacrificing can't remove a fusion, so recount is unchanged; break apart those left unpaid
-        const broken = this.board.breakUnpaidFusions(player, valid.length);
+        // Sacrificing can't remove a fusion, so the spaces still hold them; break apart the ones not kept
+        const broken = this.board.breakUnpaidFusions(player, kept);
+        const need = fusionSpaces.length;
         if (valid.length > 0 && broken.length > 0) {
             this.ui.addLogMessage(`${player.name} pays fusion upkeep with ${valid.map(describeCard).join(' + ')}`);
         }
@@ -328,6 +349,8 @@ class Game {
         this.jokersPlayed++;
 
         this.ui.addLogMessage(`${player.name} played Joker: board and hands reset, Joker removed from play`);
+        this.ui.playSound('joker');
+        this.ui.playSound('shuffle');
         this.ui.announcePlay(null, `${player === this.player ? 'You play' : `${player.name} plays`} the Joker: board and hands reset`, [card], player === this.player ? 'you' : 'bot');
         this.ui.updateGameState();
         return true;
@@ -393,8 +416,8 @@ class Game {
     }
 
     /**
-     * Resolve one attack, including the defender's trap response and the attacker's
-     * chance to cancel that trap with a Queen. The attack is resolved exactly once.
+     * Resolve one attack, including the chain of trap responses (see runTrapChain).
+     * The attack is resolved exactly once.
      * @param {number} attackerIndex - Index of attacker monster
      * @param {number|null} defenderIndex - Index of defender monster or null for direct
      * @param {boolean} isAttackerBot - Whether the attacker is the bot
@@ -428,38 +451,13 @@ class Game {
             this.ui.showAttackHighlight(attackerIndex, attacker, defenderIndex, defender);
             await this.ui.animateAttack(attackerIndex, attacker, defenderIndex, defender);
 
-            let targetPlayer = defender;
-            let targetIndex = defenderIndex;
-            const options = {};
-
-            const reaction = await this.getDefenderReaction({ attacker, attackerIndex, defender, defenderIndex });
-            if (reaction && reaction.trap) {
-                const activation = await this.activateTrapWithQueenWindow(defender, reaction.trap);
-                if (activation.activated && !activation.canceled) {
-                    switch (reaction.trap.value) {
-                        case CARD_VALUES.ACE:
-                            this.ui.addLogMessage(`Ace ends ${attacker.name}'s Battle phase`);
-                            this.battleEnded = true;
-                            endsBattle = true;
-                            await this.ui.showBattleEnded(attacker);
-                            return { success: true, trapActivated: true, battleEnded: true };
-                        case CARD_VALUES.KING:
-                            attackingCard.kingWeakened = true;
-                            options.kingEffect = true;
-                            this.ui.addLogMessage(`King halves ${describeCard(attackingCard)} to ${applyKingEffect(calculateMonsterStrength(attackingCard))}`);
-                            await this.ui.showKingHalved(attacker, attackerIndex, attackingCard);
-                            break;
-                        case CARD_VALUES.JACK:
-                            targetPlayer = reaction.target.player;
-                            targetIndex = reaction.target.index;
-                            this.ui.addLogMessage(`Jack redirects the attack to ${targetPlayer.name}'s ${describeCard(targetPlayer.monsterSpaces[targetIndex].card)}`);
-                            this.ui.updateGameState();
-                            await this.ui.showRedirect(attacker, attackerIndex, defender, defenderIndex, targetPlayer, targetIndex);
-                            await this.ui.animateAttack(attackerIndex, attacker, targetIndex, targetPlayer);
-                            break;
-                    }
-                }
+            const attack = { attacker, attackerIndex, attackingCard, defender, targetPlayer: defender, targetIndex: defenderIndex, kingEffect: 0 };
+            if (await this.runTrapChain(attack)) {
+                endsBattle = true;
+                return { success: true, trapActivated: true, battleEnded: true };
             }
+            const { targetPlayer, targetIndex } = attack;
+            const options = { kingEffect: attack.kingEffect };
 
             const targetCard = targetIndex === null ? null : targetPlayer.monsterSpaces[targetIndex].card;
             const result = this.board.handleAttack(attacker, attackerIndex, targetPlayer, targetIndex, options);
@@ -480,6 +478,7 @@ class Game {
             return result;
         } finally {
             this.attackInProgress = false;
+            this.ui.releaseTraps();
             this.ui.clearAttackHighlights();
             this.ui.updateGameState();
             // A human attacker whose battle was ended by an Ace moves straight to their End phase
@@ -488,59 +487,175 @@ class Game {
     }
 
     /**
-     * Ask the defender (human UI or bot) whether to respond to an attack with a trap
+     * Trap responses to an attack. The player the attack is aimed at answers first; after each trap
+     * the other player may answer it, then the trap's owner may add another, and so on until both
+     * players pass in a row. Every trap also opens a cancel chain of Queens (see activateTrapChain).
+     * Which traps a player may use depends on where the attack is aimed (see getTrapResponse), and
+     * one trap of each type per player per turn keeps the exchange short.
+     * @param {Object} attack - { attacker, attackerIndex, attackingCard, defender, targetPlayer, targetIndex, kingEffect, redirected }; updated in place
+     * @returns {Promise<boolean>} true when an Ace stopped the attack and ended the Battle phase
+     */
+    async runTrapChain(attack) {
+        const { attacker, attackerIndex, attackingCard } = attack;
+        // A direct attack is aimed at the defender
+        let responder = attack.targetIndex === null ? attack.defender : attack.targetPlayer;
+        let anyTrap = false;
+        let passes = 0;
+        for (;;) {
+            const reaction = await this.getTrapResponse(attack, responder);
+            if (!reaction) {
+                passes++;
+                // Unanswered, or both players passed in a row: the attack goes through
+                if (!anyTrap || passes >= 2) {
+                    // The traps shown in their slots leave the field
+                    this.ui.releaseTraps();
+                    return false;
+                }
+                responder = this.getOpponent(responder);
+                continue;
+            }
+            passes = 0;
+            anyTrap = true;
+
+            const activation = await this.activateTrapChain(responder, reaction.trap, attack, reaction.target);
+            if (activation.activated && activation.effective) {
+                switch (reaction.trap.value) {
+                    case CARD_VALUES.ACE:
+                        this.ui.addLogMessage(`Ace ends ${attacker.name}'s Battle phase`);
+                        this.battleEnded = true;
+                        this.ui.releaseTraps();
+                        await this.ui.showBattleEnded(attacker);
+                        return true;
+                    case CARD_VALUES.KING:
+                        // Kings stack: each one halves the attack again
+                        attack.kingEffect += 1;
+                        attackingCard.kingWeakened = attack.kingEffect;
+                        this.ui.addLogMessage(`King halves ${describeCard(attackingCard)} to ${applyKingHalvings(calculateMonsterStrength(attackingCard), attack.kingEffect)}`);
+                        await this.ui.showKingHalved(attacker, attackerIndex, attackingCard);
+                        break;
+                    case CARD_VALUES.JACK: {
+                        const from = { player: attack.targetPlayer, index: attack.targetIndex };
+                        attack.targetPlayer = reaction.target.player;
+                        attack.targetIndex = reaction.target.index;
+                        attack.redirected = true;
+                        this.ui.addLogMessage(`Jack redirects the attack to ${attack.targetPlayer.name}'s ${describeCard(attack.targetPlayer.monsterSpaces[attack.targetIndex].card)}`);
+                        this.ui.updateGameState();
+                        await this.ui.showRedirect(attacker, attackerIndex, from.player, from.index, attack.targetPlayer, attack.targetIndex);
+                        await this.ui.animateAttack(attackerIndex, attacker, attack.targetIndex, attack.targetPlayer);
+                        break;
+                    }
+                }
+            }
+            responder = this.getOpponent(responder);
+        }
+    }
+
+    /**
+     * Ask a player (human UI or bot) whether to answer the attack with a trap. Any trap goes unless
+     * it would make no sense: a King only for the player the attack is aimed at, an Ace for the
+     * attacker only once their own attack has been turned on them, a Jack only with somewhere to send it.
+     * @param {Object} attack - see runTrapChain
+     * @param {Player} responder
      * @returns {Promise<{trap: Card, target?: {player: Player, index: number}}|null>}
      */
-    async getDefenderReaction(context) {
-        const type = context.defenderIndex === null ? 'battle-phase' : 'attack';
-        const traps = context.defender.getActivatableTraps({ type });
+    async getTrapResponse(attack, responder) {
+        const type = attack.targetIndex === null ? 'battle-phase' : 'attack';
+        const defender = attack.targetIndex === null ? attack.defender : attack.targetPlayer;
+        const aimedAtResponder = defender === responder;
+        const redirectTargets = this.board.getValidRedirectTargets(attack.attackerIndex, attack.attacker, attack.targetIndex, defender);
+        const traps = responder.getActivatableTraps({ type }).filter(t => {
+            switch (t.value) {
+                case CARD_VALUES.KING: return aimedAtResponder;
+                case CARD_VALUES.ACE: return responder !== attack.attacker || aimedAtResponder;
+                case CARD_VALUES.JACK: return redirectTargets.length > 0;
+                default: return true;
+            }
+        });
         if (traps.length === 0) return null;
 
-        const choice = context.defender === this.player
+        // The context names whoever the attack is aimed at as the defender; the responder may be the other player
+        const context = {
+            attacker: attack.attacker,
+            attackerIndex: attack.attackerIndex,
+            defender,
+            responder,
+            defenderIndex: attack.targetIndex,
+            halved: attack.kingEffect,
+            redirected: !!attack.redirected
+        };
+        const choice = responder === this.player
             ? await this.ui.promptTrapResponse({ ...context, traps })
             : await this.botPlayer.chooseDefensiveTrap(context, traps);
 
         // Validate the choice against the rules before using it
         if (!choice || !choice.trap || !traps.some(t => t.id === choice.trap.id)) return null;
         if (choice.trap.value === CARD_VALUES.JACK) {
-            const targets = this.board.getValidRedirectTargets(context.attackerIndex, context.attacker, context.defenderIndex, context.defender);
-            if (!choice.target || !targets.some(t => t.player === choice.target.player && t.index === choice.target.index)) return null;
+            if (!choice.target || !redirectTargets.some(t => t.player === choice.target.player && t.index === choice.target.index)) return null;
         }
         return choice;
     }
 
     /**
-     * Activate a trap, then give its owner's opponent one chance to cancel it with a Queen
+     * Activate a trap, then let the players take turns cancelling the latest trap with a Queen,
+     * starting with the trap owner's opponent. A Queen can cancel a Queen; each player has at most
+     * one Queen a turn, so the chain is at most two Queens long.
      * @param {Player} owner
      * @param {Card} trap
-     * @returns {Promise<{activated: boolean, canceled: boolean}>}
+     * @param {Object} attack - see runTrapChain
+     * @param {{player: Player, index: number}} [target] - a Jack's redirect target
+     * @returns {Promise<{activated: boolean, effective: boolean}>}
      */
-    async activateTrapWithQueenWindow(owner, trap) {
-        this.ui.fxHint(trap.id, 'reveal');
-        const res = owner.activateTrap(trap, this.deck);
-        if (!res.success) return { activated: false, canceled: false };
+    async activateTrapChain(owner, trap, attack, target = null) {
+        if (!this.springTrap(owner, trap)) return { activated: false, effective: false };
 
         this.ui.addLogMessage(`${owner.name} activates ${describeCard(trap)} (${getTrapName(trap.value)})`);
         this.ui.updateGameState();
         await this.ui.showTrapActivated(owner, trap);
 
-        const opponent = this.getOpponent(owner);
-        const queens = opponent.getActivatableTraps({ type: 'trap', trapValue: trap.value })
-            .filter(t => t.value === CARD_VALUES.QUEEN);
-        if (queens.length === 0) return { activated: true, canceled: false };
+        let latest = trap;
+        let latestOwner = owner;
+        let effective = true;
+        for (;;) {
+            const opponent = this.getOpponent(latestOwner);
+            const queens = opponent.getActivatableTraps({ type: 'trap', trapValue: latest.value })
+                .filter(t => t.value === CARD_VALUES.QUEEN);
+            if (queens.length === 0) break;
 
-        const queen = opponent === this.player
-            ? await this.ui.promptCancelTrap(trap, queens)
-            : this.botPlayer.chooseQueenCancel(trap, queens);
+            // What the deciding player needs to weigh: the trap at the bottom and whether it stands if they pass
+            const chain = { trap, owner, target, effective, latest, latestOwner, attack };
+            const queen = opponent === this.player
+                ? await this.ui.promptCancelTrap(latest, queens, chain)
+                : this.botPlayer.chooseQueenCancel(latest, queens, chain);
+            if (!queen || !queens.some(q => q.id === queen.id)) break;
 
-        if (queen && queens.some(q => q.id === queen.id)) this.ui.fxHint(queen.id, 'reveal');
-        if (queen && queens.some(q => q.id === queen.id) && opponent.activateTrap(queen, this.deck).success) {
-            this.ui.addLogMessage(`${opponent.name} activates Queen and cancels the ${getTrapName(trap.value)}`);
+            if (!this.springTrap(opponent, queen)) break;
+            this.ui.addLogMessage(latest === trap
+                ? `${opponent.name} activates Queen and cancels the ${getTrapName(trap.value)}`
+                : `${opponent.name} activates Queen and cancels ${latestOwner.name}'s Queen`);
             this.ui.updateGameState();
-            await this.ui.showTrapCancelled(opponent, queen, owner, trap);
-            return { activated: true, canceled: true };
+            await this.ui.showTrapCancelled(opponent, queen, latestOwner, latest);
+            effective = !effective;
+            latest = queen;
+            latestOwner = opponent;
         }
-        return { activated: true, canceled: false };
+        // A cancelled cancel puts the trap back in play
+        if (latest !== trap && effective) this.ui.addLogMessage(`${owner.name}'s ${getTrapName(trap.value)} goes through`);
+        return { activated: true, effective };
+    }
+
+    /**
+     * Activate a trap. It stays face up in its slot until a trap answers it or the attack goes
+     * through, so any traps shown before it (the ones it answers) leave the field now.
+     * @param {Player} owner
+     * @param {Card} trap
+     * @returns {boolean} whether it was activated
+     */
+    springTrap(owner, trap) {
+        const slot = owner.trapSpaces.findIndex(s => s.card && s.card.id === trap.id);
+        this.ui.fxHint(trap.id, 'reveal');
+        if (!owner.activateTrap(trap, this.deck).success) return false;
+        this.ui.holdTrap(owner, slot, trap);
+        return true;
     }
 
     /**
@@ -596,6 +711,15 @@ class Game {
      */
     isAttackAllowedThisTurn(player) {
         return !(this.turnCounter === 1 && player === this.firstPlayer);
+    }
+
+    /**
+     * Whether the player's Battle phase this turn will be skipped (first turn or Joker)
+     * @param {Player} player
+     * @returns {boolean}
+     */
+    willSkipBattle(player) {
+        return !this.isAttackAllowedThisTurn(player) || !!player.skipBattleThisTurn;
     }
 }
 

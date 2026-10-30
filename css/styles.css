@@ -333,6 +333,12 @@ button:focus-visible,
     color: var(--ink);
 }
 
+/* A Battle phase that won't happen this turn (first turn, Joker) */
+.phase-steps li.skipped {
+    text-decoration: line-through;
+    opacity: 0.55;
+}
+
 /* ------------------------------------------------------------------ */
 /* Cards                                                               */
 /* ------------------------------------------------------------------ */
@@ -429,6 +435,48 @@ button:focus-visible,
 
 .card.weakened {
     box-shadow: 0 0 0 2px var(--badge-weakened), var(--shadow-card);
+}
+
+/*
+ * A fusion is drawn as its two cards stacked in the slot: the weaker one behind, tilted left,
+ * the stronger one in front, tilted right and lower, so both corner values show. The outer
+ * element keeps the strength badge, the upkeep badge and any state rings.
+ */
+.card.fusion-stack {
+    --stack-h: var(--card-height);
+    background: transparent;
+    box-shadow: none;
+}
+
+.card.fusion-stack > .card.fusion-part {
+    --card-height: calc(var(--stack-h) * 0.76);
+    position: absolute;
+    width: 76%;
+    height: 76%;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+    transition: none;
+}
+
+.card.fusion-stack > .card.fusion-back {
+    left: 3%;
+    top: 2%;
+    transform: rotate(-8deg);
+}
+
+.card.fusion-stack > .card.fusion-front {
+    right: 3%;
+    bottom: 6%;
+    transform: rotate(6deg);
+}
+
+.card.fusion-stack > .card.fusion-part .card-type {
+    display: none;
+}
+
+/* While a choice tags a fusion (e.g. KEEP during upkeep), the tag takes the upkeep badge's place */
+.monster-space[data-pick-label] .upkeep-badge {
+    display: none;
 }
 
 /* Fusion upkeep, shown on fusions on the field */
@@ -540,6 +588,11 @@ button:focus-visible,
     color: #6B4A00;
 }
 
+/* A trap that was just sprung, shown in its slot until it is answered or the attack goes through */
+.card.trap-sprung {
+    box-shadow: 0 0 0 3px var(--react), 0 0 18px var(--react);
+}
+
 .card.trap-disabled {
     background-color: var(--card-face-dim);
     box-shadow: none;
@@ -606,23 +659,6 @@ button:focus-visible,
     min-height: 0;
 }
 
-.count-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 99px;
-    background: var(--surface);
-    border: 1px solid var(--line-strong);
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-muted);
-}
-
-.hand-corner .count-badge {
-    position: absolute;
-    left: 0;
-    top: 0;
-}
-
 .player-hand {
     --card-height: calc(var(--c) * 0.85);
     --card-width: calc(var(--card-height) * 0.71);
@@ -653,8 +689,8 @@ button:focus-visible,
     transform: translateY(calc(var(--card-height) * -0.22)) rotate(0deg);
 }
 
-/* Hover or focus straightens the card, lifts it out of the fan and zooms it */
-.player-hand .card:hover,
+/* Hover (set by UI.hoverHandCard) or focus straightens the card, lifts it out of the fan and zooms it */
+.player-hand .card.hovered,
 .player-hand .card:focus-visible {
     z-index: 30;
     opacity: 1;
@@ -662,19 +698,6 @@ button:focus-visible,
     box-shadow: var(--shadow-lift);
 }
 
-/*
- * The lifted card leaves its spot in the fan, which could put the pointer over the next
- * card and make the zoom flicker between them. This strip (in the card's scaled space:
- * 0.42 / 1.65 of its height) keeps covering that spot while the card is zoomed.
- */
-.player-hand .card:hover::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 100%;
-    height: 26%;
-}
 
 /* ------------------------------------------------------------------ */
 /* The bot's face-down hand, hanging from the top-right corner         */
@@ -695,6 +718,17 @@ button:focus-visible,
     height: var(--card-height);
 }
 
+/* God mode: the bot's cards can be peeked at */
+.god-mode .bot-hand-fan .card,
+.god-mode .bot-area .trap-space .card.face-down {
+    cursor: help;
+}
+
+.god-mode .bot-hand-fan .card:hover,
+.god-mode .bot-area .trap-space .card.face-down:hover {
+    outline: 2px solid var(--bot);
+}
+
 .bot-hand-fan .card {
     position: absolute;
     right: var(--fan-x, 0px);
@@ -703,14 +737,6 @@ button:focus-visible,
     transform-origin: 50% 0;
     box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
     cursor: default;
-}
-
-.bot-badge {
-    position: absolute;
-    right: calc(var(--c) * 0.3);
-    top: calc(var(--c) * 0.55);
-    border-color: var(--bot);
-    color: var(--text);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1249,25 +1275,31 @@ body.prompt-react { --pick: var(--react); --on-pick: var(--ground); }
 body.prompt-redirect { --pick: var(--redirect); --on-pick: var(--ground); }
 body.prompt-you { --pick: var(--you); --on-pick: var(--ground); }
 
+/* Pinned to the top of your hand's corner, clear of the fan and a lifted selected card */
 .prompt-panel {
-    width: min(340px, 100%);
-    padding: 12px 14px;
-    border-radius: 14px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 50;
+    width: min(280px, 100%);
+    padding: 8px 12px;
+    border-radius: 12px;
     background: var(--surface);
     border: 2px solid var(--pick, var(--line-strong));
     box-shadow: var(--shadow-raised);
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
 }
 
 .prompt-kicker {
-    font: 700 16px/1.25 var(--font-display);
+    font: 700 14px/1.25 var(--font-display);
     color: var(--text);
 }
 
 .prompt-text {
-    font-size: 13px;
+    font-size: 12px;
+    line-height: 1.35;
     color: var(--text-soft);
 }
 
@@ -1276,12 +1308,12 @@ body.prompt-you { --pick: var(--you); --on-pick: var(--ground); }
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 4px;
+    gap: 6px;
+    margin-top: 2px;
 }
 
 .prompt-status {
-    font: 700 16px var(--font-display);
+    font: 700 14px var(--font-display);
 }
 
 .prompt-actions {
@@ -1291,13 +1323,13 @@ body.prompt-you { --pick: var(--you); --on-pick: var(--ground); }
 }
 
 .prompt-button {
-    min-height: 40px;
-    padding: 0 14px;
-    border-radius: 10px;
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 8px;
     border: 1px solid var(--line-strong);
     background: transparent;
     color: var(--text);
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
 }
@@ -1323,33 +1355,31 @@ body.prompt-you { --pick: var(--you); --on-pick: var(--ground); }
     cursor: not-allowed;
 }
 
-/* While choosing, the panel takes the place of the hint and the turn controls */
+/* While choosing, the hint and the turn controls step aside; the battle log stays available */
 .prompting .hint-line,
-.prompting .corner-controls {
+.prompting #end-phase-btn,
+.prompting .menu-wrap {
     display: none;
 }
 
-/* Short windows: make room for the panel by shrinking your health crest while choosing */
+/* With the battle log open over the left side, the choice moves to your corner (see UI.toggleLog) */
+.player-corner .prompt-panel {
+    position: static;
+}
+
+/* Short windows: a tighter panel */
 @media (max-height: 760px) {
-    .prompting .player-stats .crest {
-        --crest: 76px;
-    }
-
-    .prompting .player-stats .crest-label {
-        display: none;
-    }
-
     .prompt-panel {
-        padding: 10px 12px;
-        gap: 4px;
+        padding: 6px 10px;
+        gap: 2px;
     }
 
     .prompt-kicker {
-        font-size: 15px;
+        font-size: 13px;
     }
 
     .prompt-button {
-        min-height: 36px;
+        min-height: 28px;
     }
 }
 
@@ -1493,6 +1523,42 @@ body.prompt-you { --pick: var(--you); --on-pick: var(--ground); }
 /* ------------------------------------------------------------------ */
 /* Dialogs (overlay style)                                             */
 /* ------------------------------------------------------------------ */
+
+/* End of the match: floats over the board without blocking it, below the log drawer */
+.game-over-pop {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 700;
+    width: min(340px, calc(100vw - 32px));
+    padding: 20px 22px;
+    border-radius: 16px;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    box-shadow: var(--shadow-raised);
+    text-align: center;
+}
+
+.game-over-pop h2 {
+    margin: 0 0 6px;
+    font: 700 26px/1.1 var(--font-display);
+    text-transform: uppercase;
+}
+
+.game-over-pop p {
+    margin: 0 0 16px;
+    color: var(--text-soft);
+}
+
+.game-over-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.game-over-actions .dialog-button {
+    flex: 1;
+}
 
 .dialog {
     display: none;
@@ -1965,7 +2031,8 @@ body.prompt-you { --pick: var(--you); --on-pick: var(--ground); }
     overflow: visible;
 }
 
-.fx-arrow line {
+.fx-arrow line,
+.fx-arrow path {
     stroke-width: 4;
     stroke-linecap: round;
 }
@@ -1974,8 +2041,46 @@ body.prompt-you { --pick: var(--you); --on-pick: var(--ground); }
 .fx-arrow.tone-you polygon { fill: var(--you); }
 .fx-arrow.tone-bot line { stroke: var(--bot); }
 .fx-arrow.tone-bot polygon { fill: var(--bot); }
-.fx-arrow.tone-redirect line { stroke: var(--redirect); }
+.fx-arrow.tone-redirect line,
+.fx-arrow.tone-redirect path { stroke: var(--redirect); }
 .fx-arrow.tone-redirect polygon { fill: var(--redirect); }
+
+/* Where a Jack sends the attack, pulsing while you decide how to answer */
+.fx-arrow.breathing {
+    animation: arrow-breathe 1.6s ease-in-out infinite;
+}
+
+.fx-arrow.breathing path {
+    stroke-width: 5;
+}
+
+/* ...and the monster it lands on breathes with it */
+.monster-space.redirect-target {
+    border-radius: 12px;
+    animation: target-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes arrow-breathe {
+    0%, 100% { opacity: 0.5; filter: drop-shadow(0 0 0 var(--redirect)); }
+    50% { opacity: 1; filter: drop-shadow(0 0 7px var(--redirect)); }
+}
+
+@keyframes target-breathe {
+    0%, 100% { box-shadow: 0 0 0 2px var(--redirect); }
+    50% { box-shadow: 0 0 0 4px var(--redirect), 0 0 22px var(--redirect); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fx-arrow.breathing {
+        animation: none;
+        filter: drop-shadow(0 0 5px var(--redirect));
+    }
+
+    .monster-space.redirect-target {
+        animation: none;
+        box-shadow: 0 0 0 3px var(--redirect);
+    }
+}
 
 .fx-ghost {
     position: fixed;

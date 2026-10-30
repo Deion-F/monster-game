@@ -33,9 +33,9 @@ class Board {
         let attackingStrength = options.attackStrength || 
             calculateMonsterStrength(attackingCard);
         
-        // Handle King effect if applied
+        // Handle King effects if applied (a count: Kings stack)
         if (options.kingEffect) {
-            attackingStrength = applyKingEffect(attackingStrength);
+            attackingStrength = applyKingHalvings(attackingStrength, Number(options.kingEffect));
         }
         
         // Direct attack
@@ -301,20 +301,19 @@ class Board {
     }
 
     /**
-     * Break apart every fusion whose upkeep wasn't paid. The first `paidCount` fusions
-     * (in board order) are kept. Each remaining fusion splits: its stronger card stays
-     * in the space as a normal monster and the weaker card goes to the discard pile.
+     * Break apart every fusion whose upkeep wasn't paid. Each one splits: its stronger card
+     * stays in the space as a normal monster and the weaker card goes to the discard pile.
      * @param {Player} player
-     * @param {number} paidCount - how many fusions were covered by upkeep
+     * @param {number[]} keep - monster spaces of the fusions that were paid for
      * @returns {Array} - list of broken fusions {spaceIndex, fusion, kept, discarded}
      */
-    breakUnpaidFusions(player, paidCount = 0) {
+    breakUnpaidFusions(player, keep = []) {
         const fusionIndexes = [];
         player.monsterSpaces.forEach((space, i) => {
-            if (space.card && space.card.isFusion) fusionIndexes.push(i);
+            if (space.card && space.card.isFusion && !keep.includes(i)) fusionIndexes.push(i);
         });
 
-        return fusionIndexes.slice(paidCount).map(spaceIndex => {
+        return fusionIndexes.map(spaceIndex => {
             const fusion = player.monsterSpaces[spaceIndex].card;
             const [kept, discarded] = [...fusion.fusionCards]
                 .sort((a, b) => calculateMonsterStrength(b) - calculateMonsterStrength(a));

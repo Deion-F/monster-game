@@ -20,7 +20,7 @@ class Card {
         this.active = false; // For traps
         this.attackedThisTurn = false;
         this.justPlaced = false;
-        this.kingWeakened = false; // Temporary flag set by King trap until end of battle
+        this.kingWeakened = false; // How many Kings halved it this battle (false/0: none); cleared at the end of battle
     }
 
     /**
@@ -71,27 +71,39 @@ class Card {
             return cardElement;
         }
 
+        // A fusion shows its two cards stacked and tilted so both values read, plus its strength badge
+        if (this.isFusion) {
+            cardElement.classList.add('fusion-stack');
+            const [stronger, weaker] = this.fusionCards;
+            [weaker, stronger].forEach((part, i) => {
+                const view = part.clone();
+                view.flipFaceUp();
+                view.kingWeakened = false;
+                const el = view.getElement(true);
+                delete el.dataset.cardId; // the stack as a whole is the card on the field
+                el.classList.add('fusion-part', i === 0 ? 'fusion-back' : 'fusion-front');
+                cardElement.appendChild(el);
+            });
+        }
+
         // Illustrated faces show their artwork, which already carries the rank and suit
-        const art = getCardArt(this);
+        const art = this.isFusion ? null : getCardArt(this);
         if (art) {
             cardElement.classList.add('has-art');
             cardElement.style.backgroundImage = `url("${art}")`;
         }
         
-        // Add card value
-        const valueElement = document.createElement('div');
-        valueElement.classList.add('card-value');
-        valueElement.classList.add(this.getSuitColor());
-        valueElement.textContent = this.value;
-        cardElement.appendChild(valueElement);
-        
-        // Add card type label
-        const typeElement = document.createElement('div');
-        typeElement.classList.add('card-type');
-        
-        if (this.isFusion) {
-            typeElement.textContent = 'Fusion';
-        } else {
+        if (!this.isFusion) {
+            // Add card value
+            const valueElement = document.createElement('div');
+            valueElement.classList.add('card-value');
+            valueElement.classList.add(this.getSuitColor());
+            valueElement.textContent = this.value;
+            cardElement.appendChild(valueElement);
+
+            // Add card type label
+            const typeElement = document.createElement('div');
+            typeElement.classList.add('card-type');
             const cardType = getCardType(this.value);
             if (cardType === CARD_TYPES.MONSTER_NORMAL) {
                 typeElement.textContent = 'Monster';
@@ -102,20 +114,20 @@ class Card {
             } else {
                 typeElement.textContent = 'Joker';
             }
+            cardElement.appendChild(typeElement);
+
+            // Add card content (suit symbol)
+            const contentElement = document.createElement('div');
+            contentElement.classList.add('card-content');
+            contentElement.classList.add(this.getSuitColor());
+            contentElement.textContent = this.getSuitSymbol();
+            cardElement.appendChild(contentElement);
         }
-        cardElement.appendChild(typeElement);
-        
-        // Add card content (suit symbol)
-        const contentElement = document.createElement('div');
-        contentElement.classList.add('card-content');
-        contentElement.classList.add(this.getSuitColor());
-        contentElement.textContent = this.getSuitSymbol();
-        cardElement.appendChild(contentElement);
-        
+
         // Compute and render strength (fusion or monster). If King weakened, apply halved value
         if (isMonsterCard(this) && !inHand) {
             const baseStrength = this.isFusion ? this.fusionStrength : getCardNumericValue(this.value);
-            const displayStrength = this.kingWeakened ? applyKingEffect(baseStrength) : baseStrength;
+            const displayStrength = applyKingHalvings(baseStrength, Number(this.kingWeakened) || 0);
 
             const strengthElement = document.createElement('div');
             strengthElement.classList.add(this.isFusion ? 'fusion-value' : 'monster-strength');
@@ -214,6 +226,16 @@ class Card {
     resetForNewTurn() {
         this.attackedThisTurn = false;
         this.justPlaced = false;
+    }
+
+    /**
+     * Forget everything that happened to the card on the field, including a fusion's cards
+     */
+    clearBattleState() {
+        this.resetForNewTurn();
+        this.kingWeakened = false;
+        this.active = false;
+        this.fusionCards.forEach(card => card.clearBattleState());
     }
 
     /**

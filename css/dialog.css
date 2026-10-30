@@ -50,6 +50,32 @@
     margin-bottom: 8px;
 }
 
+.check-group {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.check-group input {
+    width: 18px;
+    height: 18px;
+    margin: 2px 0 0;
+    accent-color: var(--you);
+}
+
+.check-title {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.check-note {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
 .input-group label {
     display: block;
     margin-bottom: 8px;

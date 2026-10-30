@@ -33,7 +33,6 @@ class Bot {
         this.game = game;
         this.mistakeRate = BOT_SETTINGS.MISTAKE_RATE;
         this.noise = BOT_SETTINGS.JUDGEMENT_NOISE;
-        this.currentAttack = null; // the bot's attack being resolved, for Queen decisions
         this.unseen = null;        // per-turn card counts the bot hasn't seen
     }
 
@@ -60,7 +59,10 @@ class Bot {
         await this.runSetup();
         if (game.gameOver) return;
 
-        if (game.bot.skipBattleThisTurn) {
+        if (!game.isAttackAllowedThisTurn(game.bot)) {
+            game.ui.addLogMessage("Bot's Battle phase is skipped: no attacks on the first turn");
+            game.ui.showFirstTurnSkip();
+        } else if (game.bot.skipBattleThisTurn) {
             game.bot.skipBattleThisTurn = false;
             game.ui.addLogMessage("Bot's Battle phase is skipped due to Joker");
         } else {
@@ -113,15 +115,17 @@ class Bot {
             if (game.gameOver || game.battleEnded || game.currentPlayer !== game.bot || game.currentPhase !== PHASES.BATTLE) break;
             const S = this.snapshot();
             const choices = this.rankAttacks(S);
-            const choice = this.pick(choices);
+            // Once an attack looks at least as good as holding back, attack: judgement noise only varies
+            // which attack, so a close call never talks the bot out of thinning the human's field
+            const stop = choices.find(c => c.stop);
+            const worthIt = choices.filter(c => !c.stop && c.value >= stop.value);
+            const choice = this.pick(worthIt.length > 0 ? worthIt : choices);
             if (!choice || choice.stop) break;
 
             await delay(450);
             await this.bannersRead();
             const target = choice.target ? choice.target.index : null;
-            this.currentAttack = { attackerIndex: choice.attacker, target };
             await game.processAttack(choice.attacker, target, true);
-            this.currentAttack = null;
             await delay(300);
         }
         game.resetAttackedFlags();
@@ -132,19 +136,21 @@ class Bot {
      */
     payUpkeep() {
         if (this.game.board.countActiveFusions(this.game.bot) === 0) return;
-        this.game.handleFusionUpkeep(this.chooseUpkeepCards(), true);
+        const { cards, keep } = this.chooseUpkeep();
+        this.game.handleFusionUpkeep(cards, true, keep);
     }
 
     /**
-     * The cards to pay fusion upkeep with. An unpaid fusion breaks apart and keeps its stronger card,
-     * so paying is worth it only when the weaker card's strength is worth more than the card paid
-     * @returns {Card[]}
+     * Which fusions to pay upkeep for, strongest first, and the cards to pay with. An unpaid fusion
+     * breaks apart and keeps its stronger card, so paying is worth it only when the weaker card's
+     * strength is worth more than the card paid
+     * @returns {{cards: Card[], keep: number[]}} - keep: monster spaces of the fusions paid for
      */
-    chooseUpkeepCards() {
+    chooseUpkeep() {
         const bot = this.game.bot;
-        const fusions = bot.monsterSpaces.filter(s => s.card && s.card.isFusion).map(s => s.card)
-            .sort((a, b) => calculateMonsterStrength(b) - calculateMonsterStrength(a));
-        if (fusions.length === 0) return [];
+        const fusions = bot.monsterSpaces.map((s, index) => ({ fusion: s.card, index })).filter(f => f.fusion && f.fusion.isFusion)
+            .sort((a, b) => calculateMonsterStrength(b.fusion) - calculateMonsterStrength(a.fusion));
+        if (fusions.length === 0) return { cards: [], keep: [] };
 
         const options = [
             ...bot.hand.filter(c => isMonsterCard(c)).map(card => ({ card, cost: this.handCardValue(card) })),
@@ -152,14 +158,18 @@ class Bot {
         ].sort((a, b) => a.cost - b.cost);
 
         const paid = [];
-        for (const fusion of fusions) {
+        const keep = [];
+        for (const { fusion, index } of fusions) {
             const info = this.monsterInfo(fusion);
             const stronger = { str: info.str - info.weak, fusion: false };
             const keepValue = this.monsterValue(info) - this.monsterValue(stronger);
             const next = options.find(o => !paid.includes(o.card));
-            if (next && next.cost < keepValue) paid.push(next.card);
+            if (next && next.cost < keepValue) {
+                paid.push(next.card);
+                keep.push(index);
+            }
         }
-        return paid;
+        return { cards: paid, keep };
     }
 
     /**
@@ -174,8 +184,10 @@ class Bot {
     }
 
     /**
-     * The human is attacking: answer with the trap (and Jack target) that leaves the bot best placed, or none
-     * @param {Object} context - { attacker, attackerIndex, defender, defenderIndex }
+     * Answer an attack with the trap (and Jack target) that leaves the bot best placed, or none.
+     * Usually the human is attacking the bot; after the human's Jack it can be the bot's own attack turned on
+     * its own monster, or an attack the bot may only redirect onward.
+     * @param {Object} context - { attacker, attackerIndex, defender (whose monster is targeted), responder, defenderIndex, halved }
      * @param {Card[]} traps - bot traps that may respond
      * @returns {Promise<{trap: Card, target?: Object}|null>}
      */
@@ -185,7 +197,10 @@ class Bot {
         const S = this.snapshot();
         const game = this.game;
         const ai = context.attackerIndex;
-        const tgt = context.defenderIndex === null ? null : { side: 'me', index: context.defenderIndex };
+        const attackerSide = context.attacker === game.bot ? 'me' : 'opp';
+        const halved = Number(context.halved) || 0; // Kings already on this attack
+        // Usually the attack is aimed at the bot; when it may only redirect, it can be aimed at the human's monster
+        const tgt = context.defenderIndex === null ? null : { side: context.defender === game.bot ? 'me' : 'opp', index: context.defenderIndex };
         const withoutTrap = (state, trap) => {
             const i = state.me.traps.findIndex(t => t && t.card === trap);
             if (i !== -1) state.me.traps[i] = null;
@@ -193,17 +208,17 @@ class Bot {
             return state;
         };
         // The rest of the human's Battle phase, with the bot's remaining traps defending
-        const finish = state => this.evaluate(this.oppBattle(state, { fresh: false }));
+        const finish = state => this.evaluate(attackerSide === 'me' ? state : this.oppBattle(state, { fresh: false }));
 
         const options = [];
         const none = this.clone(S);
-        this.resolve(none, 'opp', ai, tgt, false);
+        this.resolve(none, attackerSide, ai, tgt, halved);
         options.push({ value: finish(none), choice: null });
 
         for (const trap of traps) {
             if (trap.value === CARD_VALUES.KING) {
                 const k = withoutTrap(this.clone(S), trap);
-                this.resolve(k, 'opp', ai, tgt, true);
+                this.resolve(k, attackerSide, ai, tgt, halved + 1);
                 options.push({ value: finish(k), choice: { trap } });
             } else if (trap.value === CARD_VALUES.ACE) {
                 // The attack is stopped and the human's Battle phase ends
@@ -213,7 +228,7 @@ class Bot {
                 const targets = game.board.getValidRedirectTargets(ai, context.attacker, context.defenderIndex, context.defender);
                 for (const t of targets) {
                     const j = withoutTrap(this.clone(S), trap);
-                    this.resolve(j, 'opp', ai, { side: t.player === game.bot ? 'me' : 'opp', index: t.index }, false);
+                    this.resolve(j, attackerSide, ai, { side: t.player === game.bot ? 'me' : 'opp', index: t.index }, halved);
                     options.push({ value: finish(j), choice: { trap, target: t } });
                 }
             }
@@ -224,40 +239,41 @@ class Bot {
     }
 
     /**
-     * The human sprang a trap against the bot's attack: cancel it with a Queen if that is worth the Queen
-     * @param {Card} trap
+     * The human's latest trap in a chain (their trap, or their Queen cancelling the bot's trap) can be
+     * cancelled with a Queen: do it if the outcome is worth the Queen
+     * @param {Card} latest - the trap to cancel
      * @param {Card[]} queens
+     * @param {Object} chain - see Game.activateTrapChain: { trap, target, effective, attack }
      * @returns {Card|null}
      */
-    chooseQueenCancel(trap, queens) {
-        const attack = this.currentAttack;
-        if (!attack || queens.length === 0) return null;
+    chooseQueenCancel(latest, queens, chain) {
+        if (!chain || queens.length === 0) return null;
+        const { trap, target, effective, attack } = chain;
         const S = this.snapshot();
-        const tgt = attack.target === null ? null : { side: 'opp', index: attack.target };
+        const side = p => (p === this.game.bot ? 'me' : 'opp');
+        const attackerSide = side(attack.attacker);
+        const ai = attack.attackerIndex;
+        const tgt = attack.targetIndex === null ? null : { side: side(attack.targetPlayer), index: attack.targetIndex };
+        // When the human is attacking, play out the rest of their Battle phase too
+        const finish = s => this.evaluate(attackerSide === 'me' ? s : this.oppBattle(s, { fresh: false }));
 
-        // Value if the trap goes through (the human chooses the Jack target that is worst for the bot)
-        let trapValue;
-        if (trap.value === CARD_VALUES.ACE) {
-            trapValue = this.evaluate(S);
-        } else if (trap.value === CARD_VALUES.KING) {
-            const k = this.clone(S);
-            this.resolve(k, 'me', attack.attackerIndex, tgt, true);
-            trapValue = this.evaluate(k);
-        } else {
-            trapValue = Math.min(...this.redirects(S, attack.attackerIndex, tgt).map(r => {
-                const j = this.clone(S);
-                this.resolve(j, 'me', attack.attackerIndex, r, false);
-                return this.evaluate(j);
-            }), this.evaluate(S));
-        }
+        // Value of the position whether or not the trap at the bottom of the chain takes effect
+        const outcome = applies => {
+            const s = this.clone(S);
+            if (applies && trap.value === CARD_VALUES.ACE) return this.evaluate(s); // attack and Battle phase over
+            if (applies && trap.value === CARD_VALUES.JACK) {
+                this.resolve(s, attackerSide, ai, { side: side(target.player), index: target.index }, attack.kingEffect);
+            } else {
+                this.resolve(s, attackerSide, ai, tgt, attack.kingEffect + (applies && trap.value === CARD_VALUES.KING ? 1 : 0));
+            }
+            return finish(s);
+        };
 
-        // Value if the Queen cancels it: the attack lands as planned, and the Queen is spent
-        const c = this.clone(S);
-        this.resolve(c, 'me', attack.attackerIndex, tgt, false);
-        const cancelValue = this.evaluate(c) - BOT_WEIGHTS.trapSet;
-
-        const options = [{ value: cancelValue, queen: queens[0] }, { value: trapValue, queen: null }]
-            .sort((a, b) => b.value - a.value);
+        // The Queen flips whether the trap stands, and is spent
+        const options = [
+            { value: outcome(!effective) - BOT_WEIGHTS.trapSet, queen: queens[0] },
+            { value: outcome(effective), queen: null }
+        ].sort((a, b) => b.value - a.value);
         return this.pick(options).queen;
     }
 
@@ -744,13 +760,13 @@ class Bot {
      * Resolve an attack in a simulated position, by the same rules as Board.handleAttack
      * @param {string} attackerSide - 'me' or 'opp'
      * @param {{side: string, index: number}|null} target - null for a direct attack
-     * @param {boolean} halved - a King halves the attacker
+     * @param {boolean|number} halved - how many Kings halve the attacker (true: one)
      */
     resolve(S, attackerSide, ai, target, halved) {
         const attacker = S[attackerSide].field[ai];
         if (!attacker) return;
         attacker.attacked = true;
-        const strength = halved ? applyKingEffect(attacker.str) : attacker.str;
+        const strength = applyKingHalvings(attacker.str, Number(halved) || 0);
         const defenderSide = attackerSide === 'me' ? 'opp' : 'me';
         if (!target) {
             S[defenderSide].hp -= strength;

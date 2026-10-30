@@ -103,6 +103,9 @@ class Deck {
      * @param {Card} card - Card to discard
      */
     discard(card) {
+        // A card can leave the field mid-battle (e.g. halved by a King and destroyed), so clear
+        // its battle state here; otherwise it comes back from a reshuffle still halved or spent
+        card.clearBattleState();
         card.state = CARD_STATES.IN_DISCARD;
         this.discardPile.push(card);
     }

@@ -43,7 +43,7 @@ class TutorialManager {
                     <ul>
                         <li><strong>Ace:</strong> End the opponent's Battle Phase immediately</li>
                         <li><strong>Jack:</strong> Redirect an attack to any other monster, including the attacker's own</li>
-                        <li><strong>Queen:</strong> Cancel an opponent's trap as it activates (not Jokers)</li>
+                        <li><strong>Queen:</strong> Cancel an opponent's trap as it activates, including their Queen (not Jokers)</li>
                         <li><strong>King:</strong> Halve the attacking monster's strength (round up)</li>
                     </ul>
                     
@@ -78,7 +78,7 @@ class TutorialManager {
                     <p>If the opponent has no monsters, you can attack directly. They take damage equal to the attacking monster's strength.</p>
                     
                     <h3>Traps in Combat</h3>
-                    <p>When attacked, the defender may respond with one armed trap. The attacker may then cancel that trap with an armed Queen. There is no time limit to respond.</p>
+                    <p>Traps chain. The player an attack is aimed at may answer first; after each trap the other player may answer it, and so on until both pass. Any trap can answer any other unless it makes no sense: a King only against an attack aimed at you (two Kings halve it twice), an Ace for the attacker only once their attack has been turned on their own monster, and a Queen cancels the trap just played, even a Queen. A Jack can answer a Jack. Each player can use only one trap of each type per turn. A sprung trap stays face up on the field until it is answered or the attack goes through. There is no time limit to respond.</p>
                 `
             },
             {

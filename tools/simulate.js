@@ -63,8 +63,13 @@ class UI {
     }
     addLogMessage(message) { if (window.traceLog) window.traceLog.push('T' + this.game.turnCounter + ' ' + message); }
     promptTrapResponse(context) { return Promise.resolve(window.human.chooseTrap(context)); }
-    promptCancelTrap(trap, queens) { return Promise.resolve(window.human.chooseQueen(trap, queens)); }
-    showFusionUpkeepDialog(count) { this.game.handleFusionUpkeep(window.human.payUpkeep(count), false); }
+    promptCancelTrap(trap, queens, chain) { return Promise.resolve(window.human.chooseQueen(trap, queens, chain)); }
+    showFusionUpkeepDialog(count) {
+        // A stand-in returns the cards to pay with, or { cards, keep } to also say which fusions to keep
+        const choice = window.human.payUpkeep(count);
+        if (Array.isArray(choice)) this.game.handleFusionUpkeep(choice, false);
+        else this.game.handleFusionUpkeep(choice.cards, false, choice.keep);
+    }
     showDiscardDialog(excess) { this.game.discardExcessCards(window.human.chooseDiscards(excess)); }
 }
 `, sandbox);
@@ -122,8 +127,9 @@ class ExpertHuman {
         }
     }
     chooseTrap(context) { return this.engine.chooseDefensiveTrap(context, context.traps); }
-    chooseQueen(trap, queens) { return this.engine.chooseQueenCancel(trap, queens); }
-    payUpkeep(count) { return this.engine.chooseUpkeepCards(); }
+    chooseQueen(trap, queens, chain) { return this.engine.chooseQueenCancel(trap, queens, chain); }
+    // The frozen baseline engine only picks the cards (the game then keeps the strongest fusions)
+    payUpkeep(count) { return this.engine.chooseUpkeep ? this.engine.chooseUpkeep() : this.engine.chooseUpkeepCards(); }
     chooseDiscards(excess) { return this.engine.selectCardsToDiscard(excess); }
 }
 `, sandbox);

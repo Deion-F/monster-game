@@ -79,7 +79,7 @@ const GAME_SETTINGS = {
     MAX_MONSTER_SPACES: 3,
     MAX_TRAP_SPACES: 3,
     JOKER_COUNT: 2, // Jokers shuffled into the deck at the start of a match
-    RESHUFFLE_DAMAGE: 10 // Each player takes this much damage whenever the empty deck is rebuilt from the discard pile
+    RESHUFFLE_DAMAGE: 0 // Each player takes this much damage whenever the empty deck is rebuilt from the discard pile (0: off)
 };
 
 const CARD_STATES = {
