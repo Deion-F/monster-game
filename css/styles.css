@@ -1,26 +1,96 @@
-/* Base styles */
+/*
+ * Theme: accents from the Flat UI "Dutch" palette (flatuicolors.com/palette/nl) on
+ * Material Design purples (materialui.co/colors).
+ * Sunflower yellow marks you; its complement, Forgotten Purple, marks the bot.
+ */
 :root {
-    --primary-color: #6200ee;
-    --primary-variant: #3700b3;
-    --secondary-color: #03dac6;
-    --secondary-variant: #018786;
-    --background: #ffffff;
-    --surface: #ffffff;
-    --error: #b00020;
-    --on-primary: #ffffff;
-    --on-secondary: #000000;
-    --on-background: #000000;
-    --on-surface: #000000;
-    --on-error: #ffffff;
-    --elevation-1: 0 2px 1px -1px rgba(0,0,0,0.2), 0 1px 1px 0 rgba(0,0,0,0.14), 0 1px 3px 0 rgba(0,0,0,0.12);
-    --elevation-2: 0 3px 1px -2px rgba(0,0,0,0.2), 0 2px 2px 0 rgba(0,0,0,0.14), 0 1px 5px 0 rgba(0,0,0,0.12);
-    --elevation-3: 0 3px 3px -2px rgba(0,0,0,0.2), 0 3px 4px 0 rgba(0,0,0,0.14), 0 1px 8px 0 rgba(0,0,0,0.12);
-    --elevation-4: 0 2px 4px -1px rgba(0,0,0,0.2), 0 4px 5px 0 rgba(0,0,0,0.14), 0 1px 10px 0 rgba(0,0,0,0.12);
-    --elevation-6: 0 3px 5px -1px rgba(0,0,0,0.2), 0 6px 10px 0 rgba(0,0,0,0.14), 0 1px 18px 0 rgba(0,0,0,0.12);
-    --card-width: 100px;
-    --card-height: 140px;
-    --space-width: 100px;
-    --space-height: 140px;
+    /* Palette */
+    --sunflower: #FFC312;
+    --radiant-yellow: #F79F1F;
+    --forgotten-purple: #9980FA;
+    --bara-red: #ED4C67;
+    --red-pigment: #EA2027;
+    --very-berry: #B53471;
+    --hollyhock: #833471;
+    --lavender-rose: #FDA7DF;
+    --energos: #C4E538;
+    --blue-martina: #12CBC4;
+    --puffins-bill: #EE5A24;
+    --turkish-aqua: #006266;
+
+    /*
+     * Material Purple. Its darkest swatch, Purple 900, is lighter than this game's
+     * backgrounds, so the dark tones below are shades of it (same hue, darker). Each is
+     * matched to the luminance of the navy it replaced, so every contrast ratio is unchanged.
+     */
+    --purple-900: #4A148C; /* Material Purple 900 */
+    --purple-800: #6A1B9A; /* Material Purple 800 */
+    --purple-shade-950: #2F1154;
+    --purple-shade-975: #260D45;
+    --purple-shade-990: #1E0B35;
+    --purple-mid: #7B4BB6;
+
+    /* Surfaces and text */
+    --ground: var(--purple-shade-990);
+    --surface: var(--purple-shade-950);
+    --surface-sunken: var(--purple-shade-975);
+    --line: var(--purple-900);
+    --line-strong: var(--purple-mid);
+    --text: #F7F0FF;
+    --text-soft: #E4D5F6;
+    --text-muted: #C8AFE7;
+    --ink: var(--purple-shade-950); /* dark text on light fills: cards, yellow buttons */
+    --backdrop: rgba(15, 5, 27, 0.72);
+    --label-fill: rgba(30, 11, 53, 0.82);
+
+    /* Roles */
+    --you: var(--sunflower);
+    --you-hover: var(--radiant-yellow);
+    --on-you: var(--ink);
+    --bot: var(--forgotten-purple);
+    --danger: var(--bara-red);
+    --success: var(--energos);
+    --react: var(--blue-martina);
+    --redirect: var(--puffins-bill);
+
+    /* Cards */
+    --card-face: #F7F4EC;
+    --card-face-dim: #CEC3DC;
+    --card-ink: var(--ink);
+    --card-ink-muted: #6A5781;
+    --suit-red: var(--red-pigment);
+    --badge-normal: var(--ink);
+    --badge-big: var(--turkish-aqua);
+    --badge-fusion: var(--hollyhock);
+    --badge-weakened: var(--very-berry);
+    --card-back: repeating-linear-gradient(45deg, var(--purple-800) 0 6px, var(--purple-900) 6px 12px);
+
+    --font-display: 'Chakra Petch', 'Inter', sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+
+    /*
+     * --c is the height of a field card. The board column stacks 2 monster rows and
+     * 2 trap rows (0.66x), about 3.3 card heights, plus ~190px for the midline and padding.
+     * It also has to leave room for the two corner columns on narrower windows.
+     * Every sizing context below redeclares --card-height and --card-width from --c,
+     * because custom properties resolve where they are declared.
+     */
+    --c: clamp(96px, min(calc((100vh - 190px) / 3.32), calc((100vw - 640px) / 2.54)), 210px);
+    --card-height: var(--c);
+    --card-width: calc(var(--card-height) * 0.72);
+    --trap-height: calc(var(--c) * 0.66);
+    --trap-width: calc(var(--trap-height) * 0.74);
+    --crest: clamp(96px, calc(var(--c) * 0.7), 136px);
+
+    --shadow-card: 0 4px 0 rgba(0, 0, 0, 0.4);
+    --shadow-lift: 0 18px 40px rgba(0, 0, 0, 0.6);
+    --shadow-raised: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+@supports (height: 100dvh) {
+    :root {
+        --c: clamp(96px, min(calc((100dvh - 190px) / 3.32), calc((100vw - 640px) / 2.54)), 210px);
+    }
 }
 
 * {
@@ -30,221 +100,283 @@
 }
 
 body {
-    font-family: 'Roboto', sans-serif;
-    color: var(--on-background);
-    background-color: #f5f5f5;
-    line-height: 1.6;
+    font-family: var(--font-body);
+    color: var(--text);
+    background-color: var(--ground);
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
 }
+
+button {
+    font: inherit;
+    color: inherit;
+}
+
+button:focus-visible,
+.card:focus-visible,
+[tabindex]:focus-visible {
+    outline: 3px solid var(--react);
+    outline-offset: 2px;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Layout: the board in the middle, each player owning two corners     */
+/* ------------------------------------------------------------------ */
 
 .game-container {
-    max-width: 1200px;
-    min-height: 100vh;
-    margin: 0 auto;
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
 }
 
-/* Game Header */
-.game-header {
-    text-align: center;
-    margin-bottom: 1rem;
-    padding: 0.5rem;
-    background-color: var(--surface);
-    border-radius: 8px;
-    box-shadow: var(--elevation-1);
-}
-
-.game-header h1 {
-    color: var(--primary-color);
-    margin-bottom: 0.5rem;
-}
-
-.game-status {
-    display: flex;
-    justify-content: center;
-    gap: 2rem;
-    font-size: 1.1rem;
-    font-weight: 500;
-}
-
-#turn-indicator {
-    color: var(--primary-color);
-}
-
-#phase-indicator {
-    color: var(--secondary-variant);
-}
-
-/* Game Board */
 .game-board {
+    height: 100%;
+    padding: 16px 24px;
+    display: grid;
+    grid-template-columns: minmax(200px, 1fr) auto minmax(200px, 1fr);
+    grid-template-rows: 1fr auto 1fr;
+    column-gap: 24px;
+}
+
+.bot-stats { grid-column: 1; grid-row: 1; align-self: start; }
+.bot-hand-corner { grid-column: 3; grid-row: 1; }
+.deck-cell { grid-column: 1; grid-row: 2; justify-self: end; }
+.board-panel { grid-column: 2; grid-row: 1 / 4; }
+.discard-cell { grid-column: 3; grid-row: 2; justify-self: start; }
+.hand-corner { grid-column: 1; grid-row: 3; }
+.player-corner { grid-column: 3; grid-row: 3; align-self: end; justify-self: end; }
+
+/* ------------------------------------------------------------------ */
+/* Board                                                               */
+/* ------------------------------------------------------------------ */
+
+.board-panel {
+    position: relative;
+    width: max(440px, calc(var(--card-width) * 3.52 + 64px));
+    min-height: 0;
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    padding: 12px 24px;
     display: flex;
     flex-direction: column;
-    flex: 1;
-    gap: 1rem;
+    justify-content: space-evenly;
+    align-items: center;
 }
 
 .player-area {
     display: flex;
     flex-direction: column;
-    background-color: var(--surface);
-    border-radius: 8px;
-    padding: 1rem;
-    box-shadow: var(--elevation-2);
-}
-
-.bot-area {
-    order: 1;
-}
-
-.player-area-human {
-    order: 3;
-}
-
-.center-area {
-    order: 2;
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem;
-    background-color: var(--surface);
-    border-radius: 8px;
-    box-shadow: var(--elevation-1);
-}
-
-/* Player Info */
-.player-info {
-    display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.5rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid rgba(0,0,0,0.12);
+    gap: calc(var(--c) * 0.08);
+    padding: 4px 12px;
+    border-radius: 16px;
+    transition: box-shadow 0.2s ease;
 }
 
-.player-name {
-    font-weight: 500;
-    font-size: 1.2rem;
-}
-
-.player-health {
+.monster-row {
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 1.1rem;
+    gap: calc(var(--card-width) * 0.26);
 }
 
-.health-value {
-    font-weight: 700;
-    color: var(--error);
-}
-
-.deck-info {
+.trap-row {
     display: flex;
-    align-items: center;
-    gap: 1rem;
+    gap: calc(var(--trap-width) * 0.26);
 }
 
-.hand-count {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.hand-icon {
-    font-size: 1.2rem;
-}
-
-/* Board Spaces */
-.board-spaces {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
-
-.monster-row, .trap-row {
-    display: flex;
-    justify-content: center;
-    gap: 1rem;
-}
-
-.monster-space, .trap-space {
-    width: var(--space-width);
-    height: var(--space-height);
-    border: 2px dashed #ccc;
-    border-radius: 8px;
+.monster-space,
+.trap-space {
+    width: var(--card-width);
+    height: var(--card-height);
+    border: 1px dashed var(--line-strong);
+    border-radius: 12px;
     display: flex;
     justify-content: center;
     align-items: center;
     position: relative;
 }
 
-.monster-space.highlight, .trap-space.highlight {
-    border: 2px solid var(--secondary-color);
-    background-color: rgba(3, 218, 198, 0.1);
+.trap-space {
+    width: var(--trap-width);
+    height: var(--trap-height);
+    border-radius: 9px;
 }
 
-/* Cards */
+.monster-space:has(.card),
+.trap-space:has(.card) {
+    border-color: transparent;
+}
+
+/* Setup: open spaces you can play into. Battle: monsters that can attack. */
+.player-area-human .phase-highlight {
+    border: 1px dashed var(--you);
+    background-color: rgba(255, 195, 18, 0.07);
+    cursor: pointer;
+}
+
+.player-area-human .phase-highlight .card {
+    cursor: pointer;
+}
+
+/* Selected attacker */
+.player-area-human .monster-space.highlight .card {
+    outline: 3px solid var(--you);
+    outline-offset: 4px;
+    transform: translateY(-6px);
+}
+
+/* Valid attack targets, then the one under the pointer */
+.bot-area .monster-space.highlight .card {
+    outline: 2px dashed var(--danger);
+    outline-offset: 4px;
+    cursor: pointer;
+}
+
+.bot-area .monster-space.targeted .card {
+    outline: 3px solid var(--danger);
+    outline-offset: 4px;
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-card), 0 0 28px rgba(237, 76, 103, 0.45);
+}
+
+/* A direct attack aims at the bot's whole side */
+.bot-area.direct-target {
+    box-shadow: inset 0 0 0 2px var(--danger);
+    cursor: pointer;
+}
+
+/* The monster making an attack while it resolves, in its owner's color */
+.player-area-human .monster-space.attack-source .card {
+    outline: 3px solid var(--you);
+    outline-offset: 4px;
+}
+
+.bot-area .monster-space.attack-source .card {
+    outline: 3px solid var(--bot);
+    outline-offset: 4px;
+}
+
+/* Midline: turn caption and phase tracker */
+.center-area {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.center-rule {
+    flex: 1;
+    height: 1px;
+    background: var(--line-strong);
+}
+
+.turn-tracker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.turn-caption {
+    display: flex;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+#phase-indicator {
+    color: var(--you);
+}
+
+#phase-indicator.bot-turn {
+    color: var(--bot);
+}
+
+.phase-steps {
+    list-style: none;
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: var(--ground);
+    border-radius: 10px;
+}
+
+.phase-steps li {
+    padding: 0 16px;
+    font: 500 14px/34px var(--font-body);
+    color: var(--text-muted);
+    border-radius: 7px;
+}
+
+.phase-steps li[aria-current="step"] {
+    font-weight: 700;
+    color: var(--on-you);
+    background: var(--you);
+}
+
+.phase-steps.bot-turn li[aria-current="step"] {
+    background: var(--bot);
+    color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ */
+/* Cards                                                               */
+/* ------------------------------------------------------------------ */
+
 .card {
     width: var(--card-width);
     height: var(--card-height);
-    border-radius: 8px;
-    box-shadow: var(--elevation-2);
+    border-radius: calc(var(--card-height) * 0.065);
+    background-color: var(--card-face);
+    color: var(--card-ink);
+    box-shadow: var(--shadow-card);
     position: relative;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    cursor: pointer;
-    background-color: white;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    user-select: none;
 }
 
-.card:hover {
-    transform: translateY(-5px);
-    box-shadow: var(--elevation-4);
-}
-
-.card-back {
-    background-color: var(--primary-color);
-    background-image: 
-        repeating-linear-gradient(
-            45deg, 
-            rgba(255, 255, 255, 0.1), 
-            rgba(255, 255, 255, 0.1) 10px, 
-            rgba(0, 0, 0, 0.1) 10px, 
-            rgba(0, 0, 0, 0.1) 20px
-        );
+.monster-space .card,
+.trap-space .card {
+    width: 100%;
+    height: 100%;
 }
 
 .card-value {
     position: absolute;
-    top: 0.25rem;
-    left: 0.25rem;
-    font-size: 1.5rem;
-    font-weight: 700;
-    z-index: 2;
+    top: 7%;
+    left: 9%;
+    font: 700 calc(var(--card-height) * 0.17)/1 var(--font-display);
 }
 
-.card-value.red {
-    color: #d32f2f;
+.card-value.red,
+.card-content.red,
+.hearts,
+.diamonds {
+    color: var(--suit-red);
 }
 
-.card-value.black {
-    color: #212121;
-}
-
-.card-type {
-    position: absolute;
-    top: 0.25rem;
-    right: 0.25rem;
-    font-size: 0.8rem;
-    font-weight: 500;
-    background-color: rgba(0, 0, 0, 0.6);
-    color: white;
-    padding: 0.1rem 0.3rem;
-    border-radius: 3px;
-    z-index: 2;
+.card-value.black,
+.card-content.black,
+.clubs,
+.spades {
+    color: var(--card-ink);
 }
 
 .card-content {
@@ -252,42 +384,107 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 2.5rem;
-    padding: 0.5rem;
+    font-size: calc(var(--card-height) * 0.28);
+    line-height: 1;
 }
 
-.card.normal {
-    background-color: #e3f2fd;
+.card-type {
+    position: absolute;
+    left: 9%;
+    right: calc(var(--card-height) * 0.2 + 14px);
+    bottom: 8%;
+    font: 600 max(9px, calc(var(--card-height) * 0.058))/1.15 var(--font-body);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--card-ink-muted);
 }
 
-.card.big {
-    background-color: #dcedc8;
+.monster-strength,
+.fusion-value {
+    position: absolute;
+    right: 6%;
+    bottom: 5%;
+    min-width: calc(var(--card-height) * 0.19);
+    height: calc(var(--card-height) * 0.19);
+    padding: 0 4px;
+    border-radius: 99px;
+    background: var(--badge-normal);
+    color: #FFFFFF;
+    font: 700 calc(var(--card-height) * 0.1)/calc(var(--card-height) * 0.19) var(--font-display);
+    text-align: center;
 }
 
-.card.trap {
-    background-color: #ffecb3;
+.card.big .monster-strength {
+    background: var(--badge-big);
 }
 
-.card.joker {
-    background-color: #f8bbd0;
+.fusion-value {
+    background: var(--badge-fusion);
 }
 
-.card.fusion {
-    background-color: #b2dfdb;
-    background-image: linear-gradient(45deg, #b2dfdb 25%, #80cbc4 25%, #80cbc4 50%, #b2dfdb 50%, #b2dfdb 75%, #80cbc4 75%, #80cbc4);
-    background-size: 10px 10px;
+.card.weakened .monster-strength,
+.card.weakened .fusion-value {
+    background: var(--badge-weakened);
 }
 
-.card.face-down {
-    background-color: var(--primary-color);
-    background-image: 
-        repeating-linear-gradient(
-            45deg, 
-            rgba(255, 255, 255, 0.1), 
-            rgba(255, 255, 255, 0.1) 10px, 
-            rgba(0, 0, 0, 0.1) 10px, 
-            rgba(0, 0, 0, 0.1) 20px
-        );
+.card.weakened {
+    box-shadow: 0 0 0 2px var(--badge-weakened), var(--shadow-card);
+}
+
+/* Fusion upkeep, shown on fusions on the field */
+.upkeep-badge {
+    position: absolute;
+    left: 50%;
+    top: -11px;
+    transform: translateX(-50%);
+    padding: 3px 8px;
+    border-radius: 99px;
+    background: var(--very-berry);
+    color: #FFFFFF;
+    font: 700 10px var(--font-body);
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    z-index: 2;
+}
+
+/* Joker faces */
+.card.joker .card-value {
+    font-size: calc(var(--card-height) * 0.1);
+    letter-spacing: 0.04em;
+}
+
+.card.joker .card-value,
+.card.joker .card-content {
+    color: var(--hollyhock);
+}
+
+.card.selected {
+    outline: 3px solid var(--you);
+    outline-offset: 3px;
+}
+
+.card.disabled {
+    cursor: default;
+}
+
+.card.can-attack {
+    box-shadow: 0 0 0 2px rgba(255, 195, 18, 0.6), var(--shadow-card);
+}
+
+.card.attacked {
+    opacity: 0.5;
+    box-shadow: none;
+}
+
+.card.attacked .monster-strength,
+.card.attacked .fusion-value {
+    background: var(--card-ink-muted);
+}
+
+.card.face-down,
+.card.card-back {
+    background: var(--card-back);
+    border: 1px solid var(--bot);
 }
 
 .card.face-down .card-value,
@@ -296,151 +493,1012 @@ body {
     display: none;
 }
 
-.card.disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.card.selected {
-    border: 3px solid var(--secondary-color);
-}
-
-.card.can-attack {
-    box-shadow: 0 0 0 3px #4caf50;
-}
-
-.card.fusion-component {
-    position: relative;
-}
-
-.fusion-value {
-    position: absolute;
-    bottom: 0.25rem;
-    left: 0.25rem;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 0.1rem 0.3rem;
-    border-radius: 3px;
-    font-weight: 700;
-    font-size: 0.9rem;
-}
-
-/* Deck and Discard */
-.deck-container {
-    display: flex;
-    gap: 2rem;
-}
-
-.deck, .discard-pile {
-    width: var(--card-width);
-    height: var(--card-height);
-    position: relative;
-    display: flex;
-    justify-content: center;
+/* Traps on the field: rank and suit, with an armed / next-turn label */
+.trap-space .card {
     align-items: center;
-}
-
-.deck-count, .discard-count {
-    position: absolute;
-    bottom: -1.5rem;
-    width: 100%;
-    text-align: center;
-    font-weight: 500;
-}
-
-.discard-empty {
-    opacity: 0.3;
-}
-
-/* Game Controls */
-.game-controls {
-    display: flex;
-    flex-direction: column;
     justify-content: center;
-    gap: 1rem;
+    padding: 6px 2px 20%;
 }
 
-.action-button {
-    padding: 0.75rem 1.5rem;
-    background-color: var(--primary-color);
-    color: var(--on-primary);
-    border: none;
-    border-radius: 4px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    box-shadow: var(--elevation-2);
+.trap-space .card-value {
+    position: static;
+    font-size: calc(var(--trap-height) * 0.21);
 }
 
-.action-button:hover {
-    background-color: var(--primary-variant);
+.trap-space .card-content {
+    flex: 0 0 auto;
+    font-size: calc(var(--trap-height) * 0.2);
 }
 
-.action-button:disabled {
-    background-color: #9e9e9e;
-    cursor: not-allowed;
+.trap-space .card-type {
+    display: none;
 }
 
-/* Game Log */
-.game-log {
-    min-width: 250px;
-    height: var(--card-height);
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
+.trap-status-badge {
+    display: none;
 }
 
-.log-header {
-    background-color: var(--primary-color);
-    color: var(--on-primary);
-    padding: 0.5rem;
-    font-weight: 500;
+.trap-space .trap-status-badge,
+.trap-face-label {
+    display: block;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 7%;
+    font: 600 max(9px, calc(var(--trap-height) * 0.08))/1.1 var(--font-body);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     text-align: center;
+    color: var(--card-ink-muted);
 }
 
-.log-content {
-    flex: 1;
-    padding: 0.5rem;
-    overflow-y: auto;
-    font-size: 0.9rem;
+.card.trap-active {
+    box-shadow: 0 0 0 2px var(--you), var(--shadow-card);
 }
 
-.log-entry {
-    margin-bottom: 0.3rem;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px dashed #e0e0e0;
+.card.trap-active .trap-status-badge {
+    color: #6B4A00;
 }
 
-.log-entry:last-child {
-    margin-bottom: 0;
-    padding-bottom: 0;
-    border-bottom: none;
+.card.trap-disabled {
+    background-color: var(--card-face-dim);
+    box-shadow: none;
 }
 
-/* Player Hand */
-.player-hand-container {
-    overflow-x: auto;
-    padding: 1rem 0;
+.trap-face-label {
+    color: var(--text-soft);
+}
+
+.card.face-down.armed {
+    box-shadow: 0 0 0 1px var(--bot);
+}
+
+.card.face-down:not(.armed) {
+    border-color: var(--line-strong);
+    opacity: 0.85;
+}
+
+/* Illustrated faces: the artwork carries the rank and suit, so only the labels sit on top */
+.card.has-art,
+.fx-chip.has-art {
+    background-color: transparent;
+    background-size: cover;
+    background-position: center;
+}
+
+.card.has-art .card-value,
+.card.has-art .card-content {
+    visibility: hidden;
+}
+
+.card.has-art .card-type,
+.card.has-art .trap-status-badge {
+    right: auto;
+    max-width: calc(100% - 14px);
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: var(--label-fill);
+    color: var(--text);
+}
+
+.card.has-art .trap-status-badge {
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: calc(100% - 6px);
+}
+
+.card.has-art.trap-active .trap-status-badge {
+    color: var(--you);
+}
+
+.card.has-art.trap-disabled {
+    background-color: transparent;
+    filter: brightness(0.6) saturate(0.6);
+}
+
+/* ------------------------------------------------------------------ */
+/* Your hand: a fan in the bottom-left corner that zooms on hover      */
+/* ------------------------------------------------------------------ */
+
+.hand-corner {
+    position: relative;
+    min-height: 0;
+}
+
+.count-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 99px;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.hand-corner .count-badge {
+    position: absolute;
+    left: 0;
+    top: 0;
 }
 
 .player-hand {
-    display: flex;
-    gap: 0.5rem;
-    min-height: calc(var(--card-height) + 10px);
-    padding: 0.5rem;
+    --card-height: calc(var(--c) * 0.85);
+    --card-width: calc(var(--card-height) * 0.71);
+    position: absolute;
+    left: calc(var(--card-width) * 0.35);
+    right: 0;
+    bottom: -16px;
+    height: var(--card-height);
 }
 
-/* Dialogs */
+.player-hand .card {
+    position: absolute;
+    left: var(--fan-x, 0px);
+    bottom: calc(var(--card-height) * -0.16);
+    z-index: var(--fan-z, 1);
+    transform: translateY(var(--fan-y, 0px)) rotate(var(--fan-rot, 0deg));
+    transform-origin: 50% 100%;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.player-hand .card.disabled {
+    opacity: 0.75;
+}
+
+.player-hand .card.selected {
+    z-index: 25;
+    transform: translateY(calc(var(--card-height) * -0.22)) rotate(0deg);
+}
+
+/* Hover or focus straightens the card, lifts it out of the fan and zooms it */
+.player-hand .card:hover,
+.player-hand .card:focus-visible {
+    z-index: 30;
+    opacity: 1;
+    transform: translateY(calc(var(--card-height) * -0.42)) rotate(0deg) scale(1.65);
+    box-shadow: var(--shadow-lift);
+}
+
+/*
+ * The lifted card leaves its spot in the fan, which could put the pointer over the next
+ * card and make the zoom flicker between them. This strip (in the card's scaled space:
+ * 0.42 / 1.65 of its height) keeps covering that spot while the card is zoomed.
+ */
+.player-hand .card:hover::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: 26%;
+}
+
+/* ------------------------------------------------------------------ */
+/* The bot's face-down hand, hanging from the top-right corner         */
+/* ------------------------------------------------------------------ */
+
+.bot-hand-corner {
+    position: relative;
+    min-height: 0;
+}
+
+.bot-hand-fan {
+    --card-height: calc(var(--c) * 0.62);
+    --card-width: calc(var(--card-height) * 0.71);
+    position: absolute;
+    right: calc(var(--card-width) * 0.2);
+    top: -16px;
+    width: 100%;
+    height: var(--card-height);
+}
+
+.bot-hand-fan .card {
+    position: absolute;
+    right: var(--fan-x, 0px);
+    top: calc(var(--card-height) * -0.2);
+    transform: translateY(var(--fan-y, 0px)) rotate(var(--fan-rot, 0deg));
+    transform-origin: 50% 0;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+    cursor: default;
+}
+
+.bot-badge {
+    position: absolute;
+    right: calc(var(--c) * 0.3);
+    top: calc(var(--c) * 0.55);
+    border-color: var(--bot);
+    color: var(--text);
+}
+
+/* ------------------------------------------------------------------ */
+/* Health crests                                                       */
+/* ------------------------------------------------------------------ */
+
+.crest-group {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.crest {
+    position: relative;
+    width: var(--crest);
+    height: var(--crest);
+    flex: 0 0 auto;
+    border-radius: 50%;
+}
+
+.crest-ring {
+    width: 100%;
+    height: 100%;
+    display: block;
+    overflow: visible;
+    transition: filter 0.2s ease;
+}
+
+.crest-dots {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: 2;
+    stroke-dasharray: 2 5;
+}
+
+.crest-track {
+    fill: var(--surface);
+    stroke: var(--line);
+    stroke-width: 10;
+}
+
+.crest-fill {
+    fill: none;
+    stroke-width: 10;
+    stroke-linecap: round;
+    stroke-dasharray: 339.3 339.3;
+    transition: stroke-dasharray 0.5s ease, stroke 0.3s ease;
+}
+
+.bot-stats .crest-fill { stroke: var(--bot); }
+.player-stats .crest-fill { stroke: var(--you); }
+
+.crest-value {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+.health-value {
+    font: 700 calc(var(--crest) * 0.37)/1 var(--font-display);
+}
+
+.crest-max {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+}
+
+.crest-label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.player-stats .crest-label {
+    align-items: flex-end;
+}
+
+.player-name {
+    font: 700 22px var(--font-display);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.bot-stats .player-name { color: var(--bot); }
+.player-stats .player-name { color: var(--you); }
+
+.crest-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.crest-sub:empty {
+    display: none;
+}
+
+/* Whose turn it is: the active crest glows */
+.bot-stats.phase-active .crest-ring { filter: drop-shadow(0 0 14px rgba(153, 128, 250, 0.45)); }
+.player-stats.phase-active .crest-ring { filter: drop-shadow(0 0 14px rgba(255, 195, 18, 0.35)); }
+
+/* A quarter of health or less */
+.crest-group.low .crest-fill { stroke: var(--danger); }
+.crest-group.low .health-value { color: var(--danger); }
+.crest-group.low .crest-dots { stroke: var(--danger); }
+.crest-group.low .crest-ring {
+    filter: drop-shadow(0 0 16px rgba(237, 76, 103, 0.6));
+    animation: low-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes low-pulse {
+    50% { filter: drop-shadow(0 0 4px rgba(237, 76, 103, 0.3)); }
+}
+
+.low-tag {
+    padding: 2px 8px;
+    border-radius: 99px;
+    background: var(--danger);
+    color: var(--ground);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* ------------------------------------------------------------------ */
+/* Piles: deck, discard, Jokers played                                 */
+/* ------------------------------------------------------------------ */
+
+.pile-cell {
+    align-self: center;
+    display: flex;
+    align-items: flex-end;
+    gap: 18px;
+}
+
+.pile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 6px;
+    background: none;
+    border: 0;
+    border-radius: 10px;
+    color: var(--text);
+}
+
+button.pile {
+    cursor: pointer;
+}
+
+button.pile:hover .pile-label {
+    color: var(--text);
+}
+
+.pile-stack {
+    --card-height: calc(var(--c) * 0.7);
+    --card-width: calc(var(--card-height) * 0.71);
+    position: relative;
+    display: block;
+    width: calc(var(--card-width) * 1.4);
+    height: calc(var(--card-height) + 12px);
+}
+
+#deck-stack {
+    width: calc(var(--card-width) + 12px);
+}
+
+.joker-pile .pile-stack {
+    --card-height: calc(var(--c) * 0.6);
+    --card-width: calc(var(--card-height) * 0.71);
+    width: calc(var(--card-width) * 1.3);
+}
+
+.pile-stack > * {
+    position: absolute;
+    width: var(--card-width);
+    height: var(--card-height);
+}
+
+.pile-stack .card {
+    cursor: inherit;
+}
+
+.pile-layer {
+    border-radius: calc(var(--card-height) * 0.065);
+    background: var(--purple-900);
+    border: 1px solid var(--line-strong);
+}
+
+.pile-layer.top {
+    background: var(--card-back);
+    border-color: var(--bot);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
+}
+
+.pile-slot {
+    border-radius: calc(var(--card-height) * 0.065);
+    border: 1px dashed var(--line-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(var(--card-height) * 0.24);
+    color: var(--line-strong);
+}
+
+.pile-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.pile-count {
+    font: 700 18px var(--font-display);
+    letter-spacing: 0;
+    color: var(--text);
+}
+
+/* ------------------------------------------------------------------ */
+/* Your corner: hint, crest and controls                               */
+/* ------------------------------------------------------------------ */
+
+.player-corner {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+    min-height: 0;
+}
+
+.hint-line {
+    max-width: 320px;
+    text-align: right;
+    font-size: 14px;
+    color: var(--text-soft);
+}
+
+.hint-line:empty {
+    display: none;
+}
+
+.corner-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon-button {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.icon-button:hover,
+.icon-button[aria-expanded="true"] {
+    background: var(--surface);
+    border-color: var(--you);
+    color: var(--you);
+}
+
+.icon-button.small {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+}
+
+.unread-dot {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--you);
+    display: none;
+}
+
+.icon-button.has-unread .unread-dot {
+    display: block;
+}
+
+.menu-wrap {
+    position: relative;
+}
+
+.game-menu {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    min-width: 170px;
+    padding: 6px;
+    border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    box-shadow: var(--shadow-raised);
+    display: flex;
+    flex-direction: column;
+    z-index: 50;
+}
+
+.menu-item {
+    min-height: 44px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+}
+
+.menu-item:hover {
+    background: var(--surface-sunken);
+}
+
+.menu-item.danger {
+    color: var(--lavender-rose);
+}
+
+.menu-item:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.action-button {
+    height: 56px;
+    padding: 0 22px;
+    border-radius: 14px;
+    border: 0;
+    background: var(--you);
+    color: var(--on-you);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.action-button:hover:not(:disabled) {
+    background: var(--you-hover);
+}
+
+.action-button:disabled {
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.end-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+}
+
+#end-phase-label {
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.end-sub {
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0.8;
+}
+
+.key-hint {
+    font: 600 11px var(--font-body);
+    border: 1px solid currentColor;
+    border-radius: 5px;
+    padding: 2px 6px;
+    opacity: 0.75;
+}
+
+.action-button:disabled .key-hint {
+    display: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Battle log drawer                                                   */
+/* ------------------------------------------------------------------ */
+
+.log-drawer {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: min(400px, 90vw);
+    padding: 22px 22px 22px 28px;
+    background: var(--surface);
+    border-right: 1px solid var(--line-strong);
+    box-shadow: 16px 0 40px rgba(0, 0, 0, 0.5);
+    z-index: 800;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.log-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.log-head h2 {
+    font: 700 22px var(--font-display);
+    letter-spacing: 0.02em;
+}
+
+.log-content {
+    list-style: none;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.log-turn + .log-turn {
+    border-top: 1px solid var(--line);
+}
+
+.log-turn summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    cursor: pointer;
+    list-style: none;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.log-turn summary::-webkit-details-marker {
+    display: none;
+}
+
+.log-turn summary::after {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+    margin-right: 4px;
+    transition: transform 0.15s ease;
+}
+
+.log-turn details[open] summary::after {
+    transform: rotate(45deg);
+}
+
+.log-turn.is-current summary {
+    color: var(--you);
+}
+
+.log-count {
+    margin-left: auto;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.log-entries {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding-bottom: 14px;
+    font-size: 14px;
+    color: var(--text-soft);
+}
+
+.log-turn.is-current .log-entries {
+    color: var(--text);
+}
+
+.log-entries:empty::before {
+    content: 'Nothing yet this turn.';
+    color: var(--text-muted);
+}
+
+.log-entry {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+}
+
+.log-entry::before {
+    content: '';
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--text-muted);
+}
+
+.log-entry.log-you::before {
+    background: var(--you);
+}
+
+.log-entry.log-bot::before {
+    background: var(--bot);
+}
+
+/* ------------------------------------------------------------------ */
+/* Board prompts: choices made on the board, confirmed in your corner  */
+/* ------------------------------------------------------------------ */
+
+/* Each kind of choice has a color for its panel border and card marks */
+body.prompt-danger { --pick: var(--danger); --on-pick: var(--ground); }
+body.prompt-fusion { --pick: var(--very-berry); --on-pick: #FFFFFF; }
+body.prompt-react { --pick: var(--react); --on-pick: var(--ground); }
+body.prompt-redirect { --pick: var(--redirect); --on-pick: var(--ground); }
+body.prompt-you { --pick: var(--you); --on-pick: var(--ground); }
+
+.prompt-panel {
+    width: min(340px, 100%);
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: var(--surface);
+    border: 2px solid var(--pick, var(--line-strong));
+    box-shadow: var(--shadow-raised);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.prompt-kicker {
+    font: 700 16px/1.25 var(--font-display);
+    color: var(--text);
+}
+
+.prompt-text {
+    font-size: 13px;
+    color: var(--text-soft);
+}
+
+.prompt-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.prompt-status {
+    font: 700 16px var(--font-display);
+}
+
+.prompt-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.prompt-button {
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.prompt-button:hover:not(:disabled) {
+    background: var(--surface-sunken);
+}
+
+.prompt-button.primary {
+    border-color: var(--you);
+    background: var(--you);
+    color: var(--on-you);
+    font-weight: 700;
+}
+
+.prompt-button.primary:hover:not(:disabled) {
+    background: var(--you-hover);
+    border-color: var(--you-hover);
+}
+
+.prompt-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* While choosing, the panel takes the place of the hint and the turn controls */
+.prompting .hint-line,
+.prompting .corner-controls {
+    display: none;
+}
+
+/* Short windows: make room for the panel by shrinking your health crest while choosing */
+@media (max-height: 760px) {
+    .prompting .player-stats .crest {
+        --crest: 76px;
+    }
+
+    .prompting .player-stats .crest-label {
+        display: none;
+    }
+
+    .prompt-panel {
+        padding: 10px 12px;
+        gap: 4px;
+    }
+
+    .prompt-kicker {
+        font-size: 15px;
+    }
+
+    .prompt-button {
+        min-height: 36px;
+    }
+}
+
+/* Setup's "open space" glow would compete with the choice */
+.prompting .player-area-human .phase-highlight {
+    border-color: var(--line-strong);
+    background-color: transparent;
+}
+
+/* Cards you can pick: a dashed ring in the choice's color. Picked: solid ring and a tag. */
+.prompting .player-hand .card:not(.pickable):not(.picked):not(.selected) {
+    opacity: 0.45;
+}
+
+.player-hand .card.pickable {
+    opacity: 1;
+    cursor: pointer;
+    box-shadow: 0 0 0 2px var(--pick), 0 6px 14px rgba(0, 0, 0, 0.45);
+}
+
+.player-hand .card.picked {
+    opacity: 1;
+    z-index: 24;
+    transform: translateY(calc(var(--card-height) * -0.22)) rotate(0deg);
+    box-shadow: 0 0 0 3px var(--pick), var(--shadow-lift);
+}
+
+.board-panel .pickable,
+.board-panel .pickable .card {
+    cursor: pointer;
+}
+
+.board-panel .pickable .card {
+    outline: 2px dashed var(--pick);
+    outline-offset: 4px;
+}
+
+.board-panel .picked .card {
+    outline: 3px solid var(--pick);
+    outline-offset: 4px;
+}
+
+/* Traps that can answer an attack glow in their slots */
+.prompt-react .trap-space.pickable .card {
+    box-shadow: 0 0 0 2px var(--react), 0 0 20px rgba(18, 203, 196, 0.55);
+}
+
+.card[data-pick-label]::before,
+.monster-space[data-pick-label]::before,
+.trap-space[data-pick-label]::before {
+    content: attr(data-pick-label);
+    position: absolute;
+    left: 50%;
+    top: -11px;
+    transform: translateX(-50%);
+    padding: 3px 8px;
+    border-radius: 99px;
+    background: var(--pick);
+    color: var(--on-pick);
+    font: 700 10px var(--font-body);
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    z-index: 4;
+}
+
+/* ------------------------------------------------------------------ */
+/* Hover popups: damage preview and card zoom                          */
+/* ------------------------------------------------------------------ */
+
+.attack-preview {
+    position: fixed;
+    z-index: 700;
+    width: 200px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--ground);
+    border: 2px solid var(--line-strong);
+    box-shadow: var(--shadow-raised);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    pointer-events: none;
+}
+
+.attack-preview.good { border-color: var(--success); }
+.attack-preview.bad { border-color: var(--danger); }
+
+.preview-kicker {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.preview-matchup {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-soft);
+}
+
+.preview-matchup .you {
+    color: var(--you);
+}
+
+.preview-damage {
+    font: 700 30px/1.05 var(--font-display);
+}
+
+.attack-preview.good .preview-damage { color: var(--success); }
+.attack-preview.bad .preview-damage { color: var(--danger); }
+
+.preview-result {
+    font-size: 13px;
+    color: var(--text-soft);
+}
+
+.preview-action {
+    margin-top: 2px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.card-zoom {
+    --card-height: clamp(240px, 46vh, 340px);
+    --card-width: calc(var(--card-height) * 0.72);
+    position: fixed;
+    z-index: 650;
+    pointer-events: none;
+    filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.6));
+}
+
+.card-zoom .card {
+    outline: none;
+    opacity: 1;
+    transform: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Dialogs (overlay style)                                             */
+/* ------------------------------------------------------------------ */
+
 .dialog {
     display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    inset: 0;
+    background-color: var(--backdrop);
     z-index: 1000;
     justify-content: center;
     align-items: center;
@@ -451,142 +1509,156 @@ body {
 }
 
 .dialog-content {
+    --card-height: clamp(110px, calc(var(--c) * 0.8), 160px);
+    --card-width: calc(var(--card-height) * 0.72);
     background-color: var(--surface);
-    padding: 1.5rem;
-    border-radius: 8px;
-    box-shadow: var(--elevation-4);
-    max-width: 500px;
-    width: 90%;
+    color: var(--text);
+    padding: 24px;
+    border-radius: 16px;
+    border: 1px solid var(--line-strong);
+    box-shadow: var(--shadow-raised);
+    max-width: 640px;
+    width: 92%;
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .dialog-content h2 {
-    margin-bottom: 1rem;
-    color: var(--primary-color);
+    margin-bottom: 12px;
+    font: 600 20px var(--font-display);
+    color: var(--text);
+}
+
+.dialog-content p {
+    color: var(--text-muted);
 }
 
 .dialog-buttons {
     display: flex;
     justify-content: flex-end;
-    gap: 0.5rem;
-    margin-top: 1.5rem;
+    gap: 8px;
+    margin-top: 20px;
 }
 
 .dialog-button {
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 4px;
+    min-height: 44px;
+    padding: 0 18px;
+    border-radius: 10px;
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    color: var(--text);
     font-weight: 500;
+    font-size: 14px;
     cursor: pointer;
-    background-color: #e0e0e0;
-    transition: background-color 0.2s ease;
 }
 
 .dialog-button:hover {
-    background-color: #d5d5d5;
+    background: var(--surface-sunken);
 }
 
 .dialog-button.primary {
-    background-color: var(--primary-color);
-    color: var(--on-primary);
+    border-color: var(--you);
+    background: var(--you);
+    color: var(--on-you);
+    font-weight: 700;
 }
 
 .dialog-button.primary:hover {
-    background-color: var(--primary-variant);
+    background: var(--you-hover);
+    border-color: var(--you-hover);
 }
 
-/* Sacrifice and Fusion dialogs */
-.sacrifice-cards, .fusion-cards, .discard-selection, .redirect-targets {
+.dialog-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Deck and discard viewers: card faces grouped by suit */
+#deck-list-dialog .dialog-content,
+#discard-list-dialog .dialog-content {
+    max-width: 920px;
+}
+
+.card-list {
+    --card-height: 96px;
+    --card-width: 68px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 60vh;
+    overflow-y: auto;
+    margin-top: 12px;
+}
+
+.card-list-note {
+    font-size: 13px;
+}
+
+.card-grid-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.card-grid-label {
+    flex: 0 0 76px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.card-grid-cards {
     display: flex;
     flex-wrap: wrap;
-    gap: 1rem;
-    margin: 1rem 0;
-    justify-content: center;
+    gap: 8px;
 }
 
-.sacrifice-card-wrapper, .fusion-card-wrapper, .discard-card-wrapper, .redirect-target-wrapper {
-    position: relative;
+.card-grid-cards .card {
+    cursor: default;
+    box-shadow: none;
 }
 
-.sacrifice-total {
-    margin-top: 1rem;
-    font-weight: 500;
-    text-align: center;
-}
-
-.sacrifice-section-header {
-    width: 100%;
-    text-align: center;
-    font-weight: 700;
-    margin-top: 0.5rem;
-    margin-bottom: 0.25rem;
-    color: var(--primary-color);
-}
-
-.fusion-target-spaces {
-    display: flex;
-    justify-content: center;
-    gap: 1rem;
-    margin-top: 1rem;
-}
-
-/* Tutorial Modal */
-.modal {
+.card-grid-cards .card-type {
     display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-    justify-content: center;
-    align-items: center;
-    overflow-y: auto;
 }
 
-.modal.visible {
-    display: flex;
+.card-grid-cards .card.is-latest {
+    outline: 2px solid var(--you);
+    outline-offset: 2px;
 }
 
-.modal-content {
-    background-color: var(--surface);
-    padding: 2rem;
-    border-radius: 8px;
-    box-shadow: var(--elevation-4);
-    max-width: 800px;
-    width: 90%;
-    max-height: 90vh;
-    overflow-y: auto;
-    position: relative;
-}
-
-.close {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    font-size: 1.5rem;
-    cursor: pointer;
-}
-
+/* Tutorial */
 .tutorial-content {
-    margin-top: 1.5rem;
+    margin-top: 12px;
 }
 
 .tutorial-navigation {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+    color: var(--text-muted);
+    font-size: 13px;
 }
 
 .tutorial-nav-button {
+    min-height: 36px;
+    padding: 0 8px;
     background: none;
     border: none;
-    color: var(--primary-color);
-    font-weight: 500;
+    color: var(--you);
+    font-weight: 600;
     cursor: pointer;
+}
+
+.tutorial-nav-button:disabled {
+    color: var(--text-muted);
+    opacity: 0.5;
+    cursor: default;
 }
 
 #tutorial-pages {
@@ -602,45 +1674,29 @@ body {
 }
 
 .tutorial-page h3 {
-    margin-bottom: 1rem;
-    color: var(--primary-color);
+    margin: 16px 0 6px;
+    font: 600 16px var(--font-display);
+    color: var(--you);
+}
+
+.tutorial-page h3:first-child {
+    margin-top: 0;
 }
 
 .tutorial-page ul {
-    padding-left: 1.5rem;
-    margin-bottom: 1rem;
+    padding-left: 1.25rem;
+    margin-bottom: 12px;
+    color: var(--text-muted);
 }
 
 .tutorial-page p {
-    margin-bottom: 1rem;
+    margin-bottom: 12px;
 }
 
-/* Help button */
-.help-button {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    width: 3rem;
-    height: 3rem;
-    border-radius: 50%;
-    background-color: var(--secondary-color);
-    color: var(--on-secondary);
-    border: none;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    box-shadow: var(--elevation-2);
-    transition: background-color 0.3s ease, transform 0.3s ease;
-    z-index: 100;
-}
+/* ------------------------------------------------------------------ */
+/* Combat highlights and legacy animations                             */
+/* ------------------------------------------------------------------ */
 
-.help-button:hover {
-    background-color: var(--secondary-variant);
-    transform: scale(1.1);
-}
-
-/* Combat animation */
 @keyframes attack {
     0% { transform: translateY(0); }
     25% { transform: translateY(-10px); }
@@ -655,7 +1711,7 @@ body {
 
 @keyframes damage {
     0% { background-color: transparent; }
-    50% { background-color: rgba(255, 0, 0, 0.3); }
+    50% { background-color: rgba(237, 76, 103, 0.3); }
     100% { background-color: transparent; }
 }
 
@@ -672,228 +1728,293 @@ body {
     animation: destroy 0.5s ease forwards;
 }
 
-/* Responsive adjustments */
-@media (min-width: 768px) {
-    .game-board {
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: center;
-        align-items: stretch;
-    }
-    
-    .player-area {
-        flex: 2;
-        min-width: 400px;
-    }
-    
-    .bot-area {
-        order: 1;
-    }
-    
-    .center-area {
-        flex: 1;
-        order: 2;
-        flex-direction: column;
-        justify-content: space-around;
-        min-width: 300px;
-    }
-    
-/* Visual marker for King-weakened monsters */
-.card.weakened {
-    box-shadow: 0 0 10px rgba(200,50,50,0.6) inset, 0 0 8px rgba(200,50,50,0.25);
-    opacity: 0.95;
+.attack-target .card {
+    outline: 3px solid var(--danger);
+    outline-offset: 4px;
+    animation: pulse-target 1.2s infinite;
 }
 
-.card.weakened .monster-strength,
-.card.weakened .fusion-value {
-    color: #c62828; /* red-ish to show reduced */
+.direct-attack-target {
+    box-shadow: inset 0 0 0 2px var(--danger), inset 0 0 24px rgba(237, 76, 103, 0.35);
+}
+
+@keyframes pulse-target {
+    0%, 100% { outline-color: rgba(237, 76, 103, 0.6); }
+    50% { outline-color: rgba(237, 76, 103, 1); }
+}
+
+/* Your trap glows while you're asked to respond */
+.reactive-highlight {
+    box-shadow: 0 0 0 3px var(--react);
+    transform: translateY(-4px);
+    z-index: 50;
+}
+
+/* Jack redirect target */
+.redirect-highlight {
+    box-shadow: 0 0 0 4px var(--redirect) !important;
+    transform: translateY(-6px);
+    z-index: 60;
+    cursor: pointer;
+}
+
+#trap-countdown {
+    position: fixed;
+    right: 1rem;
+    top: 1rem;
+    background: var(--react);
+    color: var(--ink);
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
     font-weight: 700;
+    z-index: 2000;
 }
 
-    .player-area-human {
-        order: 3;
-    }
-}
-
-@media (max-width: 767px) {
-    :root {
-        --card-width: 70px;
-        --card-height: 98px;
-        --space-width: 70px;
-        --space-height: 98px;
-    }
-    
-    .card-value {
-        font-size: 1.2rem;
-    }
-    
-    .player-hand {
-        justify-content: center;
-    }
-}
-
-/* Drag and drop styling */
 .dragging {
     opacity: 0.7;
     z-index: 1000;
 }
 
 .drop-target {
-    border: 2px solid var(--secondary-color);
-    background-color: rgba(3, 218, 198, 0.1);
+    border: 1px solid var(--you);
+    background-color: rgba(255, 195, 18, 0.08);
 }
 
-/* Phase highlight indicators */
-.phase-highlight {
-    position: relative;
-    overflow: hidden;
+/* Short windows: drop the type label from field cards; the badge color still tells */
+@media (max-height: 700px) {
+    .monster-space .card-type {
+        display: none;
+    }
+
+    .hint-line {
+        font-size: 13px;
+    }
 }
 
-.phase-highlight::after {
-    content: '';
+/* Narrower desktop windows: the corners get tighter, so stack their contents */
+@media (max-width: 1279px) and (min-width: 901px) {
+    .game-board {
+        padding: 12px 16px;
+        column-gap: 16px;
+    }
+
+    .player-stats {
+        gap: 10px;
+    }
+
+    .player-name {
+        font-size: 18px;
+    }
+
+    .corner-controls {
+        gap: 6px;
+    }
+
+    .icon-button {
+        width: 44px;
+        height: 44px;
+    }
+
+    .action-button {
+        padding: 0 14px;
+    }
+
+    .action-button .key-hint {
+        display: none;
+    }
+
+    .bot-stats {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .pile-cell {
+        gap: 8px;
+    }
+
+    .pile-stack {
+        --card-height: calc(var(--c) * 0.58);
+        --card-width: calc(var(--card-height) * 0.71);
+    }
+
+    .joker-pile .pile-stack {
+        --card-height: calc(var(--c) * 0.46);
+        --card-width: calc(var(--card-height) * 0.71);
+    }
+
+    .hint-line {
+        max-width: 256px;
+        font-size: 13px;
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Narrow screens: stack everything and let the page scroll            */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 900px) {
+    :root {
+        --c: 104px;
+    }
+
+    .game-container {
+        height: auto;
+        overflow: visible;
+    }
+
+    .game-board {
+        height: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+        padding: 16px;
+    }
+
+    .bot-hand-corner { order: 1; height: 90px; }
+    .bot-stats { order: 2; }
+    .board-panel { order: 3; width: auto; gap: 12px; padding: 12px; }
+    .deck-cell { order: 4; justify-content: center; }
+    .discard-cell { order: 5; justify-content: center; }
+    .hand-corner { order: 6; height: 230px; }
+    .player-corner { order: 7; align-self: stretch; align-items: center; }
+
+    .player-stats .crest-label { align-items: flex-start; }
+    .hint-line { text-align: center; }
+    .center-rule { display: none; }
+    .phase-steps li { padding: 0 10px; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Action effects (js/fx.js)                                           */
+/* ------------------------------------------------------------------ */
+
+#fx-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 900;
+}
+
+.fx-lifted {
+    z-index: 20;
+}
+
+.fx-banner {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(98, 0, 238, 0.1);
-    border: 2px solid var(--primary-color);
-    border-radius: 6px;
-    z-index: -1;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 30;
+    max-width: calc(100% - 32px);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    border-radius: 12px;
+    background: var(--ground);
+    border: 2px solid var(--line-strong);
+    box-shadow: var(--shadow-raised);
+    font-weight: 700;
+    font-size: 15px;
     pointer-events: none;
 }
 
-/* Phase-based background and area accents */
-.game-board.phase-player-SETUP, .game-board.phase-player-BATTLE, .game-board.phase-player-END,
-.game-board.phase-bot-SETUP, .game-board.phase-bot-BATTLE, .game-board.phase-bot-END {
-    transition: background-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.game-board.phase-player-SETUP { background-color: rgba(60,128,255,0.03); }
-.game-board.phase-player-BATTLE { background-color: rgba(255,92,92,0.03); }
-.game-board.phase-player-END { background-color: rgba(120,120,120,0.02); }
-
-.game-board.phase-bot-SETUP { background-color: rgba(60,128,255,0.02); }
-.game-board.phase-bot-BATTLE { background-color: rgba(255,92,92,0.02); }
-.game-board.phase-bot-END { background-color: rgba(120,120,120,0.01); }
-
-.player-area.phase-active { box-shadow: inset 0 0 0 2px rgba(60,128,255,0.06); }
-.bot-area.phase-active { box-shadow: inset 0 0 0 2px rgba(255,92,92,0.04); }
-
-/* Card values and types visual styles */
-.hearts, .diamonds {
-    color: #d32f2f;
-}
-
-.clubs, .spades {
-    color: #212121;
-}
-
-.monster-strength {
-    position: absolute;
-    top: -0.75rem;
-    right: -0.75rem;
-    background-color: var(--primary-color);
-    color: white;
-    border-radius: 50%;
-    width: 1.75rem;
-    height: 1.75rem;
+.fx-banner-cards {
     display: flex;
-    justify-content: center;
     align-items: center;
-    font-weight: 700;
-    z-index: 3;
+    gap: 6px;
+    flex: 0 0 auto;
 }
 
-/* Trap visual states */
-.card.trap-disabled {
-    filter: grayscale(70%);
-    opacity: 0.85;
-    box-shadow: none;
+.fx-chip {
+    width: 30px;
+    height: 42px;
+    border-radius: 5px;
+    background: var(--card-face);
+    color: var(--card-ink);
+    font: 700 12px/42px var(--font-display);
+    text-align: center;
 }
 
-.card.trap-active {
-    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.25), 0 6px 12px rgba(255, 193, 7, 0.15);
-    transform: translateY(-3px);
+.fx-chip.red {
+    color: var(--suit-red);
 }
 
-.trap-status-badge {
+.fx-chip-back {
+    background: repeating-linear-gradient(45deg, var(--purple-800) 0 5px, var(--purple-900) 5px 10px);
+    border: 1px solid var(--bot);
+}
+
+.fx-connector {
+    font-size: 18px;
+    color: var(--text-muted);
+}
+
+.fx-banner.tone-you { border-color: var(--you); }
+.fx-banner.tone-bot { border-color: var(--bot); }
+.fx-banner.tone-danger { border-color: var(--danger); }
+.fx-banner.tone-success { border-color: var(--success); }
+.fx-banner.tone-react { border-color: var(--react); }
+.fx-banner.tone-redirect { border-color: var(--redirect); }
+
+.fx-arrow {
     position: absolute;
-    bottom: 0.25rem;
-    right: 0.25rem;
-    background-color: rgba(0,0,0,0.6);
-    color: white;
-    padding: 0.15rem 0.4rem;
-    border-radius: 3px;
-    font-size: 0.7rem;
-    z-index: 4;
+    inset: 0;
+    overflow: visible;
 }
 
-/* Reactive trap highlight for player when prompted to respond */
-.reactive-highlight {
-    box-shadow: 0 0 0 4px rgba(33, 150, 243, 0.35);
-    transform: translateY(-4px);
-    border: 2px solid rgba(33, 150, 243, 0.6);
-    z-index: 50;
+.fx-arrow line {
+    stroke-width: 4;
+    stroke-linecap: round;
 }
 
-/* Countdown element shown during 5s reaction window */
-#trap-countdown {
+.fx-arrow.tone-you line { stroke: var(--you); }
+.fx-arrow.tone-you polygon { fill: var(--you); }
+.fx-arrow.tone-bot line { stroke: var(--bot); }
+.fx-arrow.tone-bot polygon { fill: var(--bot); }
+.fx-arrow.tone-redirect line { stroke: var(--redirect); }
+.fx-arrow.tone-redirect polygon { fill: var(--redirect); }
+
+.fx-ghost {
     position: fixed;
-    right: 1rem;
-    top: 1rem;
-    background: rgba(33, 150, 243, 0.95);
-    color: white;
-    padding: 0.5rem 0.75rem;
-    border-radius: 6px;
-    font-weight: 700;
-    z-index: 2000;
-    box-shadow: var(--elevation-4);
+    border: 0 !important;
+    background: none !important;
 }
 
-/* Monster attacked state */
-.card.attacked {
-    opacity: 0.6;
-    filter: grayscale(40%);
-    box-shadow: none;
-    transform: translateY(0);
+.fx-destroy .card {
+    box-shadow: 0 0 0 3px var(--danger), 0 0 24px rgba(237, 76, 103, 0.6);
 }
 
-.card.attacked .monster-strength {
-    background-color: #9e9e9e;
+.fx-reveal .card {
+    box-shadow: 0 0 0 3px var(--react), 0 0 24px rgba(18, 203, 196, 0.55);
 }
 
-/* Redirect target highlight for Jack trap */
-.redirect-highlight {
-    box-shadow: 0 0 0 6px rgba(255, 152, 0, 0.35) !important;
-    transform: translateY(-6px);
-    border: 2px solid rgba(255, 152, 0, 0.7) !important;
-    z-index: 60;
-    cursor: pointer;
+.fx-float {
+    position: fixed;
+    font: 700 26px var(--font-display);
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+    white-space: nowrap;
 }
 
-/* Attack target highlight */
-.attack-target {
-    box-shadow: 0 0 0 6px rgba(255, 0, 0, 0.4) !important;
-    border: 2px solid rgba(255, 0, 0, 0.7) !important;
-    z-index: 55;
-    animation: pulse-target 1.5s infinite;
-}
+.fx-float.tone-danger { color: var(--danger); }
+.fx-float.tone-react { color: var(--react); }
+.fx-float.tone-redirect { color: var(--redirect); }
+.fx-float.tone-you { color: var(--you); }
 
-/* Direct attack target highlight */
-.direct-attack-target {
-    box-shadow: 0 0 15px 5px rgba(255, 0, 0, 0.4) inset !important;
-    animation: pulse-direct-target 1.5s infinite;
-}
+.fx-ring-danger { box-shadow: 0 0 0 3px var(--danger), 0 0 22px rgba(237, 76, 103, 0.5) !important; }
+.fx-ring-you { box-shadow: 0 0 0 3px var(--you) !important; }
+.fx-ring-bot { box-shadow: 0 0 0 3px var(--bot) !important; }
+.fx-ring-react { box-shadow: 0 0 0 3px var(--react) !important; }
+.fx-ring-redirect { box-shadow: 0 0 0 3px var(--redirect), 0 0 22px rgba(238, 90, 36, 0.5) !important; }
+.fx-ring-fusion { box-shadow: 0 0 0 3px var(--badge-fusion), 0 0 24px rgba(181, 52, 113, 0.7) !important; }
 
-@keyframes pulse-target {
-    0% { box-shadow: 0 0 0 3px rgba(255, 0, 0, 0.4) !important; }
-    50% { box-shadow: 0 0 0 6px rgba(255, 0, 0, 0.7) !important; }
-    100% { box-shadow: 0 0 0 3px rgba(255, 0, 0, 0.4) !important; }
-}
-
-@keyframes pulse-direct-target {
-    0% { box-shadow: 0 0 5px 2px rgba(255, 0, 0, 0.4) inset !important; }
-    50% { box-shadow: 0 0 15px 5px rgba(255, 0, 0, 0.7) inset !important; }
-    100% { box-shadow: 0 0 5px 2px rgba(255, 0, 0, 0.4) inset !important; }
+.fx-ring-danger,
+.fx-ring-you,
+.fx-ring-bot,
+.fx-ring-react,
+.fx-ring-redirect,
+.fx-ring-fusion {
+    transition: box-shadow 0.15s ease;
 }

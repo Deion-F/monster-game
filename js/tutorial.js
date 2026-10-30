@@ -18,13 +18,14 @@ class TutorialManager {
                 title: "Game Overview",
                 content: `
                     <p>Welcome to Monster Card Battle, a strategic card game where you must defeat your opponent by reducing their health to zero.</p>
-                    <p>The game uses a standard 52-card deck plus 2 Jokers. Each player starts with 40 health and a hand of 6 cards.</p>
+                    <p>The game uses a standard 52-card deck plus 2 Jokers. Each player starts with 40 health and a hand of 5 cards; your first draw brings it to 6.</p>
                     <h3>The Board</h3>
                     <ul>
                         <li>Each player has 3 Monster Spaces (for summoning monsters)</li>
-                        <li>Each player has 3 Trap Spaces (for setting traps)</li>
+                        <li>Each player has 3 Trap Spaces (for setting traps face-down)</li>
                         <li>Players draw from the same deck</li>
                         <li>Used/destroyed cards go to a shared Discard Pile</li>
+                        <li>When the deck runs out, the discard pile is shuffled into a new deck and both players take 10 damage</li>
                     </ul>
                 `
             },
@@ -35,62 +36,63 @@ class TutorialManager {
                     <p>Play directly to monster spaces without sacrifice. Strength equals card value.</p>
                     
                     <h3>Big Monsters (8-10)</h3>
-                    <p>Require sacrificing cards from hand/field with total value ≥ monster's value. Strength equals card value.</p>
+                    <p>Sacrifice monsters from your hand or field with total value ≥ the big monster's value. Fusions count at their full strength, and you may overpay. Only monsters can be sacrificed.</p>
                     
                     <h3>Traps (A, J, Q, K)</h3>
+                    <p>Traps are set face-down and arm at the end of the turn you set them. Each player can use one trap of each type per turn.</p>
                     <ul>
-                        <li><strong>Ace:</strong> End opponent's Battle Phase immediately</li>
-                        <li><strong>Jack:</strong> Redirect an attack to any other monster</li>
-                        <li><strong>Queen:</strong> Cancel any trap (except Joker)</li>
-                        <li><strong>King:</strong> Halve attacking monster's strength (round up)</li>
+                        <li><strong>Ace:</strong> End the opponent's Battle Phase immediately</li>
+                        <li><strong>Jack:</strong> Redirect an attack to any other monster, including the attacker's own</li>
+                        <li><strong>Queen:</strong> Cancel an opponent's trap as it activates (not Jokers)</li>
+                        <li><strong>King:</strong> Halve the attacking monster's strength (round up)</li>
                     </ul>
                     
                     <h3>Joker</h3>
-                    <p>Reset the entire board - destroy all cards on field, discard all hands, shuffle discard into deck, both players draw 5 cards. Must be played at start of Setup Phase.</p>
+                    <p>Setup Phase only. Destroys all cards on the field, discards both hands, shuffles the discard pile into the deck, and both players draw 5 cards. Playing it skips your Battle Phase this turn, and the Joker is removed from the match.</p>
                 `
             },
             {
                 title: "Turn Structure",
                 content: `
                     <h3>1. Draw Phase</h3>
-                    <p>Draw 1 card (or 5 if your hand is empty). Maximum hand size is 10 cards.</p>
+                    <p>Draw 1 card (or 5 if your hand is empty). Maximum hand size is 10 cards; discard down if you go over.</p>
                     
                     <h3>2. Setup Phase</h3>
-                    <p>Play monsters, set traps, create fusions. Joker must be played first if using it.</p>
+                    <p>Play monsters, set traps, create fusions and play a Joker.</p>
                     
                     <h3>3. Battle Phase</h3>
-                    <p>Attack with your monsters. Each monster can attack once. First player cannot attack on their first turn.</p>
+                    <p>Attack with your monsters, including ones summoned this turn. Each monster can attack once. The first player cannot attack on their first turn.</p>
                     
                     <h3>4. End Phase</h3>
-                    <p>Pay upkeep for fusions by sacrificing cards. Traps placed this turn become active.</p>
+                    <p>Pay upkeep for fusions. Traps you set this turn become armed.</p>
                 `
             },
             {
                 title: "Combat & Damage",
                 content: `
                     <h3>Monster vs Monster</h3>
-                    <p>Compare strength values. Higher strength wins, weaker monster is destroyed, and defender takes damage equal to the difference in strength.</p>
+                    <p>Compare strength values. The weaker monster is destroyed, and its controller takes damage equal to the difference in strength. This can be the attacker.</p>
                     <p>If strengths are equal, both monsters are destroyed with no damage.</p>
                     
                     <h3>Direct Attack</h3>
-                    <p>If opponent has no monsters, you can attack directly. Defender takes damage equal to attacking monster's strength.</p>
+                    <p>If the opponent has no monsters, you can attack directly. They take damage equal to the attacking monster's strength.</p>
                     
                     <h3>Traps in Combat</h3>
-                    <p>Traps can respond to attacks. Defender reveals traps first, then attacker can respond with their own traps.</p>
+                    <p>When attacked, the defender may respond with one armed trap. The attacker may then cancel that trap with an armed Queen. There is no time limit to respond.</p>
                 `
             },
             {
                 title: "Fusion System",
                 content: `
                     <h3>Creating Fusions</h3>
-                    <p>Combine two monsters on your field with different values. Fusion strength equals sum of both monsters.</p>
-                    <p>Fusions occupy one monster space and can only contain 2 cards maximum.</p>
+                    <p>Fuse two monsters with different values; at least one must be on your field. Fusion strength equals the sum of both.</p>
+                    <p>A fusion occupies one monster space and holds exactly 2 cards; it can't be fused again.</p>
                     
                     <h3>Fusion Upkeep</h3>
-                    <p>During End Phase, sacrifice 1 monster card per active fusion. If you cannot pay, the fusion breaks - lower-value card is destroyed, and higher-value card remains.</p>
+                    <p>During your End Phase, sacrifice 1 monster card (from hand or field) per fusion. Each fusion you don't pay for breaks apart: its stronger card stays on the field as a normal monster and the weaker card is discarded.</p>
                     
                     <h3>Victory Condition</h3>
-                    <p>Reduce your opponent's health from 40 to 0 through strategic monster battles, trap cards, and powerful fusions!</p>
+                    <p>Reduce your opponent's health from 40 to 0. If both players reach 0 at the same time, the game is a draw.</p>
                 `
             }
         ];

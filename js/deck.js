@@ -8,6 +8,7 @@ class Deck {
     constructor() {
         this.cards = [];
         this.discardPile = [];
+        this.onReshuffle = null; // Called after the empty deck is rebuilt from the discard pile
         this.initializeDeck();
         this.shuffle();
     }
@@ -47,9 +48,10 @@ class Deck {
             }
         }
         
-        // Add 2 jokers
-        this.cards.push(new Card(CARD_SUITS.JOKER, CARD_VALUES.JOKER));
-        this.cards.push(new Card(CARD_SUITS.JOKER, CARD_VALUES.JOKER));
+        // Add the jokers
+        for (let i = 0; i < GAME_SETTINGS.JOKER_COUNT; i++) {
+            this.cards.push(new Card(CARD_SUITS.JOKER, CARD_VALUES.JOKER));
+        }
     }
 
     /**
@@ -64,8 +66,9 @@ class Deck {
      * @returns {Card} - Drawn card
      */
     drawCard() {
-        if (this.cards.length === 0) {
+        if (this.cards.length === 0 && this.discardPile.length > 0) {
             this.returnDiscardsToDeck();
+            if (typeof this.onReshuffle === 'function') this.onReshuffle();
         }
         
         if (this.cards.length === 0) {
@@ -102,15 +105,6 @@ class Deck {
     discard(card) {
         card.state = CARD_STATES.IN_DISCARD;
         this.discardPile.push(card);
-        // Log discard to UI if available
-        try {
-            if (window && window.game && window.game.ui && typeof window.game.ui.addLogMessage === 'function') {
-                const label = (card && card.value) ? `${card.value}${card.suit ? ' of ' + card.suit : ''}` : 'Unknown card';
-                window.game.ui.addLogMessage(`${label} was sent to the discard pile`);
-            }
-        } catch (e) {
-            // ignore logging errors
-        }
     }
 
     /**

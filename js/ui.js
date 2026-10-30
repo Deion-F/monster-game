@@ -13,264 +13,221 @@ class UI {
         this.sacrificeCards = [];
         this.fusionCards = [];
         this.fusionTargetSpace = null;
-        this.activatingTrap = null;
         this.redirectTargets = [];
         this._postSacrificeCallback = null; // optional callback to run after sacrifice dialog confirm
-        
-        this.setupEventListeners();
+        this._reaction = null; // pending trap-response prompt {context, resolve, jackTrap, targets, selectedTarget}
+        this._queenPrompt = null; // pending Queen-cancel prompt {queens, selected, resolve}
+        this.attackTarget = null; // chosen target while previewing an attack: {index} (index null = direct)
+        this._phaseKey = null; // turn+phase last rendered, to drop stale attack selections
+        this._fxHints = new Map(); // card id -> how to animate it leaving the board ('destroy' | 'reveal')
+        this._boardCards = new Map(); // card id -> card, as of the last board render
+        this._handIds = new Set(); // card ids in hand as of the last render, to animate new draws
+        this._lastHealth = null; // health as of the last render, to show damage taken
+        this._previewArrow = null; // dashed arrow while previewing an attack
+        this._zoomTimer = null; // pending field-card zoom
+        this._zoomSource = null; // card element being zoomed (or about to be)
+        this.prompt = null; // open board prompt (sacrifice, trap response, upkeep...), see startPrompt
+
+        // A new UI is created for every match, but the page's elements persist.
+        // Bind listeners once and route them to whichever UI is current.
+        UI.active = this;
+        if (!UI.listenersBound) {
+            UI.listenersBound = true;
+            this.setupEventListeners();
+        }
     }
 
     /**
      * Set up event listeners
      */
     setupEventListeners() {
-        // End phase button
-        document.getElementById('end-phase-btn').addEventListener('click', () => {
-            this.game.endCurrentPhase();
+        const ui = () => UI.active;
+        const on = (id, handler) => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('click', handler);
+        };
+
+        on('end-phase-btn', () => ui().game.endCurrentPhase());
+
+        // Battle log drawer
+        on('log-btn', () => ui().toggleLog());
+        on('log-close', () => ui().toggleLog(false));
+
+        // Menu (rules, new game, concede). Choosing an item closes it; so does clicking elsewhere.
+        on('menu-btn', () => ui().toggleMenu());
+        on('game-menu', () => ui().toggleMenu(false));
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.menu-wrap')) ui().toggleMenu(false);
         });
-        
+
+        // Fans, arrows and popups are placed in window coordinates, so redo them when the window changes
+        window.addEventListener('resize', () => {
+            ui().layoutHand();
+            ui().renderBotHand();
+            ui().hideAttackPreview();
+            ui().cancelZoom();
+            Fx.clearArrows();
+        });
+
+        // Esc backs out of whatever is open or selected
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') ui().handleEscape();
+        });
+
+        // Hovering or focusing the board: damage preview while choosing a target, card zoom otherwise
+        const panel = document.querySelector('.board-panel');
+        const onPoint = (e) => ui().handleBoardPointer(e.target);
+        panel.addEventListener('mouseover', onPoint);
+        panel.addEventListener('focusin', onPoint);
+        panel.addEventListener('mouseleave', () => ui().handleBoardPointer(null));
+        panel.addEventListener('focusout', (e) => {
+            if (!panel.contains(e.relatedTarget)) ui().handleBoardPointer(null);
+        });
+
+        // Enter or Space on a highlighted space acts like a click
+        panel.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const space = e.target.closest('.monster-space[tabindex], .trap-space[tabindex]');
+            if (!space) return;
+            e.preventDefault();
+            space.click();
+        });
+
+        // A direct attack can be launched by clicking anywhere on the bot's side
+        document.querySelector('.bot-area').addEventListener('click', (e) => {
+            if (!e.target.closest('.monster-space')) ui().handleBotAreaClick();
+        });
+
         // Card selection in hand
-        document.getElementById('player-hand').addEventListener('click', (e) => {
+        const handEl = document.getElementById('player-hand');
+        handEl.addEventListener('click', (e) => {
             const cardElement = e.target.closest('.card');
             if (!cardElement) return;
-            
-            const cardId = cardElement.dataset.cardId;
-            this.handleCardSelection(cardId);
+            ui().handleCardSelection(cardElement.dataset.cardId);
         });
-        
-        // Delegated listener for monster and trap spaces (more robust when innerHTML changes)
+        handEl.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const cardElement = e.target.closest('.card');
+            if (!cardElement) return;
+            e.preventDefault();
+            ui().handleCardSelection(cardElement.dataset.cardId);
+        });
+
+        // Delegated listener for monster and trap spaces (robust when innerHTML changes)
         const boardEl = document.querySelector('.game-board') || document.body;
         boardEl.addEventListener('click', (e) => {
-            const spaceEl = e.target.closest('.monster-space');
-            if (spaceEl) {
-                console.debug('monster-space clicked (delegated)', spaceEl.id);
-                const spaceId = spaceEl.id;
-                const isPlayer = spaceId.startsWith('player');
-                const spaceIndex = parseInt(spaceEl.dataset.index);
-                if (isPlayer) this.handlePlayerMonsterSpaceClick(spaceIndex);
-                else this.handleBotMonsterSpaceClick(spaceIndex);
-                return;
-            }
-            const trapEl = e.target.closest('.trap-space');
-            if (trapEl) {
-                const spaceId = trapEl.id;
-                const isPlayer = spaceId.startsWith('player');
-                const spaceIndex = parseInt(trapEl.dataset.index);
-                if (isPlayer) this.handlePlayerTrapSpaceClick(spaceIndex);
-                return;
+            const spaceEl = e.target.closest('.monster-space, .trap-space');
+            if (!spaceEl || !boardEl.contains(spaceEl)) return;
+            const isPlayer = spaceEl.id.startsWith('player');
+            const spaceIndex = parseInt(spaceEl.dataset.index);
+            if (spaceEl.classList.contains('monster-space')) {
+                if (isPlayer) ui().handlePlayerMonsterSpaceClick(spaceIndex);
+                else ui().handleBotMonsterSpaceClick(spaceIndex);
+            } else if (isPlayer) {
+                ui().handlePlayerTrapSpaceClick(spaceIndex);
             }
         });
-        
-        // Trap spaces for playing cards
-        document.querySelectorAll('.trap-space').forEach(space => {
-            space.addEventListener('click', (e) => {
-                const spaceId = e.currentTarget.id;
-                const isPlayer = spaceId.startsWith('player');
-                const spaceIndex = parseInt(e.currentTarget.dataset.index);
-                
-                if (isPlayer) {
-                    this.handlePlayerTrapSpaceClick(spaceIndex);
-                }
-            });
-        });
-        
-        // Dialog buttons
-        document.getElementById('cancel-sacrifice').addEventListener('click', () => {
-            this.closeSacrificeDialog();
-        });
-        
-        document.getElementById('confirm-sacrifice').addEventListener('click', () => {
-            this.confirmSacrifice();
-        });
-        
-        document.getElementById('cancel-fusion').addEventListener('click', () => {
-            this.closeFusionDialog();
-        });
-        
-        document.getElementById('confirm-fusion').addEventListener('click', () => {
-            this.confirmFusion();
-        });
-        
-        document.getElementById('cancel-trap-activation').addEventListener('click', () => {
-            this.cancelTrapActivation();
-        });
-        
-        document.getElementById('confirm-trap-activation').addEventListener('click', () => {
-            this.confirmTrapActivation();
-        });
-        
-        document.getElementById('confirm-redirect').addEventListener('click', () => {
-            this.confirmRedirect();
-        });
-        
-        document.getElementById('confirm-fusion-upkeep').addEventListener('click', () => {
-            this.confirmFusionUpkeep();
-        });
-        
-        document.getElementById('confirm-discard').addEventListener('click', () => {
-            this.confirmDiscard();
-        });
-        
-        document.getElementById('new-game').addEventListener('click', () => {
-            window.location.reload();
-        });
-        
-        // Help button for tutorial (guard for missing element)
-        const helpBtn = document.getElementById('help-button');
-        if (helpBtn) {
-            helpBtn.addEventListener('click', () => {
-                // Prefer the <dialog> tutorial element, fallback to modal container
-                const tutorialDialog = document.getElementById('tutorial-dialog') || document.getElementById('tutorial-modal');
-                if (!tutorialDialog) return;
-                if (typeof tutorialDialog.showModal === 'function') {
-                    try { tutorialDialog.showModal(); } catch (err) { tutorialDialog.classList.add('visible'); }
-                } else {
-                    tutorialDialog.classList.add('visible');
-                }
-            });
-        }
 
-        // Tutorial navigation (guarded)
-        const prevBtn = document.getElementById('prev-tutorial');
-        if (prevBtn) prevBtn.addEventListener('click', () => TutorialManager.showPreviousPage());
+        // New game reopens the welcome screen; concede ends the match as a loss
+        on('new-game-btn', () => {
+            const welcomeDialog = document.getElementById('welcome-dialog');
+            if (welcomeDialog && !welcomeDialog.open) welcomeDialog.showModal();
+        });
+        on('concede-btn', () => {
+            const game = ui().game;
+            if (game.gameOver) return;
+            if (confirm('Concede this duel? It counts as a loss.')) game.endGame('bot');
+        });
 
-        const nextBtn = document.getElementById('next-tutorial');
-        if (nextBtn) nextBtn.addEventListener('click', () => TutorialManager.showNextPage());
-
-        // Close tutorial (use explicit id if present, fallback to any .close)
-        const closeBtn = document.getElementById('close-tutorial') || document.querySelector('.close');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', () => {
-                const tutorialDialog = document.getElementById('tutorial-dialog') || document.getElementById('tutorial-modal');
-                if (!tutorialDialog) return;
-                if (typeof tutorialDialog.close === 'function') {
-                    try { tutorialDialog.close(); } catch (err) { tutorialDialog.classList.remove('visible'); }
-                } else {
-                    tutorialDialog.classList.remove('visible');
-                }
-            });
-        }
+        // Rules button opens the tutorial
+        on('help-button', () => {
+            const tutorialDialog = document.getElementById('tutorial-dialog');
+            if (!tutorialDialog || tutorialDialog.open) return;
+            if (typeof tutorialDialog.showModal === 'function') tutorialDialog.showModal();
+            else tutorialDialog.classList.add('visible');
+        });
 
         // Deck and discard pile click handlers (open listing dialogs)
-        const deckEl = document.getElementById('deck');
-        if (deckEl) {
-            deckEl.addEventListener('click', () => this.showDeckListDialog());
-        }
-
-        const discardEl = document.getElementById('discard-pile');
-        if (discardEl) {
-            discardEl.addEventListener('click', () => this.showDiscardListDialog());
-        }
-
-        const closeDeckBtn = document.getElementById('close-deck-list');
-        if (closeDeckBtn) closeDeckBtn.addEventListener('click', () => {
-            document.getElementById('deck-list-dialog').classList.remove('visible');
-        });
-
-        const closeDiscardBtn = document.getElementById('close-discard-list');
-        if (closeDiscardBtn) closeDiscardBtn.addEventListener('click', () => {
-            document.getElementById('discard-list-dialog').classList.remove('visible');
-        });
-
-        // Cancel redirect button for Jack trap (resumes reactive countdown if present)
-        const cancelRedirectBtn = document.getElementById('cancel-redirect');
-        if (cancelRedirectBtn) cancelRedirectBtn.addEventListener('click', () => {
-            const dialog = document.getElementById('redirect-dialog');
-            if (dialog) dialog.classList.remove('visible');
-                // User explicitly cancels the countdown window: resolve the prompt as not activated
-                try {
-                    if (this._reactiveResolve) this._reactiveResolve({ activated: false });
-                } catch (e) { console.warn('Error resolving reactive prompt on cancel', e); }
-                this._clearReactiveState();
-        });
-
-        // Cancel-trap dialog handlers
-        const cancelTrapCancel = document.getElementById('cancel-trap-cancel');
-        if (cancelTrapCancel) cancelTrapCancel.addEventListener('click', () => {
-            const dlg = document.getElementById('cancel-trap-dialog');
-            if (dlg) dlg.classList.remove('visible');
-            this._resumeReactiveAfterCancel();
-        });
-
-        const cancelTrapConfirm = document.getElementById('cancel-trap-confirm');
-        if (cancelTrapConfirm) cancelTrapConfirm.addEventListener('click', () => {
-            const selected = document.querySelector('#cancel-trap-list .card.selected');
-            if (!selected) return;
-            const targetId = selected.dataset.cardId;
-            // Close dialog
-            const dlg = document.getElementById('cancel-trap-dialog');
-            if (dlg) dlg.classList.remove('visible');
-
-            // Find the target trap Card object from game state
-            let targetTrap = null;
-            for (const space of this.game.player.trapSpaces) if (space.card && space.card.id === targetId) targetTrap = space.card;
-            for (const space of this.game.bot.trapSpaces) if (space.card && space.card.id === targetId) targetTrap = space.card;
-
-            // Activate Queen with the selected target
-            if (this.activatingTrap && this.activatingTrap.trap) {
-                const queen = this.activatingTrap.trap;
-                this.game.activateQueenTrap(queen, targetTrap);
-                if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: queen, result: { type: 'QUEEN', target: targetTrap } });
-                this._clearReactiveState();
-            } else {
-                this._resumeReactiveAfterCancel();
-            }
-        });
+        on('deck', () => ui().showDeckListDialog());
+        on('discard-pile', () => ui().showDiscardListDialog());
+        on('close-deck-list', () => document.getElementById('deck-list-dialog').classList.remove('visible'));
+        on('close-discard-list', () => document.getElementById('discard-list-dialog').classList.remove('visible'));
     }
 
     /**
-     * Show deck list dialog
+     * Show what is left in the deck, as card faces grouped by suit
      */
     showDeckListDialog() {
         const dialog = document.getElementById('deck-list-dialog');
-        const list = document.getElementById('deck-list');
-        if (!dialog || !list) return;
-
-        list.innerHTML = '';
-        // Show top -> bottom (last items are top of deck)
-        const cards = this.game.deck.cards.slice().reverse();
-        if (cards.length === 0) {
-            list.textContent = 'Deck is empty';
-        } else {
-            cards.forEach(card => {
-                const el = document.createElement('div');
-                el.classList.add('card-list-item');
-                el.textContent = `${card.value}${card.suit ? ' of ' + card.suit : ''}`;
-                list.appendChild(el);
-            });
-        }
-
+        const cards = this.game.deck.cards;
+        document.getElementById('deck-list-title').textContent = `Deck · ${cards.length} card${cards.length === 1 ? '' : 's'}`;
+        this.renderCardGrid(document.getElementById('deck-list'), cards, 'The deck is empty.');
         dialog.classList.add('visible');
     }
 
     /**
-     * Show discard pile list dialog
+     * Show the discard pile, as card faces grouped by suit, with the latest discard outlined
      */
     showDiscardListDialog() {
         const dialog = document.getElementById('discard-list-dialog');
-        const list = document.getElementById('discard-list');
-        if (!dialog || !list) return;
-
-        list.innerHTML = '';
-        const cards = this.game.deck.discardPile.slice().reverse();
-        if (cards.length === 0) {
-            list.textContent = 'Discard pile is empty';
-        } else {
-            cards.forEach(card => {
-                const el = document.createElement('div');
-                el.classList.add('card-list-item');
-                el.textContent = `${card.value}${card.suit ? ' of ' + card.suit : ''}`;
-                list.appendChild(el);
-            });
-        }
-
+        const pile = this.game.deck.discardPile;
+        const latest = pile[pile.length - 1] || null;
+        document.getElementById('discard-list-title').textContent = `Discard pile · ${pile.length} card${pile.length === 1 ? '' : 's'}`;
+        document.getElementById('discard-list-note').textContent = latest
+            ? `Grouped by suit, high to low. Last discarded: ${describeCard(latest)}, outlined.`
+            : '';
+        this.renderCardGrid(document.getElementById('discard-list'), pile, 'The discard pile is empty.', latest);
         dialog.classList.add('visible');
+    }
+
+    /**
+     * Fill a viewer with one row of card faces per suit
+     * @param {HTMLElement} container
+     * @param {Card[]} cards
+     * @param {string} emptyText
+     * @param {Card|null} outlined - card to mark, if any
+     */
+    renderCardGrid(container, cards, emptyText, outlined = null) {
+        container.innerHTML = '';
+        if (cards.length === 0) {
+            const empty = document.createElement('p');
+            empty.textContent = emptyText;
+            container.appendChild(empty);
+            return;
+        }
+        const suits = [
+            [CARD_SUITS.SPADES, 'Spades'], [CARD_SUITS.HEARTS, 'Hearts'],
+            [CARD_SUITS.DIAMONDS, 'Diamonds'], [CARD_SUITS.CLUBS, 'Clubs'], [CARD_SUITS.JOKER, 'Jokers']
+        ];
+        const rankOrder = ['JOKER', 'A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+        suits.forEach(([suit, label]) => {
+            const group = cards.filter(c => c.suit === suit)
+                .sort((a, b) => rankOrder.indexOf(a.value) - rankOrder.indexOf(b.value));
+            if (group.length === 0) return;
+            const row = document.createElement('div');
+            row.className = 'card-grid-row';
+            const name = document.createElement('span');
+            name.className = 'card-grid-label';
+            name.textContent = label;
+            const faces = document.createElement('div');
+            faces.className = 'card-grid-cards';
+            group.forEach(card => {
+                const view = card.clone();
+                view.flipFaceUp();
+                const el = view.getElement(true);
+                if (outlined && card.id === outlined.id) el.classList.add('is-latest');
+                faces.appendChild(el);
+            });
+            row.append(name, faces);
+            container.appendChild(row);
+        });
     }
 
     /**
      * Initialize the UI
      */
     initialize() {
+        this.renderPrompt(); // clears any prompt left over from a previous match
         this.updateGameState();
         TutorialManager.initializeTutorial();
     }
@@ -285,14 +242,38 @@ class UI {
         this.updateDeckAndDiscard();
         this.updateTurnAndPhase();
         this.updateHandCounts();
+        this.updateSidePanels();
     }
 
     /**
-     * Update player health displays
+     * Update player names and the health crests
      */
     updatePlayerHealth() {
-        document.getElementById('player-health').textContent = this.game.player.health;
-        document.getElementById('bot-health').textContent = this.game.bot.health;
+        const { player, bot } = this.game;
+        document.getElementById('player-name-label').textContent = player.name;
+        document.getElementById('bot-name').textContent = bot.name;
+
+        const circumference = 2 * Math.PI * 54; // the ring's radius in the crest SVG
+        [[player, 'player'], [bot, 'bot']].forEach(([p, prefix]) => {
+            const hpEl = document.getElementById(`${prefix}-health`);
+            hpEl.textContent = p.health;
+            const fraction = Math.max(0, Math.min(1, p.health / GAME_SETTINGS.STARTING_HEALTH));
+            const ring = document.getElementById(`${prefix}-health-ring`);
+            ring.style.strokeDasharray = `${(fraction * circumference).toFixed(1)} ${circumference.toFixed(1)}`;
+            ring.style.opacity = fraction > 0 ? '1' : '0';
+
+            // A quarter of health or less turns the crest red
+            const low = p.health > 0 && fraction <= 0.25;
+            document.querySelector(`.${prefix}-stats`).classList.toggle('low', low);
+            if (prefix === 'player') document.getElementById('player-low').hidden = !low;
+
+            const before = this._lastHealth ? this._lastHealth[prefix] : p.health;
+            if (p.health < before) {
+                Fx.floatText(hpEl, `-${before - p.health}`, 'danger');
+                Fx.impact(document.querySelector(`.${prefix}-stats .crest`), 'danger');
+            }
+        });
+        this._lastHealth = { player: player.health, bot: bot.health };
     }
 
     /**
@@ -300,25 +281,64 @@ class UI {
      */
     updatePlayerHand() {
         const handContainer = document.getElementById('player-hand');
-        handContainer.innerHTML = '';
-        
-        this.game.player.hand.forEach(card => {
-            const cardElement = card.getElement(true);
-            
-            if (this.game.currentPhase === PHASES.SETUP) {
-                const canPlay = canPlayCard(card, this.game);
-                if (!canPlay) {
-                    cardElement.classList.add('disabled');
-                }
-            } else {
-                cardElement.classList.add('disabled');
+        const hand = this.game.player.hand;
+        const handIds = new Set(hand.map(c => c.id));
+
+        // Update cards in place rather than rebuilding the hand: a freshly inserted element
+        // loses its hover state until the pointer moves, so the zoomed card would snap back
+        // into the fan and zoom again every time the hand changed
+        const existing = new Map();
+        [...handContainer.children].forEach(el => {
+            if (handIds.has(el.dataset.cardId)) existing.set(el.dataset.cardId, el);
+            else el.remove();
+        });
+
+        let drawn = 0;
+        hand.forEach((card, i) => {
+            let cardElement = existing.get(card.id);
+            if (!cardElement) {
+                cardElement = card.getElement(true);
+                cardElement.tabIndex = 0;
+                cardElement.setAttribute('role', 'button');
+                cardElement.setAttribute('aria-label', `${describeCard(card)}, ${this.describeCardRole(card)}`);
+                if (!this._handIds.has(card.id)) Fx.enter(cardElement, 'draw', 70 * drawn++);
             }
-            
-            if (this.selectedCard && this.selectedCard.id === card.id) {
-                cardElement.classList.add('selected');
+
+            const playable = this.game.currentPhase === PHASES.SETUP && canPlayCard(card, this.game);
+            const selected = !!this.selectedCard && this.selectedCard.id === card.id;
+            cardElement.classList.toggle('disabled', !playable);
+            cardElement.classList.toggle('selected', selected);
+            cardElement.setAttribute('aria-pressed', String(selected));
+
+            // Only move an element when it is out of place, for the same hover reason
+            if (handContainer.children[i] !== cardElement) {
+                handContainer.insertBefore(cardElement, handContainer.children[i] || null);
             }
-            
-            handContainer.appendChild(cardElement);
+        });
+        this._handIds = handIds;
+        document.getElementById('player-hand-count').textContent = `${hand.length} in hand`;
+        this.layoutHand();
+        if (this.prompt) this.applyPromptMarks();
+    }
+
+    /**
+     * Spread the hand into a fan that fits its corner: overlap grows with the number of cards
+     */
+    layoutHand() {
+        const hand = document.getElementById('player-hand');
+        const cards = [...hand.querySelectorAll('.card')];
+        const n = cards.length;
+        if (n === 0) return;
+        const width = cards[0].offsetWidth;
+        const room = Math.max(0, hand.clientWidth - width * 1.45); // the last card tilts outward
+        const step = n > 1 ? Math.min(width * 0.6, room / (n - 1)) : 0;
+        const spread = Math.min(36, 7 * (n - 1)); // total angle across the fan, in degrees
+        cards.forEach((card, i) => {
+            const t = n > 1 ? i / (n - 1) - 0.5 : 0; // -0.5 (left) to 0.5 (right)
+            card.style.setProperty('--fan-x', `${(i * step).toFixed(1)}px`);
+            card.style.setProperty('--fan-rot', `${(t * spread).toFixed(1)}deg`);
+            card.style.setProperty('--fan-y', `${(t * t * width * 0.5).toFixed(1)}px`);
+            card.style.setProperty('--fan-z', String(i + 1));
         });
     }
 
@@ -326,6 +346,8 @@ class UI {
      * Update the board display
      */
     updateBoard() {
+        const before = this.snapshotBoard();
+
         // Update player monster spaces
         for (let i = 0; i < this.game.player.monsterSpaces.length; i++) {
             const space = document.getElementById(`player-monster-${i}`);
@@ -335,6 +357,8 @@ class UI {
             if (card) {
                 const cardElement = card.getElement();
                 
+                this.decorateFusion(cardElement, card);
+
                 // Highlight monsters that can attack in battle phase
                 if (this.game.currentPhase === PHASES.BATTLE && 
                     this.game.currentPlayer === this.game.player &&
@@ -368,12 +392,11 @@ class UI {
             
             const card = this.game.player.trapSpaces[i].card;
             if (card) {
-                const cardElement = card.getElement();
-
-                // If card is face-down, apply face-down visual; otherwise show trap status
-                if (!card.faceUp) {
-                    cardElement.classList.add('face-down');
-                }
+                // Traps are set face-down; render a face-up copy so the owner can see their own trap
+                const view = card.clone();
+                view.flipFaceUp();
+                const cardElement = view.getElement();
+                cardElement.classList.add('set-face-down');
 
                 // Apply trap-specific classes based on active flag
                 if (card.active) {
@@ -400,6 +423,7 @@ class UI {
                     card.flipFaceUp();
                 }
                 const cardElement = card.getElement();
+                this.decorateFusion(cardElement, card);
                     // Visual attacked state for bot monsters as well
                     if (card.attackedThisTurn) {
                         cardElement.classList.add('attacked');
@@ -422,97 +446,367 @@ class UI {
             
             const card = this.game.bot.trapSpaces[i].card;
             if (card) {
-                // Bot traps remain face-down for player
+                // Bot traps remain face-down for player; only whether they are armed is shown
                 const cardElement = card.getElement();
-                if (!card.faceUp) cardElement.classList.add('face-down');
+                if (!card.faceUp) {
+                    cardElement.classList.add('face-down');
+                    cardElement.classList.toggle('armed', !!card.active);
+                    const label = document.createElement('div');
+                    label.classList.add('trap-face-label');
+                    label.textContent = card.active ? 'Armed' : 'Set';
+                    cardElement.appendChild(label);
+                }
                 space.appendChild(cardElement);
             }
         }
         
+        this.animateBoardChanges(before);
+        this.hideZoomIfDetached();
+
         // Highlight spaces based on current phase
         this.highlightSpacesForCurrentPhase();
+    }
+
+    /**
+     * Fusions owe one monster card of upkeep each End phase; say so on the card
+     */
+    decorateFusion(cardElement, card) {
+        if (!card.isFusion) return;
+        const badge = document.createElement('span');
+        badge.className = 'upkeep-badge';
+        badge.textContent = 'UPKEEP 1';
+        cardElement.appendChild(badge);
+    }
+
+    /**
+     * Record which card each board slot shows, and where the slot is, before a re-render
+     */
+    snapshotBoard() {
+        const snap = new Map();
+        document.querySelectorAll('.board-panel .monster-space, .board-panel .trap-space').forEach(space => {
+            const el = space.querySelector('.card');
+            snap.set(space.id, { cardId: el ? el.dataset.cardId : null, el, rect: space.getBoundingClientRect() });
+        });
+        return snap;
+    }
+
+    /**
+     * Ask for a card's next exit from the board to use a specific animation
+     * @param {string} cardId
+     * @param {'destroy'|'reveal'} kind
+     */
+    fxHint(cardId, kind) {
+        this._fxHints.set(cardId, kind);
+    }
+
+    /**
+     * Animate cards that arrived in or left a slot since the snapshot
+     */
+    animateBoardChanges(before) {
+        const now = new Map();
+        [this.game.player, this.game.bot].forEach(p => {
+            [...p.monsterSpaces, ...p.trapSpaces].forEach(s => { if (s.card) now.set(s.card.id, s.card); });
+        });
+
+        before.forEach((old, spaceId) => {
+            const space = document.getElementById(spaceId);
+            const el = space.querySelector('.card');
+            const newId = el ? el.dataset.cardId : null;
+            if (old.cardId === newId) return;
+            const slotClass = space.classList.contains('trap-space') ? 'trap-space' : 'monster-space';
+
+            if (old.cardId && old.el) {
+                const kind = this._fxHints.get(old.cardId) || 'leave';
+                this._fxHints.delete(old.cardId);
+                let ghostEl = old.el;
+                const card = this._boardCards.get(old.cardId);
+                if (kind === 'reveal' && card) {
+                    // Show the trap's face as it springs, even if it was face-down
+                    const view = card.clone();
+                    view.flipFaceUp();
+                    view.active = true;
+                    ghostEl = view.getElement();
+                }
+                Fx.ghost(ghostEl, old.rect, slotClass, kind);
+            }
+            if (el) {
+                const card = now.get(newId);
+                Fx.enter(el, card && card.isFusion ? 'fusion' : 'place');
+            }
+        });
+        this._boardCards = now;
     }
 
     /**
      * Highlight board spaces based on the current phase
      */
     highlightSpacesForCurrentPhase() {
-        // Clear all highlights
         document.querySelectorAll('.monster-space, .trap-space').forEach(space => {
-            space.classList.remove('highlight');
-            space.classList.remove('phase-highlight');
+            space.classList.remove('highlight', 'phase-highlight');
         });
-        
-        if (this.game.currentPlayer !== this.game.player) return;
-        
-        if (this.game.currentPhase === PHASES.SETUP) {
+        const g = this.game;
+
+        if (g.currentPlayer === g.player && g.currentPhase === PHASES.SETUP) {
             // Highlight empty player spaces for card placement
-            this.game.player.monsterSpaces.forEach((space, i) => {
-                if (!space.card) {
-                    document.getElementById(`player-monster-${i}`).classList.add('phase-highlight');
-                }
+            g.player.monsterSpaces.forEach((space, i) => {
+                if (!space.card) document.getElementById(`player-monster-${i}`).classList.add('phase-highlight');
             });
-            
-            this.game.player.trapSpaces.forEach((space, i) => {
-                if (!space.card) {
-                    document.getElementById(`player-trap-${i}`).classList.add('phase-highlight');
-                }
+            g.player.trapSpaces.forEach((space, i) => {
+                if (!space.card) document.getElementById(`player-trap-${i}`).classList.add('phase-highlight');
             });
-        } else if (this.game.currentPhase === PHASES.BATTLE && this.game.isAttackAllowedThisTurn(this.game.player)) {
-            // Highlight attackable spaces
-            this.game.player.monsterSpaces.forEach((space, i) => {
+        } else if (g.currentPlayer === g.player && g.currentPhase === PHASES.BATTLE && g.isAttackAllowedThisTurn(g.player)) {
+            // Highlight monsters that can still attack
+            g.player.monsterSpaces.forEach((space, i) => {
                 if (space.card && space.card.canAttack()) {
                     document.getElementById(`player-monster-${i}`).classList.add('phase-highlight');
                 }
             });
         }
+        this.applyAttackSelectionHighlights();
+        if (this.prompt) this.applyPromptMarks();
     }
 
     /**
-     * Update deck and discard pile displays
+     * Whether the player is choosing an attacker or target right now
+     */
+    isPickingAttack() {
+        const g = this.game;
+        return g.currentPlayer === g.player && g.currentPhase === PHASES.BATTLE &&
+            !g.gameOver && !g.attackInProgress && !g.battleEnded && this.selectedSpace !== null;
+    }
+
+    /**
+     * Whether the selected attacker can only hit the bot directly (the bot has no monsters)
+     */
+    isDirectOnly() {
+        const valid = this.game.board.getValidAttackTargets(this.game.player, this.game.bot);
+        return valid.length === 1 && valid[0] === null;
+    }
+
+    /**
+     * Re-apply the selected attacker, its valid targets and the target under the pointer
+     */
+    applyAttackSelectionHighlights() {
+        document.querySelectorAll('.monster-space.targeted').forEach(el => el.classList.remove('targeted'));
+        document.querySelector('.bot-area')?.classList.remove('direct-target');
+        if (this._previewArrow) {
+            this._previewArrow.remove();
+            this._previewArrow = null;
+        }
+
+        if (this.isPickingAttack()) {
+            document.getElementById(`player-monster-${this.selectedSpace}`)?.classList.add('highlight');
+            if (this.isDirectOnly()) {
+                document.querySelector('.bot-area')?.classList.add('direct-target');
+            } else {
+                this.game.board.getValidAttackTargets(this.game.player, this.game.bot).forEach(index => {
+                    if (index !== null) document.getElementById(`bot-monster-${index}`)?.classList.add('highlight');
+                });
+            }
+            if (this.attackTarget) {
+                if (this.attackTarget.index !== null) {
+                    document.getElementById(`bot-monster-${this.attackTarget.index}`)?.classList.add('targeted');
+                }
+                const { from, to } = this.attackEls(this.selectedSpace, this.game.player, this.attackTarget.index, this.game.bot);
+                this._previewArrow = Fx.arrow(from, to, 'you', { dashed: true });
+            }
+        } else {
+            this.hideAttackPreview();
+        }
+        this.makeSpacesFocusable();
+    }
+
+    /**
+     * Spaces you can act on right now take keyboard focus and announce what they hold
+     */
+    makeSpacesFocusable() {
+        const direct = this.isPickingAttack() && this.isDirectOnly();
+        document.querySelectorAll('.board-panel .monster-space, .board-panel .trap-space').forEach(space => {
+            const active = space.classList.contains('pickable') ||
+                (!this.prompt && (space.classList.contains('highlight') || space.classList.contains('phase-highlight') ||
+                    (direct && space.id.startsWith('bot-monster'))));
+            if (active) {
+                space.tabIndex = 0;
+                space.setAttribute('role', 'button');
+                space.setAttribute('aria-label', this.describeSpace(space));
+            } else {
+                space.removeAttribute('tabindex');
+                space.removeAttribute('role');
+                space.removeAttribute('aria-label');
+            }
+        });
+    }
+
+    /**
+     * "Your monster space 2: 4♦" (only used for spaces whose contents are public)
+     */
+    describeSpace(space) {
+        const [owner, type, index] = space.id.split('-');
+        const player = owner === 'player' ? this.game.player : this.game.bot;
+        const card = (type === 'monster' ? player.monsterSpaces : player.trapSpaces)[Number(index)].card;
+        const whose = owner === 'player' ? 'Your' : `${player.name}'s`;
+        return `${whose} ${type} space ${Number(index) + 1}: ${card ? describeCard(card) : 'empty'}`;
+    }
+
+    /**
+     * The attacker's slot and what it is aiming at (a slot, or the defender's side for a direct attack)
+     */
+    attackEls(attackerIndex, attacker, defenderIndex, defender) {
+        const prefix = p => (p === this.game.player ? 'player' : 'bot');
+        const from = document.getElementById(`${prefix(attacker)}-monster-${attackerIndex}`);
+        const to = defenderIndex === null
+            ? document.querySelector(defender === this.game.player ? '.player-area-human' : '.bot-area')
+            : document.getElementById(`${prefix(defender)}-monster-${defenderIndex}`);
+        return { from, to };
+    }
+
+    /**
+     * "Your 4♦" or "Bot's 4♦"
+     */
+    ownerLabel(player, card, capitalize = false) {
+        if (player === this.game.player) return `${capitalize ? 'Your' : 'your'} ${describeCard(card)}`;
+        return `${player.name}'s ${describeCard(card)}`;
+    }
+
+    /**
+     * Update the deck, discard and Joker piles
      */
     updateDeckAndDiscard() {
-        const deckCountEl = document.getElementById('deck-count');
-        if (deckCountEl) deckCountEl.textContent = this.game.deck.getDeckCount();
+        const deck = this.game.deck;
 
-        const discardCountEl = document.getElementById('discard-count');
-        if (discardCountEl) discardCountEl.textContent = this.game.deck.getDiscardCount();
-
-        const discardPile = document.getElementById('discard-pile');
-        if (!discardPile) return;
-        discardPile.innerHTML = '';
-
-        if (this.game.deck.getDiscardCount() > 0) {
-            const cardBack = document.createElement('div');
-            cardBack.classList.add('card', 'card-back');
-            discardPile.appendChild(cardBack);
-        } else {
-            const emptyCard = document.createElement('div');
-            emptyCard.classList.add('card', 'card-back', 'discard-empty');
-            discardPile.appendChild(emptyCard);
+        // Deck: card backs stacked thicker or thinner with the count
+        const deckCount = deck.getDeckCount();
+        document.getElementById('deck-count').textContent = deckCount;
+        document.getElementById('deck').setAttribute('aria-label', `Deck, ${deckCount} card${deckCount === 1 ? '' : 's'}: view contents`);
+        const deckStack = document.getElementById('deck-stack');
+        deckStack.innerHTML = '';
+        const layers = deckCount === 0 ? 0 : Math.min(6, 1 + Math.floor(deckCount / 10));
+        if (layers === 0) deckStack.appendChild(this.pileSlot());
+        for (let i = layers - 1; i >= 0; i--) {
+            const layer = document.createElement('span');
+            layer.className = i === 0 ? 'pile-layer top' : 'pile-layer';
+            layer.style.left = `${i * 2}px`;
+            layer.style.top = `${i * 2}px`;
+            deckStack.appendChild(layer);
         }
+
+        // Discard: the last three cards face up, slightly fanned
+        const pile = deck.discardPile;
+        document.getElementById('discard-count').textContent = pile.length;
+        document.getElementById('discard-pile').setAttribute('aria-label', `Discard pile, ${pile.length} card${pile.length === 1 ? '' : 's'}: view contents`);
+        const discardStack = document.getElementById('discard-stack');
+        discardStack.innerHTML = '';
+        const recent = pile.slice(-3);
+        if (recent.length === 0) discardStack.appendChild(this.pileSlot());
+        const angles = [-8, -2, 5].slice(3 - recent.length);
+        recent.forEach((card, i) => {
+            const view = card.clone();
+            view.flipFaceUp();
+            const el = view.getElement(true);
+            el.style.left = `calc(var(--card-width) * ${(i * 0.2).toFixed(2)})`;
+            el.style.top = `${(recent.length - 1 - i) * 3}px`;
+            el.style.transform = `rotate(${angles[i]}deg)`;
+            discardStack.appendChild(el);
+        });
+
+        // Jokers: played ones face up in front, the rest as empty outlines
+        const total = GAME_SETTINGS.JOKER_COUNT;
+        const used = Math.min(total, this.game.jokersPlayed || 0);
+        document.getElementById('joker-count').textContent = `${used} / ${total}`;
+        document.getElementById('joker-pile').setAttribute('aria-label', `Jokers played: ${used} of ${total}`);
+        const jokerStack = document.getElementById('joker-stack');
+        jokerStack.innerHTML = '';
+        for (let i = total - 1; i >= 0; i--) {
+            let el;
+            if (i < used) {
+                const joker = new Card(CARD_SUITS.JOKER, CARD_VALUES.JOKER);
+                joker.flipFaceUp();
+                el = joker.getElement(true);
+            } else {
+                el = this.pileSlot('★');
+            }
+            el.style.left = `calc(var(--card-width) * ${(i * 0.28).toFixed(2)})`;
+            el.style.top = i === 0 ? '8px' : '0px';
+            el.style.transform = `rotate(${i === 0 ? -4 : 6}deg)`;
+            jokerStack.appendChild(el);
+        }
+    }
+
+    /**
+     * An empty card outline for a pile
+     */
+    pileSlot(symbol = '') {
+        const slot = document.createElement('span');
+        slot.className = 'pile-slot';
+        slot.textContent = symbol;
+        return slot;
     }
 
     /**
      * Update turn and phase indicators
      */
     updateTurnAndPhase() {
+        const isPlayerTurn = this.game.currentPlayer === this.game.player;
+        const phase = this.game.currentPhase;
+
+        // A new phase drops any half-made attack selection from the last one
+        const phaseKey = `${this.game.turnCounter}-${phase}`;
+        const previousKey = this._phaseKey;
+        const phaseChanged = phaseKey !== previousKey;
+        if (phaseChanged) {
+            this._phaseKey = phaseKey;
+            if (phase !== PHASES.SETUP) this.selectedCard = null;
+            this.attackTarget = null;
+            if (phase === PHASES.BATTLE) this.selectedSpace = null;
+        }
+
         const turnIndicator = document.getElementById('turn-indicator');
-        if (turnIndicator) turnIndicator.textContent = `Current Turn: ${this.game.currentPlayer === this.game.player ? this.game.player.name : 'Bot'}`;
+        if (turnIndicator) turnIndicator.textContent = `Turn ${this.game.turnCounter}`;
 
         const phaseIndicator = document.getElementById('phase-indicator');
-        if (phaseIndicator) phaseIndicator.textContent = `Phase: ${this.game.currentPhase}`;
+        if (phaseIndicator) {
+            phaseIndicator.textContent = isPlayerTurn ? 'Your turn' : `${this.game.bot.name}'s turn`;
+            phaseIndicator.classList.toggle('bot-turn', !isPlayerTurn);
+        }
+
+        const steps = document.getElementById('phase-steps');
+        if (steps) {
+            steps.classList.toggle('bot-turn', !isPlayerTurn);
+            steps.querySelectorAll('li').forEach(li => {
+                if (li.dataset.phase === phase) {
+                    li.setAttribute('aria-current', 'step');
+                    if (phaseChanged) Fx.pulse(li, isPlayerTurn ? 'you' : 'bot');
+                } else {
+                    li.removeAttribute('aria-current');
+                }
+            });
+        }
+
+        // Each new turn opens with a banner and its own section of the battle log
+        const turnChanged = !previousKey || previousKey.split('-')[0] !== String(this.game.turnCounter);
+        if (turnChanged && !this.game.gameOver) {
+            Fx.announce({
+                text: isPlayerTurn ? 'Your turn' : `${this.game.bot.name}'s turn`,
+                tone: isPlayerTurn ? 'you' : 'bot',
+                duration: 1100
+            });
+        }
+        this.ensureLogTurn();
 
         // Update end phase button
         const endPhaseBtn = document.getElementById('end-phase-btn');
+        const endPhaseLabel = document.getElementById('end-phase-label');
 
-        if (this.game.currentPlayer === this.game.player) {
-            if (endPhaseBtn) endPhaseBtn.disabled = false;
-            endPhaseBtn.textContent = `End ${this.game.currentPhase} Phase`;
+        if (isPlayerTurn && !this.game.gameOver) {
+            endPhaseBtn.disabled = false;
+            endPhaseLabel.textContent = phase === PHASES.END ? 'End turn' : `End ${phase}`;
         } else {
             endPhaseBtn.disabled = true;
-            endPhaseBtn.textContent = 'Bot Turn';
+            endPhaseLabel.textContent = this.game.gameOver ? 'Game over' : `${this.game.bot.name}'s turn`;
         }
+
+        const concedeBtn = document.getElementById('concede-btn');
+        if (concedeBtn) concedeBtn.disabled = this.game.gameOver;
         // Update board background/area classes based on current player and phase
         try {
             const boardEl = document.querySelector('.game-board');
@@ -526,18 +820,363 @@ class UI {
                 boardEl.classList.add(`phase-${owner}-${this.game.currentPhase}`);
             }
 
-            // Add subtle accent to the active player's area
-            const playerArea = document.querySelector('.player-area-human');
-            const botArea = document.querySelector('.bot-area');
-            if (playerArea) playerArea.classList.toggle('phase-active', this.game.currentPlayer === this.game.player);
-            if (botArea) botArea.classList.toggle('phase-active', this.game.currentPlayer !== this.game.player);
+            // Add subtle accent to the active player's stats card
+            const playerStats = document.querySelector('.player-stats');
+            const botStats = document.querySelector('.bot-stats');
+            if (playerStats) playerStats.classList.toggle('phase-active', isPlayerTurn);
+            if (botStats) botStats.classList.toggle('phase-active', !isPlayerTurn);
         } catch (e) { /* non-fatal UI update failure */ }
-    }    /**
-     * Update hand counts
+    }
+
+    /**
+     * Update hand counts and the bot's face-down fan
      */
     updateHandCounts() {
-        document.getElementById('player-hand-count').textContent = this.game.player.hand.length;
-        document.getElementById('bot-hand-count').textContent = this.game.bot.hand.length;
+        const botCards = this.game.bot.hand.length;
+        document.getElementById('player-hand-count').textContent = `${this.game.player.hand.length} in hand`;
+        document.getElementById('bot-hand-count').textContent = `${botCards} card${botCards === 1 ? '' : 's'}`;
+        this.renderBotHand();
+    }
+
+    /**
+     * The bot's hand as card backs hanging from the top-right corner
+     */
+    renderBotHand() {
+        const fan = document.getElementById('bot-hand-fan');
+        const n = this.game.bot.hand.length;
+        if (fan.children.length !== n) {
+            fan.innerHTML = '';
+            for (let i = 0; i < n; i++) {
+                const back = document.createElement('div');
+                back.className = 'card face-down';
+                fan.appendChild(back);
+            }
+        }
+        const cards = [...fan.children];
+        if (n === 0) return;
+        const width = cards[0].offsetWidth;
+        const room = Math.max(0, fan.clientWidth - width);
+        const step = n > 1 ? Math.min(width * 0.5, room / (n - 1)) : 0;
+        const spread = Math.min(32, 6 * (n - 1));
+        cards.forEach((card, i) => {
+            const t = n > 1 ? i / (n - 1) - 0.5 : 0; // first card hangs at the far right
+            card.style.setProperty('--fan-x', `${(i * step).toFixed(1)}px`);
+            card.style.setProperty('--fan-rot', `${(t * spread).toFixed(1)}deg`);
+            card.style.setProperty('--fan-y', `${(-t * t * width * 0.4).toFixed(1)}px`);
+        });
+    }
+
+    /**
+     * Short description of what a card does, for labels and the inspector
+     * @param {Card} card
+     * @returns {string}
+     */
+    describeCardRole(card) {
+        if (card.isFusion) return `fusion, strength ${card.fusionStrength}`;
+        switch (getCardType(card.value)) {
+            case CARD_TYPES.MONSTER_NORMAL: return `monster, strength ${getCardNumericValue(card.value)}`;
+            case CARD_TYPES.MONSTER_BIG: return `big monster, needs ${getRequiredSacrificeValue(card)} in sacrifices`;
+            case CARD_TYPES.TRAP: return `trap: ${getTrapName(card.value)}`;
+            default: return 'Joker: resets the board and both hands';
+        }
+    }
+
+    /**
+     * Update the hint line, the upkeep sub-label on the End button and the crest sub-label
+     */
+    updateSidePanels() {
+        const g = this.game;
+        document.getElementById('hint-line').textContent = this.hintText();
+
+        const fusions = g.board.countActiveFusions(g.player);
+        const sub = document.getElementById('end-phase-sub');
+        sub.hidden = !(fusions > 0 && g.currentPlayer === g.player && !g.gameOver &&
+            (g.currentPhase === PHASES.BATTLE || g.currentPhase === PHASES.END));
+        sub.textContent = `Upkeep: ${fusions} card${fusions === 1 ? '' : 's'}`;
+        document.getElementById('player-sub').textContent = fusions > 0 ? `Fusion upkeep ${fusions}` : '';
+    }
+
+    /**
+     * One line telling the player what they can do right now
+     */
+    hintText() {
+        const g = this.game;
+        const bot = g.bot.name;
+        if (g.gameOver) return 'The duel is over. Open the menu to start a new game.';
+        if (g.currentPlayer !== g.player) return `${bot}'s turn. You may be asked to answer an attack with a trap.`;
+
+        switch (g.currentPhase) {
+            case PHASES.SETUP: {
+                if (this.selectedCard) {
+                    return `${describeCard(this.selectedCard)}: ${this.describeCardRole(this.selectedCard)}. Click a glowing space, or the card again to place it.`;
+                }
+                return 'Pick a card, then a glowing space. Click a monster on your field to fuse it.';
+            }
+            case PHASES.BATTLE: {
+                if (g.battleEnded) return 'An Ace ended your Battle phase.';
+                if (!g.isAttackAllowedThisTurn(g.player)) return 'The first player can\u2019t attack on turn 1.';
+                if (g.attackInProgress) return 'Attacking\u2026';
+                if (this.selectedSpace === null) {
+                    return g.player.monsterSpaces.some(s => s.card && s.card.canAttack())
+                        ? 'Pick a glowing monster to attack with.'
+                        : 'No monsters can attack. End the Battle phase.';
+                }
+                return this.isDirectOnly()
+                    ? `Click ${bot}'s side to attack directly. Esc cancels.`
+                    : `Hover a ${bot} monster to see the damage. Click it to attack. Esc cancels.`;
+            }
+            case PHASES.DRAW:
+                return 'Drawing\u2026';
+            default:
+                return 'Ending your turn. Traps you set this turn arm now.';
+        }
+    }
+
+    /**
+     * Predict an attack's damage with the same rules as Board.handleAttack (traps not included)
+     * @param {number} strength - Attacking strength
+     * @param {Card|null} target - Defending monster, or null for a direct attack
+     * @returns {{damage: string, result: string, tone: string}}
+     */
+    predictAttack(strength, target) {
+        const botName = this.game.bot.name;
+        if (!target) return { damage: `${botName} \u2212${strength}`, result: 'Direct hit', tone: 'good' };
+        const defense = calculateMonsterStrength(target);
+        if (strength > defense) return { damage: `${botName} \u2212${strength - defense}`, result: `${describeCard(target)} is destroyed`, tone: 'good' };
+        if (strength < defense) return { damage: `You \u2212${defense - strength}`, result: 'Your monster is destroyed', tone: 'bad' };
+        return { damage: 'No damage', result: 'Both monsters are destroyed', tone: '' };
+    }
+
+    /**
+     * Show the damage preview next to the target under the pointer (or the bot's side for a direct attack)
+     */
+    showAttackPreview() {
+        const tip = document.getElementById('attack-preview');
+        if (!this.isPickingAttack() || !this.attackTarget) {
+            tip.hidden = true;
+            return;
+        }
+        const g = this.game;
+        const attacker = g.player.monsterSpaces[this.selectedSpace].card;
+        const index = this.attackTarget.index;
+        const target = index === null ? null : g.bot.monsterSpaces[index].card;
+        const outcome = this.predictAttack(calculateMonsterStrength(attacker), target);
+
+        tip.className = `attack-preview ${outcome.tone}`;
+        tip.innerHTML = '';
+        const line = (cls, text) => {
+            const el = document.createElement('div');
+            el.className = cls;
+            el.textContent = text;
+            tip.appendChild(el);
+            return el;
+        };
+        line('preview-kicker', 'If you attack');
+        const matchup = line('preview-matchup', '');
+        const mine = document.createElement('span');
+        mine.className = 'you';
+        mine.textContent = attacker.isFusion ? `Fusion ${attacker.fusionStrength}` : describeCard(attacker);
+        matchup.append(mine, ` vs ${target ? describeCard(target) : `${g.bot.name} directly`}`);
+        line('preview-damage', outcome.damage);
+        line('preview-result', outcome.result);
+        line('preview-action', target ? 'Click to attack' : `Click ${g.bot.name}'s side to attack`);
+        tip.hidden = false;
+
+        // Just outside the board on the target's side, level with it, so it never covers another card
+        const anchor = target ? document.getElementById(`bot-monster-${index}`) : document.querySelector('.bot-area .monster-row');
+        const r = anchor.getBoundingClientRect();
+        const board = document.querySelector('.board-panel').getBoundingClientRect();
+        const w = tip.offsetWidth;
+        const h = tip.offsetHeight;
+        const leftHalf = r.left + r.width / 2 < board.left + board.width / 2 && target !== null;
+        let left = leftHalf ? board.left - 16 - w : board.right + 16;
+        if (left < 8 || left + w > window.innerWidth - 8) left = r.right + 16; // no room beside the board (narrow windows)
+        if (left + w > window.innerWidth - 8) left = r.left - 16 - w;
+        const top = Math.min(Math.max(8, r.top + 12), window.innerHeight - h - 8);
+        tip.style.left = `${Math.max(8, left)}px`;
+        tip.style.top = `${top}px`;
+    }
+
+    hideAttackPreview() {
+        const tip = document.getElementById('attack-preview');
+        if (tip) tip.hidden = true;
+    }
+
+    /**
+     * Pointer or focus moved on the board: update the damage preview, or zoom a face-up card
+     * @param {Element|null} target
+     */
+    handleBoardPointer(target) {
+        const space = target && target.closest ? target.closest('.monster-space, .trap-space') : null;
+
+        if (this.isPickingAttack()) {
+            this.cancelZoom();
+            if (this.isDirectOnly()) return; // the direct-attack preview stays up until you act
+            const index = space && space.id.startsWith('bot-monster') && space.classList.contains('highlight')
+                ? Number(space.dataset.index) : null;
+            const current = this.attackTarget ? this.attackTarget.index : null;
+            if (index === current) return;
+            this.attackTarget = index === null ? null : { index };
+            this.applyAttackSelectionHighlights();
+            this.showAttackPreview();
+            return;
+        }
+
+        // A short pause over a face-up card shows it larger
+        const card = space && space.querySelector('.card:not(.face-down)');
+        if (card && (card.contains(target) || target === space)) this.scheduleZoom(card);
+        else this.cancelZoom();
+    }
+
+    scheduleZoom(cardEl) {
+        if (this._zoomSource === cardEl) return;
+        this.cancelZoom();
+        this._zoomSource = cardEl;
+        this._zoomTimer = setTimeout(() => this.showZoom(cardEl), 450);
+    }
+
+    cancelZoom() {
+        clearTimeout(this._zoomTimer);
+        this._zoomSource = null;
+        const zoom = document.getElementById('card-zoom');
+        if (!zoom) return;
+        zoom.hidden = true;
+        zoom.innerHTML = '';
+    }
+
+    hideZoomIfDetached() {
+        if (this._zoomSource && !document.body.contains(this._zoomSource)) this.cancelZoom();
+    }
+
+    /**
+     * Show a large copy of a board card beside it
+     */
+    showZoom(cardEl) {
+        if (!document.body.contains(cardEl) || document.querySelector('.dialog.visible, dialog[open]')) return;
+        const zoom = document.getElementById('card-zoom');
+        const copy = cardEl.cloneNode(true);
+        copy.classList.remove('selected', 'can-attack', 'attacked', 'disabled');
+        copy.removeAttribute('tabindex');
+        zoom.innerHTML = '';
+        zoom.appendChild(copy);
+        zoom.hidden = false;
+
+        const r = cardEl.getBoundingClientRect();
+        const w = zoom.offsetWidth;
+        const h = zoom.offsetHeight;
+        let left = r.right + 18;
+        if (left + w > window.innerWidth - 8) left = r.left - 18 - w;
+        const top = Math.min(Math.max(8, r.top + r.height / 2 - h / 2), window.innerHeight - h - 8);
+        zoom.style.left = `${Math.max(8, left)}px`;
+        zoom.style.top = `${top}px`;
+        Fx.play(zoom, [{ opacity: 0, transform: 'scale(0.94)' }, { opacity: 1, transform: 'none' }], { duration: 140, easing: 'ease-out' });
+    }
+
+    /**
+     * Redraw attack highlights, the preview and the hint after the selection changes
+     */
+    refreshAttackSelection() {
+        this.highlightSpacesForCurrentPhase();
+        this.showAttackPreview();
+        this.updateSidePanels();
+    }
+
+    cancelAttackSelection() {
+        this.selectedSpace = null;
+        this.attackTarget = null;
+        this.clearAttackHighlights();
+        this.refreshAttackSelection();
+    }
+
+    /**
+     * Launch the attack on the target under the pointer
+     */
+    confirmAttack() {
+        if (!this.isPickingAttack() || !this.attackTarget) return;
+        const attackerIndex = this.selectedSpace;
+        const targetIndex = this.attackTarget.index;
+        this.selectedSpace = null;
+        this.attackTarget = null;
+        this.hideAttackPreview();
+        // The game handles the bot's trap response and resolves the attack
+        this.game.processAttack(attackerIndex, targetIndex);
+        this.updateSidePanels();
+    }
+
+    /**
+     * A click on the bot's side outside its monster spaces: launches a direct attack when that's the only option
+     */
+    handleBotAreaClick() {
+        if (!this.isPickingAttack() || !this.isDirectOnly()) return;
+        this.attackTarget = { index: null };
+        this.confirmAttack();
+    }
+
+    /**
+     * Open or close the battle log drawer
+     * @param {boolean} [open] - omit to toggle
+     */
+    toggleLog(open) {
+        const drawer = document.getElementById('game-log');
+        const button = document.getElementById('log-btn');
+        const show = open === undefined ? drawer.hidden : open;
+        if (show === !drawer.hidden) return;
+        const focusWasInside = drawer.contains(document.activeElement);
+        drawer.hidden = !show;
+        button.setAttribute('aria-expanded', String(show));
+        if (show) {
+            button.classList.remove('has-unread');
+            document.getElementById('log-content').scrollTop = 0;
+            Fx.play(drawer, [{ transform: 'translateX(-100%)' }, { transform: 'none' }],
+                { duration: Fx.reducedMotion() ? 0 : 220, easing: 'ease-out' });
+            document.getElementById('log-close').focus();
+        } else if (focusWasInside) {
+            button.focus();
+        }
+    }
+
+    /**
+     * Open or close the game menu
+     * @param {boolean} [open] - omit to toggle
+     */
+    toggleMenu(open) {
+        const menu = document.getElementById('game-menu');
+        const button = document.getElementById('menu-btn');
+        if (!menu || !button) return;
+        const show = open === undefined ? menu.hidden : open;
+        if (show === !menu.hidden) return;
+        menu.hidden = !show;
+        button.setAttribute('aria-expanded', String(show));
+        if (show) menu.querySelector('button:not(:disabled)')?.focus();
+    }
+
+    /**
+     * Esc closes the menu or log, or drops the current selection
+     */
+    handleEscape() {
+        if (!document.getElementById('game-menu').hidden) {
+            this.toggleMenu(false);
+            document.getElementById('menu-btn').focus();
+            return;
+        }
+        if (!document.getElementById('game-log').hidden) {
+            this.toggleLog(false);
+            return;
+        }
+        if (this.prompt) {
+            if (this.prompt.cancel) this.prompt.cancel();
+            return;
+        }
+        if (this.isPickingAttack()) {
+            this.cancelAttackSelection();
+            return;
+        }
+        if (this.selectedCard && this.game.currentPhase === PHASES.SETUP && !document.querySelector('.dialog.visible')) {
+            this.selectedCard = null;
+            this.updatePlayerHand();
+            this.highlightSpacesForCurrentPhase();
+            this.updateSidePanels();
+        }
     }
 
     /**
@@ -545,6 +1184,11 @@ class UI {
      * @param {string} cardId - Selected card ID
      */
     handleCardSelection(cardId) {
+        if (this.prompt) {
+            const card = this.game.player.hand.find(c => c.id === cardId);
+            this.promptPick(card, { zone: 'hand', owner: this.game.player, index: null });
+            return;
+        }
         // Only allow selection during player's setup phase
         if (this.game.currentPhase !== PHASES.SETUP || this.game.currentPlayer !== this.game.player) {
             return;
@@ -561,9 +1205,7 @@ class UI {
         
         // Special case for Joker - confirm and play immediately
         if (card.value === CARD_VALUES.JOKER) {
-            if (confirm('Play Joker? This will reset the board and both hands.')) {
-                this.game.playJoker(card);
-            }
+            this.promptJoker(card);
             return;
         }
         // If already selected and clicked again -> attempt to play
@@ -624,6 +1266,7 @@ class UI {
         // Otherwise select the card (highlight)
         this.selectedCard = card;
         this.updatePlayerHand();
+        this.updateSidePanels();
     }
 
     /**
@@ -631,8 +1274,12 @@ class UI {
      * @param {number} spaceIndex - Space index
      */
     handlePlayerMonsterSpaceClick(spaceIndex) {
+        if (this.prompt) {
+            this.promptPick(this.game.player.monsterSpaces[spaceIndex].card, { zone: 'field', owner: this.game.player, index: spaceIndex });
+            return;
+        }
         // If it's not player's turn, do nothing
-        if (this.game.currentPlayer !== this.game.player) {
+        if (this.game.currentPlayer !== this.game.player || this.game.gameOver) {
             return;
         }
         
@@ -649,8 +1296,7 @@ class UI {
                         const res = this.game.playMonsterCard(this.selectedCard, spaceIndex);
                         if (res) {
                             this.selectedCard = null;
-                            this.updatePlayerHand();
-                            this.game.ui.updateGameState();
+                            this.updateGameState();
                         }
                     }
                 } else if (cardType === CARD_TYPES.MONSTER_BIG) {
@@ -669,7 +1315,8 @@ class UI {
         }
         // Battle phase - select attacker
         else if (this.game.currentPhase === PHASES.BATTLE) {
-            // First turn restriction
+            if (this.game.attackInProgress || this.game.battleEnded) return;
+
             if (!this.game.isAttackAllowedThisTurn(this.game.player)) {
                 this.addLogMessage('Cannot attack on the first turn');
                 return;
@@ -678,189 +1325,86 @@ class UI {
             if (!space.card || !space.card.canAttack()) {
                 return;
             }
-            
-            this.selectedSpace = spaceIndex;
-            console.debug('Player selected attacker space', spaceIndex);
-            
-            // Get valid attack targets
-            const validTargets = this.game.board.getValidAttackTargets(
-                this.game.player, 
-                this.game.bot
-            );
-            
-            // If the only valid target is direct (opponent has no monsters), perform direct attack immediately
-            if (validTargets.length === 1 && validTargets[0] === null) {
-                // Check for Ace trap or other defensive traps on the bot
-                const activatableTraps = this.game.bot.getActivatableTraps({ type: 'battle-phase' });
 
-                if (activatableTraps.length > 0 && this.game.botThinkingEnabled) {
-                    // Let bot decide whether to activate Ace
-                    this.game.botPlayer.handleDefensiveTraps(
-                        this.selectedSpace,
-                        null,
-                        null
-                    );
-                } else {
-                    // No Ace trap, process direct attack
-                    this.game.processAttack(
-                        this.selectedSpace,
-                        null
-                    );
-                }
-
-                // Mark the monster as having attacked this turn
-                const attackingMonsterSpace = this.game.player.monsterSpaces[this.selectedSpace];
-                if (attackingMonsterSpace && attackingMonsterSpace.card) {
-                    attackingMonsterSpace.card.attackedThisTurn = true;
-                }
-
-                // Clear selection and highlights
-                this.selectedSpace = null;
-                document.querySelectorAll('.monster-space, .player-area').forEach(element => {
-                    element.classList.remove('highlight');
-                });
-            } else {
-                // Highlight valid targets
-                document.querySelectorAll('.monster-space').forEach(element => {
-                    element.classList.remove('highlight');
-                });
-                
-                validTargets.forEach(targetIndex => {
-                    if (targetIndex === null) {
-                        // Direct attack - highlight bot player area
-                        document.querySelector('.bot-area').classList.add('highlight');
-                    } else {
-                        document.getElementById(`bot-monster-${targetIndex}`).classList.add('highlight');
-                    }
-                });
-                
-                document.getElementById(`player-monster-${spaceIndex}`).classList.add('highlight');
-                this.addLogMessage('Select a target for your attack');
+            // Clicking the selected attacker again deselects it
+            if (this.selectedSpace === spaceIndex) {
+                this.cancelAttackSelection();
+                return;
             }
+
+            this.selectedSpace = spaceIndex;
+            this.attackTarget = null;
+
+            // With no monsters in the way, the only target is the bot itself: preview it straight away
+            if (this.isDirectOnly()) this.attackTarget = { index: null };
+
+            this.clearAttackHighlights();
+            this.refreshAttackSelection();
         }
     }
 
     /**
-     * Handle click on bot's monster space
+     * Click on one of the bot's monster spaces while choosing a target: attack it
      * @param {number} spaceIndex - Space index
      */
     handleBotMonsterSpaceClick(spaceIndex) {
-        // Battle phase - select target
-        if (this.game.currentPhase === PHASES.BATTLE && 
-            this.game.currentPlayer === this.game.player &&
-            this.selectedSpace !== null) {
-            
-            // First turn restriction
-            if (!this.game.isAttackAllowedThisTurn(this.game.player)) {
-                this.addLogMessage('Cannot attack on the first turn');
-                return;
-            }
-            
-            // Check if this is a valid target
-            const validTargets = this.game.board.getValidAttackTargets(
-                this.game.player, 
-                this.game.bot
-            );
-            
-            console.debug('handleBotMonsterSpaceClick: selectedSpace=', this.selectedSpace, 'clickedTarget=', spaceIndex, 'validTargets=', validTargets);
-            if (validTargets.includes(spaceIndex)) {
-                // Add attack target highlighting
-                this.clearAttackHighlights();
-                document.getElementById(`bot-monster-${spaceIndex}`).classList.add('attack-target');
-                document.getElementById(`player-monster-${this.selectedSpace}`).classList.add('highlight');
-                
-                // Check if opponent has activatable traps
-                const activatableTraps = this.game.bot.getActivatableTraps({ type: 'attack' });
-                
-                if (activatableTraps.length > 0 && this.game.botThinkingEnabled) {
-                    // Let bot decide whether to activate trap
-                    this.game.botPlayer.handleDefensiveTraps(
-                        this.selectedSpace, 
-                        spaceIndex, 
-                        null
-                    );
-                } else {
-                    // No traps, process attack directly
-                    this.game.processAttack(
-                        this.selectedSpace, 
-                        spaceIndex
-                    );
-                }
-                
-                // Mark the monster as having attacked this turn
-                const attackingMonsterSpace = this.game.player.monsterSpaces[this.selectedSpace];
-                if (attackingMonsterSpace && attackingMonsterSpace.card) {
-                    attackingMonsterSpace.card.attackedThisTurn = true;
-                }
-                
-                // Brief delay to show the attack target before clearing
-                setTimeout(() => {
-                    // Clear selection and highlights
-                    this.selectedSpace = null;
-                    this.clearAttackHighlights();
-                    document.querySelectorAll('.monster-space, .player-area').forEach(element => {
-                        element.classList.remove('highlight');
-                    });
-                }, 600);
-            }
+        if (this.prompt) {
+            this.promptPick(this.game.bot.monsterSpaces[spaceIndex].card, { zone: 'field', owner: this.game.bot, index: spaceIndex });
+            return;
         }
+        if (!this.isPickingAttack()) return;
+        if (this.isDirectOnly()) {
+            this.attackTarget = { index: null };
+        } else {
+            if (!this.game.board.getValidAttackTargets(this.game.player, this.game.bot).includes(spaceIndex)) return;
+            this.attackTarget = { index: spaceIndex };
+        }
+        this.confirmAttack();
     }
 
     /**
      * Handle direct attack on bot
      */
     handleBotDirectAttack() {
-        // Battle phase - direct attack
-        if (this.game.currentPhase === PHASES.BATTLE && 
-            this.game.currentPlayer === this.game.player &&
-            this.selectedSpace !== null) {
-            
-            // First turn restriction
-            if (!this.game.isAttackAllowedThisTurn(this.game.player)) {
-                this.addLogMessage('Cannot attack on the first turn');
-                return;
-            }
-            
-            // Check if direct attack is valid
-            const validTargets = this.game.board.getValidAttackTargets(
-                this.game.player, 
-                this.game.bot
-            );
-            
-            if (validTargets.includes(null)) {
-                // Add direct attack target highlighting
-                this.clearAttackHighlights();
-                document.querySelector('.bot-area').classList.add('direct-attack-target');
-                document.getElementById(`player-monster-${this.selectedSpace}`).classList.add('highlight');
-                
-                // Check if opponent has Ace trap
-                const activatableTraps = this.game.bot.getActivatableTraps({ type: 'battle-phase' });
-                
-                if (activatableTraps.length > 0 && this.game.botThinkingEnabled) {
-                    // Let bot decide whether to activate Ace
-                    this.game.botPlayer.handleDefensiveTraps(
-                        this.selectedSpace, 
-                        null, 
-                        null
-                    );
-                } else {
-                    // No Ace trap, process direct attack
-                    this.game.processAttack(
-                        this.selectedSpace, 
-                        null
-                    );
-                }
-                
-                // Brief delay to show the attack target before clearing
-                setTimeout(() => {
-                    // Clear selection and highlights
-                    this.selectedSpace = null;
-                    this.clearAttackHighlights();
-                    document.querySelectorAll('.monster-space, .player-area').forEach(element => {
-                        element.classList.remove('highlight');
-                    });
-                }, 600);
-            }
+        if (this.game.currentPhase !== PHASES.BATTLE ||
+            this.game.currentPlayer !== this.game.player ||
+            this.selectedSpace === null) return;
+
+        if (!this.game.board.getValidAttackTargets(this.game.player, this.game.bot).includes(null)) return;
+
+        const attackerIndex = this.selectedSpace;
+        this.selectedSpace = null;
+        this.game.processAttack(attackerIndex, null);
+    }
+
+    /**
+     * Highlight an attacker and its target while an attack resolves
+     */
+    showAttackHighlight(attackerIndex, attacker, defenderIndex, defender) {
+        this.clearAttackHighlights();
+        const prefix = p => (p === this.game.player ? 'player' : 'bot');
+        document.getElementById(`${prefix(attacker)}-monster-${attackerIndex}`)?.classList.add('attack-source');
+        if (defenderIndex === null) {
+            document.querySelector(defender === this.game.player ? '.player-area-human' : '.bot-area')?.classList.add('direct-attack-target');
+        } else {
+            document.getElementById(`${prefix(defender)}-monster-${defenderIndex}`)?.classList.add('attack-target');
+        }
+
+        // Arrow and banner so the attack reads at a glance
+        const tone = attacker === this.game.player ? 'you' : 'bot';
+        const { from, to } = this.attackEls(attackerIndex, attacker, defenderIndex, defender);
+        Fx.arrow(from, to, tone);
+        const attackingCard = attacker.monsterSpaces[attackerIndex].card;
+        const targetCard = defenderIndex === null ? null : defender.monsterSpaces[defenderIndex].card;
+        if (attackingCard) {
+            Fx.announce({
+                text: targetCard
+                    ? `${this.ownerLabel(attacker, attackingCard, true)} attacks ${this.ownerLabel(defender, targetCard)}`
+                    : `${this.ownerLabel(attacker, attackingCard, true)} attacks ${defender === this.game.player ? 'you' : defender.name} directly`,
+                tone,
+                cards: targetCard ? [attackingCard, '→', targetCard] : [attackingCard],
+                duration: 1400
+            });
         }
     }
 
@@ -869,11 +1413,14 @@ class UI {
      */
     clearAttackHighlights() {
         document.querySelectorAll('.monster-space').forEach(element => {
-            element.classList.remove('attack-target');
+            element.classList.remove('attack-target', 'attack-source', 'highlight', 'targeted');
         });
         document.querySelectorAll('.player-area').forEach(element => {
-            element.classList.remove('direct-attack-target');
+            element.classList.remove('direct-attack-target', 'highlight', 'direct-target');
         });
+        this.hideAttackPreview();
+        this._previewArrow = null;
+        Fx.clearArrows();
     }
 
     /**
@@ -881,6 +1428,10 @@ class UI {
      * @param {number} spaceIndex - Space index
      */
     handlePlayerTrapSpaceClick(spaceIndex) {
+        if (this.prompt) {
+            this.promptPick(this.game.player.trapSpaces[spaceIndex].card, { zone: 'trap', owner: this.game.player, index: spaceIndex });
+            return;
+        }
         // If it's not player's turn or not setup phase, do nothing
         if (this.game.currentPlayer !== this.game.player || 
             this.game.currentPhase !== PHASES.SETUP) {
@@ -906,193 +1457,209 @@ class UI {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Board prompts. Choices such as sacrifices, traps, upkeep and discards are
+    // made by clicking cards on the board or in the hand while the whole field
+    // stays visible. The prompt panel in your corner explains the choice, keeps
+    // a running total and holds the buttons.
+    // ------------------------------------------------------------------
+
     /**
-     * Show sacrifice dialog for big monster
-     * @param {Card} card - Big monster card
-     * @param {number} targetSpace - Target space index
+     * Start a board prompt, replacing any current one
+     * @param {Object} prompt
+     * @param {string} prompt.kind - sacrifice | fusion | upkeep | discard | trap | redirect | queen | joker
+     * @param {string} prompt.tone - danger | fusion | react | redirect | you
+     * @param {string} prompt.kicker - short heading
+     * @param {string} prompt.text - what to do
+     * @param {(card: Card, where: {zone: string, owner: Player, index: number|null}) => boolean} prompt.canPick
+     * @param {(card: Card, where: Object) => void} prompt.onPick
+     * @param {() => Array<{label: string, primary?: boolean, disabled?: boolean, run: Function}>} prompt.actions
+     * @param {() => string} [prompt.status] - running total or summary
+     * @param {() => Set<string>} [prompt.picked] - ids of cards marked as chosen
+     * @param {string} [prompt.pickLabel] - tag shown on chosen cards
+     * @param {Function} [prompt.cancel] - what Esc does; omit when a choice is required
      */
-    // Show sacrifice dialog
-    // card: the big monster being summoned
-    // targetSpace: preferred target space index (may be null when none free)
-    // postCallback: optional callback after sacrifices are confirmed
-    // requireFieldSacrifice: if true, the player must sacrifice at least one monster from the field
+    startPrompt(prompt) {
+        this.prompt = prompt;
+        this.cancelZoom();
+        this.renderPrompt();
+    }
+
+    endPrompt() {
+        this.prompt = null;
+        this.renderPrompt();
+    }
+
+    /**
+     * Draw the prompt panel and mark what can be picked
+     */
+    renderPrompt() {
+        const p = this.prompt;
+        document.body.classList.toggle('prompting', !!p);
+        ['danger', 'fusion', 'react', 'redirect', 'you'].forEach(tone => {
+            document.body.classList.toggle(`prompt-${tone}`, !!p && p.tone === tone);
+        });
+
+        const panel = document.getElementById('prompt-panel');
+        if (panel) {
+            panel.hidden = !p;
+            panel.innerHTML = '';
+            if (p) {
+                const make = (tag, cls, text) => {
+                    const el = document.createElement(tag);
+                    el.className = cls;
+                    if (text) el.textContent = text;
+                    return el;
+                };
+                panel.append(make('div', 'prompt-kicker', p.kicker), make('p', 'prompt-text', p.text));
+                const row = make('div', 'prompt-row');
+                row.appendChild(make('span', 'prompt-status', p.status ? p.status() : ''));
+                const actions = make('div', 'prompt-actions');
+                p.actions().forEach(action => {
+                    const button = make('button', action.primary ? 'prompt-button primary' : 'prompt-button', action.label);
+                    button.type = 'button';
+                    button.disabled = !!action.disabled;
+                    button.addEventListener('click', () => action.run());
+                    actions.appendChild(button);
+                });
+                row.appendChild(actions);
+                panel.appendChild(row);
+            }
+        }
+        this.applyPromptMarks();
+    }
+
+    /**
+     * Mark pickable and picked cards in the hand and on both sides of the board
+     */
+    applyPromptMarks() {
+        const p = this.prompt;
+        const picked = p && p.picked ? p.picked() : new Set();
+        const mark = (el, card, where) => {
+            const can = !!p && !!card && p.canPick(card, where);
+            const isPicked = !!p && !!card && picked.has(card.id);
+            el.classList.toggle('pickable', can);
+            el.classList.toggle('picked', isPicked);
+            if (isPicked && p.pickLabel) el.dataset.pickLabel = p.pickLabel;
+            else delete el.dataset.pickLabel;
+        };
+
+        document.querySelectorAll('#player-hand .card').forEach(el => {
+            const card = this.game.player.hand.find(c => c.id === el.dataset.cardId);
+            mark(el, card, { zone: 'hand', owner: this.game.player, index: null });
+        });
+        document.querySelectorAll('.board-panel .monster-space, .board-panel .trap-space').forEach(space => {
+            const where = this.spaceInfo(space);
+            mark(space, where.card, where);
+        });
+        this.makeSpacesFocusable();
+    }
+
+    /**
+     * Which player, zone and slot a board space is, and the card in it
+     */
+    spaceInfo(space) {
+        const [owner, type, index] = space.id.split('-');
+        const player = owner === 'player' ? this.game.player : this.game.bot;
+        const i = Number(index);
+        const card = (type === 'monster' ? player.monsterSpaces : player.trapSpaces)[i].card;
+        return { zone: type === 'monster' ? 'field' : 'trap', owner: player, index: i, card };
+    }
+
+    /**
+     * A click (or Enter) on a card while a prompt is open
+     * @returns {boolean} - true when a prompt is open, so the normal click handling should stop
+     */
+    promptPick(card, where) {
+        const p = this.prompt;
+        if (!p) return false;
+        if (card && p.canPick(card, where)) {
+            p.onPick(card, where);
+            if (this.prompt === p) this.renderPrompt(); // onPick may have ended or replaced the prompt
+        }
+        return true;
+    }
+
+    /**
+     * Summon a big monster: pick sacrifices on the field or in the hand
+     * @param {Card} card - the big monster being summoned
+     * @param {number|null} targetSpace - preferred space (null when none is free)
+     * @param {Function|null} postCallback - run after the sacrifices instead of summoning (used by fusions)
+     * @param {boolean} requireFieldSacrifice - at least one sacrifice must come from the field
+     */
     showSacrificeDialog(card, targetSpace, postCallback = null, requireFieldSacrifice = false) {
         this.sacrificeCards = [];
         this.selectedCard = card;
         this.selectedSpace = targetSpace;
         this._postSacrificeCallback = postCallback;
         this._requireFieldSacrifice = !!requireFieldSacrifice;
-        
-        const dialog = document.getElementById('sacrifice-dialog');
-        const requiredValue = getRequiredSacrificeValue(card);
-        document.getElementById('required-value').textContent = requiredValue;
-        
-        // Populate sacrifice options
-        const sacrificeContainer = document.getElementById('sacrifice-cards');
-        sacrificeContainer.innerHTML = '';
-        
-    // Add cards from hand (except the selected big monster)
-    // Section header for hand cards
-    const handHeader = document.createElement('div');
-    handHeader.classList.add('sacrifice-section-header');
-    handHeader.textContent = 'Hand';
-    sacrificeContainer.appendChild(handHeader);
-        this.game.player.hand.forEach(handCard => {
-            // Only allow monster cards from hand to be used as sacrifices
-            if (handCard.id !== card.id && isMonsterCard(handCard)) {
-                const cardWrapper = document.createElement('div');
-                cardWrapper.classList.add('sacrifice-card-wrapper');
-                
-                // Render hand card view
-                const cardElement = handCard.getElement(true);
-                cardElement.addEventListener('click', () => this.toggleSacrificeCard(handCard.id));
-                
-                cardWrapper.appendChild(cardElement);
-                sacrificeContainer.appendChild(cardWrapper);
-            }
-        });
-        
-    // Add monsters from field (only monster cards/fusions)
-    // Section header for field monsters
-    const fieldHeader = document.createElement('div');
-    fieldHeader.classList.add('sacrifice-section-header');
-    fieldHeader.textContent = 'Field';
-    sacrificeContainer.appendChild(fieldHeader);
-        this.game.player.monsterSpaces.forEach((space, index) => {
-            // When this dialog was opened as a post-fusion sacrifice (this._postSacrificeCallback set)
-            // the field-selected card that is part of the fusion should NOT be available as a sacrifice.
-            if (space.card && isMonsterCard(space.card)) {
-                if (this._postSacrificeCallback && typeof this.selectedSpace === 'number' && index === this.selectedSpace) {
-                    // skip the field-selected fusion component
-                    return;
-                }
-                const cardWrapper = document.createElement('div');
-                cardWrapper.classList.add('sacrifice-card-wrapper');
-                
-                const cardElement = space.card.getElement();
-                cardElement.addEventListener('click', () => this.toggleSacrificeCard(space.card.id));
-                
-                cardWrapper.appendChild(cardElement);
-                sacrificeContainer.appendChild(cardWrapper);
-            }
-        });
-        
-    // Add total value display
-        const totalElement = document.createElement('div');
-        totalElement.classList.add('sacrifice-total');
-        totalElement.id = 'sacrifice-total';
-        totalElement.textContent = `Total Value: 0/${requiredValue}`;
-        sacrificeContainer.appendChild(totalElement);
-        
-        // If a field-sacrifice is required, show a small hint
-        if (this._requireFieldSacrifice) {
-            const hint = document.createElement('div');
-            hint.classList.add('sacrifice-section-header');
-            hint.textContent = 'No free monster spaces — you must sacrifice at least one monster on the field';
-            // insert after headers
-            const parent = sacrificeContainer;
-            parent.insertBefore(hint, parent.firstChild);
-        }
 
-        dialog.classList.add('visible');
+        const player = this.game.player;
+        const required = getRequiredSacrificeValue(card);
+        // After a fusion, the field monster being fused can't also be sacrificed
+        const fusing = postCallback && typeof targetSpace === 'number' ? player.monsterSpaces[targetSpace].card : null;
+        const inHand = c => player.hand.some(h => h.id === c.id);
+        const ready = () => getTotalCardValue(this.sacrificeCards) >= required &&
+            (!this._requireFieldSacrifice || this.sacrificeCards.some(c => !inHand(c)));
+
+        this.updatePlayerHand();
+        this.startPrompt({
+            kind: 'sacrifice',
+            tone: 'danger',
+            pickLabel: 'SACRIFICE',
+            kicker: postCallback ? `Fuse with ${describeCard(card)}` : `Summon ${describeCard(card)}`,
+            text: `Pick monsters worth ${required} or more to sacrifice, on your field or in your hand.` +
+                (this._requireFieldSacrifice ? ' Your field is full, so at least one must be on the field.' : ''),
+            canPick: (c, where) => isMonsterCard(c) && c.id !== card.id &&
+                (where.zone === 'hand' || (where.zone === 'field' && where.owner === player && !(fusing && c.id === fusing.id))),
+            onPick: (c) => this.toggleSacrificeCard(c.id),
+            picked: () => new Set(this.sacrificeCards.map(c => c.id)),
+            status: () => `${getTotalCardValue(this.sacrificeCards)} / ${required}`,
+            actions: () => [
+                { label: 'Cancel', run: () => this.closeSacrificeDialog() },
+                { label: postCallback ? 'Sacrifice and fuse' : 'Summon', primary: true, disabled: !ready(), run: () => this.confirmSacrifice() }
+            ],
+            cancel: () => this.closeSacrificeDialog()
+        });
     }
 
     /**
-     * Toggle a card in the sacrifice selection
-     * @param {string} cardId - Card ID
+     * Add or remove a card from the sacrifices
+     * @param {string} cardId
      */
     toggleSacrificeCard(cardId) {
-        // Find the card
-        let card = this.game.player.hand.find(c => c.id === cardId);
-        let cardValue = 0;
-        
-        if (!card) {
-            // Check if it's on the field
-            for (const space of this.game.player.monsterSpaces) {
-                if (space.card && space.card.id === cardId) {
-                    card = space.card;
-                    break;
-                }
-            }
-        }
-        
+        const player = this.game.player;
+        const card = player.hand.find(c => c.id === cardId) ||
+            player.monsterSpaces.map(s => s.card).find(c => c && c.id === cardId);
         if (!card) return;
-        
-        // Get card value
-        if (card.isFusion) {
-            cardValue = card.fusionStrength;
-        } else {
-            cardValue = getCardNumericValue(card.value);
-        }
-        
-        // Toggle selection
         const existingIndex = this.sacrificeCards.findIndex(c => c.id === cardId);
-        if (existingIndex !== -1) {
-            this.sacrificeCards.splice(existingIndex, 1);
-        } else {
-            this.sacrificeCards.push(card);
-        }
-        
-        // Update visual selection
-        document.querySelectorAll('.sacrifice-card-wrapper .card').forEach(element => {
-            if (element.dataset.cardId === cardId) {
-                element.classList.toggle('selected');
-            }
-        });
-        
-        // Update total value
-        const totalValue = getTotalCardValue(this.sacrificeCards);
-        const requiredValue = getRequiredSacrificeValue(this.selectedCard);
-        document.getElementById('sacrifice-total').textContent = 
-            `Total Value: ${totalValue}/${requiredValue}`;
-        
-        // If field sacrifice is required, ensure at least one selected sacrifice is from the field
-        let hasFieldSacrifice = false;
-        if (this._requireFieldSacrifice) {
-            for (const c of this.sacrificeCards) {
-                // If the card is not present in hand, assume it's from the field
-                if (!this.game.player.hand.find(h => h.id === c.id)) {
-                    hasFieldSacrifice = true;
-                    break;
-                }
-            }
-        }
-
-        // Enable/disable confirm button
-        const confirmBtn = document.getElementById('confirm-sacrifice');
-        if (confirmBtn) {
-            confirmBtn.disabled = (totalValue < requiredValue) || (this._requireFieldSacrifice && !hasFieldSacrifice);
-        }
+        if (existingIndex !== -1) this.sacrificeCards.splice(existingIndex, 1);
+        else this.sacrificeCards.push(card);
     }
 
     /**
-     * Close sacrifice dialog
+     * Leave the sacrifice prompt. Backing out of a fusion's sacrifices returns to that fusion.
      */
     closeSacrificeDialog() {
-        // If this sacrifice dialog was opened as a post-fusion step (a post callback exists),
-        // capture context so we can return to the fusion dialog if the user cancels.
         const wasPostFusion = !!this._postSacrificeCallback;
         const returnHandCardId = this.selectedCard ? this.selectedCard.id : null;
         const returnFieldIndex = (typeof this.fusionFieldIndex === 'number') ? this.fusionFieldIndex : null;
 
-        document.getElementById('sacrifice-dialog').classList.remove('visible');
         this.sacrificeCards = [];
         this.selectedCard = null;
         this.selectedSpace = null;
+        this._postSacrificeCallback = null;
+        this.endPrompt();
+        this.updatePlayerHand();
+        this.highlightSpacesForCurrentPhase();
+        this.updateSidePanels();
 
-        // Clear the post-callback since the user cancelled the sacrifice
-        if (wasPostFusion) {
-            this._postSacrificeCallback = null;
-            // Re-open the fusion dialog and pre-select the same hand candidate so the user can try again
-            if (returnFieldIndex !== null) {
-                // Use a short timeout to ensure DOM/dialog transitions complete before reopening
-                setTimeout(() => {
-                    this.showFusionDialog(returnFieldIndex);
-                    if (returnHandCardId) {
-                        const handCard = this.game.player.hand.find(c => c.id === returnHandCardId);
-                        if (handCard) this.selectFusionCard(handCard);
-                    }
-                }, 10);
+        if (wasPostFusion && returnFieldIndex !== null && this.game.player.monsterSpaces[returnFieldIndex].card) {
+            this.showFusionDialog(returnFieldIndex);
+            const handCard = this.game.player.hand.find(c => c.id === returnHandCardId);
+            if (handCard) {
+                this.selectFusionCard(handCard);
+                this.renderPrompt();
             }
         }
     }
@@ -1103,7 +1670,7 @@ class UI {
     confirmSacrifice() {
         const totalValue = getTotalCardValue(this.sacrificeCards);
         const requiredValue = getRequiredSacrificeValue(this.selectedCard);
-        
+
         if (totalValue >= requiredValue) {
             // If a field-sacrifice was required, ensure at least one of the sacrifices was a field monster
             if (this._requireFieldSacrifice) {
@@ -1150,181 +1717,81 @@ class UI {
     handlePotentialFusion(spaceIndex) {
         // Only in setup phase
         if (this.game.currentPhase !== PHASES.SETUP) return;
-        
+
         const initialMonster = this.game.player.monsterSpaces[spaceIndex].card;
         if (!initialMonster || !isMonsterCard(initialMonster) || initialMonster.isFusion) return;
 
-        // Show fusion dialog for the monster at this field index
         this.showFusionDialog(spaceIndex);
     }
 
     /**
-     * Show fusion dialog
-     * @param {number} fieldIndex - index of the field monster selected for fusion
+     * Fuse a field monster: pick a lower monster from the hand
+     * @param {number} fieldIndex - index of the field monster to fuse
      */
     showFusionDialog(fieldIndex) {
-        // fieldIndex is the index of the monster on the player's field that was clicked
-        const initialMonster = this.game.player.monsterSpaces[fieldIndex].card;
-        if (!initialMonster) return;
+        const player = this.game.player;
+        const base = player.monsterSpaces[fieldIndex].card;
+        if (!base) return;
 
         this.fusionFieldIndex = fieldIndex;
         this.fusionSelectedHandCardId = null;
 
-        const dialog = document.getElementById('fusion-dialog');
-        const fusionContainer = document.getElementById('fusion-monsters');
-        fusionContainer.innerHTML = '';
+        const baseValue = base.isFusion ? base.fusionStrength : getCardNumericValue(base.value);
+        // Only strictly lower monsters from the hand can join it
+        const isCandidate = c => isMonsterCard(c) && !c.isFusion && getCardNumericValue(c.value) < baseValue;
+        const chosen = () => player.hand.find(c => c.id === this.fusionSelectedHandCardId) || null;
+        const anyCandidate = player.hand.some(isCandidate);
 
-    // Top area: show the selected field monster (left) and an explanation
-    const topArea = document.createElement('div');
-    topArea.classList.add('fusion-top-area');
-
-    const initialWrapper = document.createElement('div');
-    initialWrapper.classList.add('fusion-card-wrapper', 'field-selected');
-    const initialElement = initialMonster.getElement();
-    initialElement.classList.add('selected');
-    initialWrapper.appendChild(initialElement);
-
-    const desc = document.createElement('div');
-    desc.classList.add('fusion-selected-description');
-    desc.textContent = 'Selected field monster for fusion';
-
-    topArea.appendChild(initialWrapper);
-    topArea.appendChild(desc);
-    fusionContainer.appendChild(topArea);
-
-        // Bottom row: grid of valid candidates from hand (strictly lower numeric value)
-    const bottomRow = document.createElement('div');
-    bottomRow.classList.add('fusion-cards-row', 'fusion-candidates');
-
-    // Candidate header to clarify these are from hand and valid options
-    const candHeader = document.createElement('div');
-    candHeader.classList.add('fusion-candidates-header');
-    candHeader.textContent = 'Valid fusion candidates from hand';
-    fusionContainer.appendChild(candHeader);
-
-        const initialValue = initialMonster.isFusion ? initialMonster.fusionStrength : getCardNumericValue(initialMonster.value);
-
-        this.game.player.hand.forEach((handCard) => {
-            if (!handCard) return;
-            if (!isMonsterCard(handCard)) return;
-            if (handCard.isFusion) return;
-
-            const handValue = getCardNumericValue(handCard.value);
-            if (handValue >= initialValue) return; // only strictly lower values
-
-            const cardWrapper = document.createElement('div');
-            cardWrapper.classList.add('fusion-card-wrapper');
-            const cardElement = handCard.getElement(true);
-            // Toggle selection: only one card may be selected at a time
-            cardElement.addEventListener('click', () => {
-                // Toggle selection
-                if (this.fusionSelectedHandCardId === handCard.id) {
-                    this.fusionSelectedHandCardId = null;
-                    cardElement.classList.remove('selected');
-                } else {
-                    // Deselect any previously selected candidate
-                    document.querySelectorAll('#fusion-monsters .card').forEach(el => el.classList.remove('selected'));
-                    this.fusionSelectedHandCardId = handCard.id;
-                    cardElement.classList.add('selected');
+        this.startPrompt({
+            kind: 'fusion',
+            tone: 'fusion',
+            pickLabel: 'FUSE',
+            kicker: `Fuse ${describeCard(base)}`,
+            text: anyCandidate
+                ? 'Pick a lower monster from your hand to fuse with it. Click another of your monsters to fuse that one instead.'
+                : `No monster in your hand is lower than ${describeCard(base)}, so it can't fuse right now.`,
+            canPick: (c, where) => (where.zone === 'hand' && isCandidate(c)) ||
+                (where.zone === 'field' && where.owner === player && isMonsterCard(c) && !c.isFusion),
+            onPick: (c, where) => {
+                if (where.zone === 'field') {
+                    // The same monster again backs out; another one switches the fusion to it
+                    if (where.index === this.fusionFieldIndex) this.closeFusionDialog();
+                    else this.showFusionDialog(where.index);
+                    return;
                 }
-            });
-
-            cardWrapper.appendChild(cardElement);
-            bottomRow.appendChild(cardWrapper);
+                this.selectFusionCard(c);
+            },
+            picked: () => new Set([base.id, this.fusionSelectedHandCardId].filter(Boolean)),
+            status: () => {
+                const c = chosen();
+                return c ? `${describeCard(base)} + ${describeCard(c)} = STR ${baseValue + getCardNumericValue(c.value)}` : '';
+            },
+            actions: () => [
+                { label: 'Cancel', run: () => this.closeFusionDialog() },
+                { label: 'Fuse', primary: true, disabled: !chosen(), run: () => this.confirmFusion() }
+            ],
+            cancel: () => this.closeFusionDialog()
         });
-
-        fusionContainer.appendChild(bottomRow);
-
-        // Clear any target spaces area (no separate target selection in this flow)
-        document.getElementById('fusion-target-spaces').innerHTML = '';
-
-        dialog.classList.add('visible');
     }
 
     /**
-     * Select second monster for fusion
-     * @param {Card} card - Second monster card
+     * Choose (or un-choose) the hand card to fuse with
+     * @param {Card} card
      */
     selectFusionCard(card) {
-        // Toggle selection of a single hand candidate when called programmatically
         if (!card) return;
-        const prev = this.fusionSelectedHandCardId;
-        if (prev === card.id) {
-            this.fusionSelectedHandCardId = null;
-            const el = document.querySelector(`#fusion-monsters .card[data-card-id="${card.id}"]`);
-            if (el) el.classList.remove('selected');
-        } else {
-            this.fusionSelectedHandCardId = card.id;
-            document.querySelectorAll('#fusion-monsters .card').forEach(e => e.classList.remove('selected'));
-            const el = document.querySelector(`#fusion-monsters .card[data-card-id="${card.id}"]`);
-            if (el) el.classList.add('selected');
-        }
+        this.fusionSelectedHandCardId = this.fusionSelectedHandCardId === card.id ? null : card.id;
     }
 
     /**
-     * Show available target spaces for fusion
-     */
-    showFusionTargetSpaces() {
-        if (this.fusionCards.length !== 2) return;
-        
-        const targetContainer = document.getElementById('fusion-target-spaces');
-        targetContainer.innerHTML = '';
-        
-        // Find spaces where the fusion can go (either monster1, monster2, or empty space)
-        let monster1Index = -1;
-        let monster2Index = -1;
-        
-        // Find the indices of the two monsters
-        for (let i = 0; i < this.game.player.monsterSpaces.length; i++) {
-            const space = this.game.player.monsterSpaces[i];
-            if (space.card) {
-                if (space.card.id === this.fusionCards[0].id) {
-                    monster1Index = i;
-                } else if (space.card.id === this.fusionCards[1].id) {
-                    monster2Index = i;
-                }
-            }
-        }
-        
-        // Add target spaces
-        this.game.player.monsterSpaces.forEach((space, index) => {
-            // Allow target if it's one of the monster spaces or empty
-            if (index === monster1Index || index === monster2Index || space.card === null) {
-                const spaceElement = document.createElement('div');
-                spaceElement.classList.add('monster-space');
-                
-                // If it's one of the monster spaces, show which one
-                if (index === monster1Index || index === monster2Index) {
-                    const monsterIndex = index === monster1Index ? 0 : 1;
-                    const monsterCard = this.fusionCards[monsterIndex];
-                    
-                    const cardElement = monsterCard.getElement();
-                    cardElement.classList.add('fusion-component');
-                    spaceElement.appendChild(cardElement);
-                }
-                
-                spaceElement.addEventListener('click', () => {
-                    this.fusionTargetSpace = index;
-                    
-                    // Update visual selection
-                    document.querySelectorAll('#fusion-target-spaces .monster-space').forEach(el => {
-                        el.classList.remove('selected');
-                    });
-                    spaceElement.classList.add('selected');
-                });
-                
-                targetContainer.appendChild(spaceElement);
-            }
-        });
-    }
-
-    /**
-     * Close fusion dialog
+     * Leave the fusion prompt
      */
     closeFusionDialog() {
-        document.getElementById('fusion-dialog').classList.remove('visible');
         this.fusionCards = [];
         this.fusionTargetSpace = null;
+        this.fusionSelectedHandCardId = null;
+        // A fusion that needs sacrifices hands over to the sacrifice prompt; leave that one open
+        if (this.prompt && this.prompt.kind === 'fusion') this.endPrompt();
     }
 
     /**
@@ -1351,14 +1818,12 @@ class UI {
         }
 
         // Use the field index as the target space for the fusion
-        // If the chosen hand card is a Big Monster, prompt sacrifice dialog first (same as summoning that monster)
+        // If the chosen hand card is a Big Monster, it needs sacrifices first (same as summoning that monster)
         const handCardType = getCardType(handCard.value);
         if (handCardType === CARD_TYPES.MONSTER_BIG) {
-            // Close the fusion dialog so the player can clearly see the sacrifice dialog
             this.closeFusionDialog();
-            // Show sacrifice dialog; after confirming sacrifices, create the fusion
+            // After confirming sacrifices, create the fusion
             this.showSacrificeDialog(handCard, this.fusionFieldIndex, (sacrifices) => {
-                // After sacrifices consumed, create fusion using initialMonster (field) + handCard
                 // game.createFusion will remove the hand card if necessary and place fusion in the target
                 this.game.createFusion(initialMonster, handCard, this.fusionFieldIndex);
                 this.closeFusionDialog();
@@ -1370,874 +1835,286 @@ class UI {
     }
 
     /**
-     * Show trap activation dialog
-     * @param {Card} trap - Trap card
-     * @param {Object} context - Activation context
+     * Ask the human defender whether to respond to an attack with a trap.
+     * There is no time limit: the attack waits for the player's choice.
+     * @param {Object} context - { attacker, attackerIndex, defender, defenderIndex, traps }
+     * @returns {Promise<{trap: Card, target?: {player: Player, index: number}}|null>}
      */
-    showTrapActivationDialog(trap, context) {
-        this.activatingTrap = {
-            trap,
-            context
-        };
-        
-        const dialog = document.getElementById('trap-activation-dialog');
-        const cardContainer = document.getElementById('trap-activation-card');
-        
-        cardContainer.innerHTML = '';
-        
-        // Create a clone of the trap card and flip it face up to show player
-        const trapClone = trap.clone();
-        trapClone.flipFaceUp();
-        
-        const cardElement = trapClone.getElement();
-        cardContainer.appendChild(cardElement);
-        
-        dialog.classList.add('visible');
+    promptTrapResponse(context) {
+        return new Promise((resolve) => {
+            this._reaction = { context, resolve, jackTrap: null, targets: [] };
+            this._showReactionOptions();
+        });
     }
 
     /**
-     * Cancel trap activation
+     * Your traps that can answer the attack glow in their slots; click one or let the attack through
      */
-    cancelTrapActivation() {
-        document.getElementById('trap-activation-dialog').classList.remove('visible');
-        
-        // Resume attack processing
-        if (this.activatingTrap && this.activatingTrap.context.resumeFunction) {
-            this.activatingTrap.context.resumeFunction();
-        }
-        
-        this.activatingTrap = null;
+    _showReactionOptions() {
+        const { context } = this._reaction;
+        const player = this.game.player;
+        const attackingCard = context.attacker.monsterSpaces[context.attackerIndex].card;
+        const targetCard = context.defenderIndex === null ? null : context.defender.monsterSpaces[context.defenderIndex].card;
+        const names = context.traps.map(t => `${getTrapName(t.value)} (${describeCard(t)})`).join(', ');
+
+        this.startPrompt({
+            kind: 'trap',
+            tone: 'react',
+            kicker: `${context.attacker.name}'s ${describeCard(attackingCard)} attacks ${targetCard ? `your ${describeCard(targetCard)}` : 'you directly'}`,
+            text: `Click a glowing trap to respond: ${names}. Or let the attack through.`,
+            canPick: (c, where) => where.zone === 'trap' && where.owner === player && context.traps.some(t => t.id === c.id),
+            onPick: (c) => this._chooseReactionTrap(context.traps.find(t => t.id === c.id)),
+            actions: () => [{ label: 'Let it through', run: () => this._finishReaction(null) }]
+        });
     }
 
     /**
-     * Confirm trap activation
+     * A trap was chosen. Most resolve at once; a Jack first needs the monster to redirect the attack to.
+     * @param {Card} trap
      */
-    async confirmTrapActivation() {
-        document.getElementById('trap-activation-dialog').classList.remove('visible');
-        
-        if (!this.activatingTrap) return;
-        const { trap, context } = this.activatingTrap;
-
-        // Handle different trap types
-        if (trap.value === CARD_VALUES.ACE) {
-            // End battle phase (allow Queen cancel before resolving)
-            try {
-                const res = await this.game.activateAceTrap(trap);
-                // If Ace was canceled by Queen, report back via reactive resolver
-                if (res && res.canceledByQueen) {
-                    if (this._reactiveResolve) {
-                        try { this._reactiveResolve({ activated: false, trap, result: { type: 'ACE', canceled: true } }); } catch (e) {}
-                        this._clearReactiveState();
-                    }
-                } else {
-                    if (this._reactiveResolve) {
-                        try { this._reactiveResolve({ activated: true, trap, result: { type: 'ACE' } }); } catch (e) {}
-                        this._clearReactiveState();
-                    }
-                }
-            } catch (err) {
-                console.warn('Error activating Ace trap', err);
-                if (this._reactiveResolve) {
-                    try { this._reactiveResolve({ activated: false }); } catch (e) {}
-                    this._clearReactiveState();
-                }
-            }
-        } else if (trap.value === CARD_VALUES.JACK) {
-            // Show redirect dialog
-            this.showRedirectDialog(trap, context);
-            return; // Don't clear activatingTrap yet - wait for redirect confirmation
-        } else if (trap.value === CARD_VALUES.QUEEN) {
-            // Cancel another trap
-            this.game.activateQueenTrap(trap, context.targetTrap);
-            if (this._reactiveResolve) {
-                this._reactiveResolve({ activated: true, trap, result: { type: 'QUEEN' } });
-                this._clearReactiveState();
-            }
-        } else if (trap.value === CARD_VALUES.KING) {
-            // Halve attack strength
-            // King activation may re-run the attack with kingEffect true
-            (async () => {
-                const res = await this.game.activateKingTrap(trap, context);
-                if (this._reactiveResolve) {
-                    this._reactiveResolve({ activated: true, trap, result: { type: 'KING', res } });
-                    this._clearReactiveState();
-                }
-            })();
-        }
-
-        // Clear activatingTrap unless Jack (handled above)
-        this.activatingTrap = null;
-    }
-
-    /**
-     * Show redirect dialog for Jack trap
-     * @param {Card} trap - Jack trap card
-     * @param {Object} context - Attack context
-     */
-    showRedirectDialog(trap, context) {
-        this.redirectTargets = this.game.board.getValidRedirectTargets(
-            context.attackerIndex,
-            context.attacker,
-            context.defenderIndex,
-            context.defender
-        );
-        
-        if (this.redirectTargets.length === 0) {
-            this.addLogMessage('No valid redirect targets');
+    _chooseReactionTrap(trap) {
+        if (!this._reaction || !trap) return;
+        if (trap.value !== CARD_VALUES.JACK) {
+            this._finishReaction({ trap });
             return;
         }
-        
-        const dialog = document.getElementById('redirect-dialog');
-        const targetsContainer = document.getElementById('redirect-targets');
-        
-        targetsContainer.innerHTML = '';
-        
-        // Add each redirect target to the dialog list
-        this.redirectTargets.forEach((target, index) => {
-            const targetWrapper = document.createElement('div');
-            targetWrapper.classList.add('redirect-target-wrapper');
 
-            const cardElement = target.player.monsterSpaces[target.index].card.getElement();
-            cardElement.addEventListener('click', () => this.selectRedirectTarget(index));
-
-            targetWrapper.appendChild(cardElement);
-            targetsContainer.appendChild(targetWrapper);
-        });
-
-        // Additionally highlight valid monsters on the board (except the original attacker) so player can click the field directly
-        this._applyBoardRedirectHighlights(context.attackerIndex, context.attacker);
-
-        dialog.classList.add('visible');
-    }
-
-    /**
-     * Select a redirect target
-     * @param {number} index - Target index
-     */
-    selectRedirectTarget(index) {
-        // Update visual selection
-        document.querySelectorAll('#redirect-targets .card').forEach(element => {
-            element.classList.remove('selected');
-        });
-        
-        document.querySelectorAll('#redirect-targets .card')[index].classList.add('selected');
-        this.selectedSpace = index;
-    }
-
-    /**
-     * Confirm redirect target
-     */
-    confirmRedirect() {
-        document.getElementById('redirect-dialog').classList.remove('visible');
-        
-        if (this.selectedSpace === null || !this.activatingTrap) return;
-        
-        const target = this.redirectTargets[this.selectedSpace];
-        const trap = this.activatingTrap.trap;
-        
-        // Activate Jack trap with redirect target
-        (async () => {
-            const result = this.game.activateJackTrap(
-                trap,
-                target.index,
-                target.player
-            );
-
-            // Resolve reactive promise if waiting
-            if (this._reactiveResolve) {
-                try {
-                    // activateJackTrap may return a redirect object
-                    this._reactiveResolve({ activated: true, trap, result });
-                } catch (e) {
-                    try { this._reactiveResolve({ activated: true, trap }); } catch (e) {}
-                }
-                this._clearReactiveState();
-            }
-
-            this.activatingTrap = null;
-            this.selectedSpace = null;
-            this.redirectTargets = [];
-            // clear any board highlights we added
-            this._clearBoardRedirectHighlights();
-        })();
-    }
-
-    /**
-     * Apply visual highlights to monster spaces that are valid redirect targets
-     * and attach click handlers so the player can select a target directly on the board.
-     * @param {number} attackingIndex
-     * @param {Player} attackingPlayer
-     */
-    _applyBoardRedirectHighlights(attackingIndex, attackingPlayer) {
-        // compute valid targets again to be safe
+        const { context } = this._reaction;
         const targets = this.game.board.getValidRedirectTargets(
-            attackingIndex,
-            attackingPlayer,
-            null,
-            null
-        );
-
-        // store references for cleanup
-        this._boardRedirectHandlers = this._boardRedirectHandlers || [];
-
-        targets.forEach((t) => {
-            const playerPrefix = t.player === this.game.player ? 'player' : 'bot';
-            const selector = `#${playerPrefix}-monster-${t.index} .card`;
-            const el = document.querySelector(selector);
-            if (!el) return;
-            el.classList.add('redirect-highlight');
-
-            const handler = (e) => {
-                e.stopPropagation();
-                // find index in this.redirectTargets matching this player/index
-                const idx = this.redirectTargets.findIndex(rt => rt.player === t.player && rt.index === t.index);
-                if (idx !== -1) {
-                    this.selectRedirectTarget(idx);
-                    // ensure selection shows in dialog as well
-                    const dialogEl = document.querySelectorAll('#redirect-targets .card')[idx];
-                    if (dialogEl) {
-                        document.querySelectorAll('#redirect-targets .card').forEach(c => c.classList.remove('selected'));
-                        dialogEl.classList.add('selected');
-                    }
-                }
-            };
-
-            el._redirectClickHandler = handler;
-            el.addEventListener('click', handler);
-            this._boardRedirectHandlers.push(el);
-        });
-    }
-
-    /** Clear board redirect highlights and handlers */
-    _clearBoardRedirectHighlights() {
-        if (!this._boardRedirectHandlers) return;
-        this._boardRedirectHandlers.forEach(el => {
-            el.classList.remove('redirect-highlight');
-            if (el._redirectClickHandler) {
-                el.removeEventListener('click', el._redirectClickHandler);
-                delete el._redirectClickHandler;
-            }
-        });
-        this._boardRedirectHandlers = [];
-    }
-
-    /**
-     * Clear the reactive prompt state and UI highlights
-     */
-    _clearReactiveState() {
-        // Remove highlights and listeners
-        document.querySelectorAll('.trap-space .card.reactive-highlight').forEach(el => {
-            el.classList.remove('reactive-highlight');
-            el.removeEventListener('click', el._reactiveClickHandler);
-            delete el._reactiveClickHandler;
-        });
-
-        // Clear countdown UI if present
-        const cd = document.getElementById('trap-countdown');
-        if (cd && cd.parentNode) cd.parentNode.removeChild(cd);
-
-        // Clear resolver
-        this._reactiveResolve = null;
-        if (this._reactiveTimer) {
-            clearInterval(this._reactiveTimer);
-            this._reactiveTimer = null;
+            context.attackerIndex, context.attacker, context.defenderIndex, context.defender);
+        if (targets.length === 0) {
+            this.addLogMessage('No valid redirect targets for Jack');
+            return;
         }
+        this._reaction.jackTrap = trap;
+        this._reaction.targets = targets;
+        const targetAt = where => targets.find(t => t.player === where.owner && t.index === where.index);
+
+        this.startPrompt({
+            kind: 'redirect',
+            tone: 'redirect',
+            pickLabel: 'JACK',
+            kicker: 'Jack: redirect the attack',
+            text: 'Click the monster that should take the attack instead. It can be on either side of the board.',
+            canPick: (c, where) => where.zone === 'field' && !!targetAt(where),
+            onPick: (c, where) => this._finishReaction({ trap, target: targetAt(where) }),
+            picked: () => new Set([trap.id]),
+            actions: () => [{ label: 'Back', run: () => this._cancelRedirect() }],
+            cancel: () => this._cancelRedirect()
+        });
     }
 
     /**
-     * Prompt the human player (owner of the UI) to cancel an opponent's trap activation using a Queen.
-     * Returns a promise that resolves to { canceled: boolean, queen?: Card }
+     * Back out of the Jack's target choice to the list of traps
      */
-    promptCancelTrap(trap) {
-        return new Promise((resolve) => {
-            if (!trap) return resolve({ canceled: false });
+    _cancelRedirect() {
+        if (!this._reaction) return;
+        this._reaction.jackTrap = null;
+        this._reaction.targets = [];
+        this._showReactionOptions();
+    }
 
-            // Only allow player's Queen to be used here
+    _finishReaction(choice) {
+        this.endPrompt();
+        const reaction = this._reaction;
+        this._reaction = null;
+        if (reaction) reaction.resolve(choice);
+    }
+
+    /**
+     * Ask the human whether to cancel the opponent's trap with one of their Queens
+     * @param {Card} trap - The opponent's trap being activated
+     * @param {Array} queens - Player Queens that can respond
+     * @returns {Promise<Card|null>} - Queen to use, or null
+     */
+    promptCancelTrap(trap, queens) {
+        return new Promise((resolve) => {
+            this._queenPrompt = { queens, resolve };
             const player = this.game.player;
-            const queenSpaces = player.trapSpaces
-                .map((space, idx) => ({ space, idx }))
-                .filter(item => item.space.card && item.space.card.value === CARD_VALUES.QUEEN && item.space.card.active);
-
-            if (!queenSpaces || queenSpaces.length === 0) return resolve({ canceled: false });
-
-            // Build a lightweight modal dialog in DOM
-            const dlg = document.createElement('div');
-            dlg.classList.add('temp-dialog');
-            dlg.id = 'queen-cancel-temp';
-            dlg.innerHTML = '';
-
-            const content = document.createElement('div');
-            content.classList.add('temp-dialog-content');
-            const title = document.createElement('div');
-            title.classList.add('temp-dialog-title');
-            title.textContent = 'Opponent activated a trap — activate Queen to cancel?';
-            content.appendChild(title);
-
-            const list = document.createElement('div');
-            list.classList.add('queen-list');
-            queenSpaces.forEach(({ space, idx }) => {
-                const cardEl = space.card.getElement();
-                cardEl.classList.add('queen-cancel-option');
-                cardEl.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    // Activate the Queen to cancel the trap
-                    try {
-                        const queen = space.card;
-                        // Remove dialog first
-                        if (dlg && dlg.parentNode) dlg.parentNode.removeChild(dlg);
-                        const res = this.game.activateQueenTrap(queen, trap);
-                        // Update UI
-                        if (this.game && this.game.ui) this.game.ui.updateGameState();
-                        resolve({ canceled: true, queen });
-                    } catch (err) {
-                        console.warn('Failed to activate Queen', err);
-                        resolve({ canceled: false });
-                    }
-                });
-                list.appendChild(cardEl);
+            this.startPrompt({
+                kind: 'queen',
+                tone: 'react',
+                kicker: `${this.game.bot.name} springs ${describeCard(trap)}: ${getTrapName(trap.value)}`,
+                text: 'Click your glowing Queen to cancel it, or let it happen.',
+                canPick: (c, where) => where.zone === 'trap' && where.owner === player && queens.some(q => q.id === c.id),
+                onPick: (c) => this._finishQueenPrompt(queens.find(q => q.id === c.id)),
+                actions: () => [{ label: 'Don’t cancel', run: () => this._finishQueenPrompt(null) }]
             });
-
-            content.appendChild(list);
-
-            // Countdown and cancel
-            const countdown = document.createElement('div');
-            countdown.classList.add('trap-countdown');
-            countdown.textContent = '5';
-            const cancelBtn = document.createElement('button');
-            cancelBtn.classList.add('dialog-button');
-            cancelBtn.textContent = 'Do not cancel';
-            cancelBtn.style.marginLeft = '0.5rem';
-            cancelBtn.addEventListener('click', () => {
-                if (dlg && dlg.parentNode) dlg.parentNode.removeChild(dlg);
-                resolve({ canceled: false });
-            });
-            countdown.appendChild(cancelBtn);
-            content.appendChild(countdown);
-
-            dlg.appendChild(content);
-            document.body.appendChild(dlg);
-
-            // Simple countdown
-            let remaining = 5;
-            const interval = setInterval(() => {
-                remaining -= 1;
-                if (remaining <= 0) {
-                    clearInterval(interval);
-                    if (dlg && dlg.parentNode) dlg.parentNode.removeChild(dlg);
-                    resolve({ canceled: false });
-                    return;
-                }
-                const el = dlg.querySelector('.trap-countdown');
-                if (el) el.firstChild && (el.firstChild.textContent = String(remaining));
-            }, 1000);
         });
     }
 
-    /** Pause the reactive countdown timer */
-    _pauseReactiveTimer() {
-        if (this._reactiveTimer) {
-            clearInterval(this._reactiveTimer);
-            this._reactiveTimer = null;
-            this._reactivePaused = true;
-        }
-    }
-
-    /** Resume the reactive countdown timer after a pause */
-    _resumeReactiveTimer(remaining) {
-        if (!this._reactivePaused) return;
-        this._reactivePaused = false;
-        let remainingSeconds = typeof remaining === 'number' ? remaining : (this._reactiveRemaining || 5);
-        const el = document.getElementById('trap-countdown');
-        if (el) el.textContent = String(remainingSeconds);
-
-        const interval = setInterval(() => {
-            remainingSeconds -= 1;
-            if (remainingSeconds <= 0) {
-                clearInterval(interval);
-                this._clearReactiveState();
-                if (this._reactiveResolve) this._reactiveResolve({ activated: false });
-                return;
-            }
-            const e = document.getElementById('trap-countdown');
-            if (e) e.textContent = String(remainingSeconds);
-            this._reactiveRemaining = remainingSeconds;
-        }, 1000);
-
-        this._reactiveTimer = interval;
-    }
-
-    /** Called when user cancels a redirect/trap dialog to resume the countdown */
-    _resumeReactiveAfterCancel() {
-        // If there is an active reactive window paused, resume it
-        if (this._reactivePaused) {
-            this._resumeReactiveTimer(this._reactiveRemaining || 5);
-            return;
-        }
-        // Otherwise, ensure clear reactive state
-        this._clearReactiveState();
-    }
-
     /**
-     * Prompt the human defender to react to an action with traps for up to 5 seconds.
-     * Returns a promise that resolves to {activated: boolean, trap?, result?}
-     * The context should include attackerIndex, attacker, defenderIndex, defender
+     * @param {Card|null} queen - the Queen to use, or null to let the trap happen
      */
-    promptTrapResponse(context = {}) {
-        return new Promise((resolve) => {
-            if (!context || !context.defender) return resolve({ activated: false });
-
-            const defender = context.defender;
-            // Determine type
-            const ttype = (context.defenderIndex === null) ? 'battle-phase' : 'attack';
-            const activatable = defender.getActivatableTraps({ type: ttype, trapValue: context.trapValue });
-            if (!activatable || activatable.length === 0) return resolve({ activated: false });
-
-            // Highlight activatable traps (only for human player)
-            for (let i = 0; i < defender.trapSpaces.length; i++) {
-                const space = defender.trapSpaces[i];
-                if (!space.card) continue;
-                if (!activatable.find(t => t.id === space.card.id)) continue;
-
-                const selector = defender === this.game.player ? `#player-trap-${i}` : `#bot-trap-${i}`;
-                const el = document.querySelector(`${selector} .card`);
-                if (!el) continue;
-                el.classList.add('reactive-highlight');
-
-                    // Attach click handler that pauses the countdown while a trap activation UI/dialog is shown
-                    const handler = (e) => {
-                        e.stopPropagation();
-                        (async () => {
-                            try {
-                                const trapCard = space.card;
-                                // Pause the countdown while the trap activation/resolution occurs
-                                this._pauseReactiveTimer();
-
-                                // Handle trap activations and wait for result
-                                if (trapCard.value === CARD_VALUES.JACK) {
-                                    this.activatingTrap = { trap: trapCard, context };
-                                    this.showRedirectDialog(trapCard, context);
-                                    // Resolution handled by confirmRedirect or cancel-redirect
-                                    return;
-                                }
-
-                                if (trapCard.value === CARD_VALUES.ACE) {
-                                    const res = await this.game.activateAceTrap(trapCard);
-                                    // If activation had effect that ends battle phase, resolve and clear
-                                    if (res && res.effect && res.effect.endBattlePhase) {
-                                        if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard, result: { type: 'ACE', effect: res.effect } });
-                                        this._clearReactiveState();
-                                        return;
-                                    }
-                                    // Otherwise, reset the countdown so player can chain
-                                    this._restartReactiveCountdown();
-                                    if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard, result: { type: 'ACE', effect: res && res.effect } });
-                                    return;
-                                }
-
-                                if (trapCard.value === CARD_VALUES.KING) {
-                                    const res = await this.game.activateKingTrap(trapCard, context);
-                                    // King reprocesses the attack; if it returns handledAttack flag, resolve and clear
-                                    if (res && res.handledAttack) {
-                                        if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard, result: { type: 'KING', res } });
-                                        this._clearReactiveState();
-                                        return;
-                                    }
-                                    // Otherwise, allow chaining (reset countdown)
-                                    this._restartReactiveCountdown();
-                                    if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard, result: { type: 'KING', res } });
-                                    return;
-                                }
-
-                                if (trapCard.value === CARD_VALUES.QUEEN) {
-                                    // Queen: prefer to cancel the opponent's last used trap automatically
-                                    this.activatingTrap = { trap: trapCard, context };
-                                    const last = this.game.lastTrapUsed;
-                                    let autoTarget = null;
-                                    try {
-                                        if (last) {
-                                            const lastOwner = this.game.findTrapOwner(last);
-                                            const queenOwner = this.game.findTrapOwner(trapCard);
-                                            // Auto-target only if last trap belongs to opponent
-                                            if (lastOwner && queenOwner && lastOwner !== queenOwner) {
-                                                autoTarget = last;
-                                            }
-                                        }
-                                    } catch (err) { console.warn('Error checking lastTrapUsed', err); }
-
-                                    if (autoTarget) {
-                                        const res = await this.game.activateQueenTrap(trapCard, autoTarget);
-                                        if (res && res.success) {
-                                            // Queen cancelled a trap; reset countdown to allow further chaining
-                                            this._restartReactiveCountdown();
-                                            if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard, result: { type: 'QUEEN', target: autoTarget } });
-                                            return;
-                                        }
-                                    } else {
-                                        // Fallback: show dialog to choose a trap to cancel
-                                        this.showCancelTrapDialog(trapCard, context);
-                                        // confirmation will resolve and clear reactive state
-                                        return;
-                                    }
-                                }
-
-                                // Fallback activation (shouldn't normally reach here)
-                                const res = await this.game.activateQueenTrap(trapCard, context.targetTrap);
-                                if (res && res.success) {
-                                    this._restartReactiveCountdown();
-                                    if (this._reactiveResolve) this._reactiveResolve({ activated: true, trap: trapCard });
-                                    return;
-                                }
-                            } catch (err) {
-                                console.warn('Reactive trap handler error', err);
-                                // Attempt to resume countdown if something goes wrong
-                                this._resumeReactiveAfterCancel();
-                            }
-                        })();
-                    };
-
-                    el._reactiveClickHandler = handler;
-                    el.addEventListener('click', handler);
-            }
-
-            // Show countdown element next to player's area for visibility
-            const playerArea = document.querySelector('.player-area-human') || document.getElementById('player-hand') || document.body;
-            const countdown = document.createElement('div');
-            countdown.id = 'trap-countdown';
-            countdown.classList.add('trap-countdown');
-            countdown.textContent = '5';
-            // Add a small cancel button so the player can explicitly cancel the reactive window.
-            // When clicked we must resolve the awaiting promise to avoid leaving callers (bot or game flows) hanging.
-            const cancelBtn = document.createElement('button');
-            cancelBtn.classList.add('dialog-button');
-            cancelBtn.textContent = 'Cancel';
-            cancelBtn.style.marginLeft = '0.5rem';
-            cancelBtn.addEventListener('click', () => {
-                // User explicitly cancels trap activation stage; resolve the reactive prompt as not activated
-                try {
-                    if (this._reactiveResolve) this._reactiveResolve({ activated: false });
-                } catch (e) { console.warn('Error resolving reactive prompt on countdown cancel', e); }
-                this._clearReactiveState();
-            });
-            countdown.appendChild(cancelBtn);
-
-            // Insert next to player area
-            try {
-                if (playerArea && playerArea.parentNode) playerArea.parentNode.insertBefore(countdown, playerArea.nextSibling);
-                else document.body.appendChild(countdown);
-            } catch (e) { document.body.appendChild(countdown); }
-
-            // Countdown logic with pause/resume support
-            let remaining = 5;
-            const tick = () => {
-                remaining -= 1;
-                this._reactiveRemaining = remaining;
-                if (remaining <= 0) {
-                    if (this._reactiveTimer) clearInterval(this._reactiveTimer);
-                    this._clearReactiveState();
-                    resolve({ activated: false });
-                } else {
-                    const el = document.getElementById('trap-countdown');
-                    if (el) el.firstChild && (el.firstChild.textContent = String(remaining));
-                }
-            };
-
-            const interval = setInterval(tick, 1000);
-            this._reactiveTimer = interval;
-            this._reactiveRemaining = remaining;
-            this._reactiveResolve = resolve;
-        });
-    }
-
-    /** Restart the reactive countdown from full 5 seconds (used after a successful non-ending trap activation) */
-    _restartReactiveCountdown() {
-        // Clear existing timer
-        if (this._reactiveTimer) {
-            clearInterval(this._reactiveTimer);
-            this._reactiveTimer = null;
-        }
-        this._reactivePaused = false;
-        let remaining = 5;
-        this._reactiveRemaining = remaining;
-
-        const tick = () => {
-            remaining -= 1;
-            this._reactiveRemaining = remaining;
-            if (remaining <= 0) {
-                if (this._reactiveTimer) clearInterval(this._reactiveTimer);
-                this._clearReactiveState();
-                if (this._reactiveResolve) this._reactiveResolve({ activated: false });
-                return;
-            }
-            const el = document.getElementById('trap-countdown');
-            if (el) el.firstChild && (el.firstChild.textContent = String(remaining));
-        };
-
-        const interval = setInterval(tick, 1000);
-        this._reactiveTimer = interval;
+    _finishQueenPrompt(queen) {
+        this.endPrompt();
+        const prompt = this._queenPrompt;
+        this._queenPrompt = null;
+        if (prompt) prompt.resolve(queen || null);
     }
 
     /**
-     * Show dialog listing opponent traps to cancel for Queen trap activation
-     */
-    showCancelTrapDialog(queenTrap, context) {
-        const dialog = document.getElementById('cancel-trap-dialog');
-        const list = document.getElementById('cancel-trap-list');
-        if (!dialog || !list) return;
-
-        list.innerHTML = '';
-
-        // Gather potential targets from both players (face-up traps only)
-        const candidates = [];
-        [this.game.player, this.game.bot].forEach(p => {
-            for (let i = 0; i < p.trapSpaces.length; i++) {
-                const s = p.trapSpaces[i];
-                if (s.card && s.card.id !== queenTrap.id) {
-                    // show only traps that exist (Queen cancels traps except Joker per earlier rules)
-                    candidates.push(s.card);
-                }
-            }
-        });
-
-        if (candidates.length === 0) {
-            this.addLogMessage('No traps available to cancel');
-            this._resumeReactiveAfterCancel();
-            return;
-        }
-
-        candidates.forEach(card => {
-            const wrapper = document.createElement('div');
-            wrapper.classList.add('sacrifice-card-wrapper');
-            const el = card.getElement();
-            el.addEventListener('click', () => {
-                // toggle selection
-                document.querySelectorAll('#cancel-trap-list .card').forEach(c => c.classList.remove('selected'));
-                el.classList.add('selected');
-            });
-            wrapper.appendChild(el);
-            list.appendChild(wrapper);
-        });
-
-        dialog.classList.add('visible');
-    }
-
-    /**
-     * Show fusion upkeep dialog
-     * @param {Array} fusions - Active fusions
+     * End phase: pick monster cards on the field or in the hand to pay for each fusion
+     * @param {Array|number} fusions - Active fusions, or how many there are
      */
     showFusionUpkeepDialog(fusions) {
-        // Accept either a numeric count or an array of fusions
         const needed = Array.isArray(fusions) ? fusions.length : Number(fusions) || 0;
-
-        // Only show upkeep UI during the End phase to avoid prompting mid-attack or during reactive trap handling
-        if (this.game.currentPhase !== PHASES.END) {
-            console.warn('showFusionUpkeepDialog called outside of END phase; ignoring');
-            return;
-        }
-
+        const s = needed === 1 ? '' : 's';
+        const player = this.game.player;
         this.sacrificeCards = [];
 
-        const dialog = document.getElementById('fusion-upkeep-dialog');
-        const upkeepContainer = document.getElementById('fusion-upkeep-cards');
-
-        upkeepContainer.innerHTML = '';
-
-        // Show how many cards need to be sacrificed
-        const titleElement = document.createElement('div');
-        titleElement.textContent = `Select ${needed} cards to sacrifice for fusion upkeep`;
-        upkeepContainer.appendChild(titleElement);
-        
-        // Add cards from hand
-        this.game.player.hand.forEach(handCard => {
-            const cardWrapper = document.createElement('div');
-            cardWrapper.classList.add('sacrifice-card-wrapper');
-            
-            const cardElement = handCard.getElement();
-            cardElement.addEventListener('click', () => this.toggleUpkeepCard(handCard.id));
-            
-            cardWrapper.appendChild(cardElement);
-            upkeepContainer.appendChild(cardWrapper);
-        });
-        
-        // Add non-fusion monsters from field
-        this.game.player.monsterSpaces.forEach((space, index) => {
-            if (space.card && !space.card.isFusion) {
-                const cardWrapper = document.createElement('div');
-                cardWrapper.classList.add('sacrifice-card-wrapper');
-                
-                const cardElement = space.card.getElement();
-                cardElement.addEventListener('click', () => this.toggleUpkeepCard(space.card.id));
-                
-                cardWrapper.appendChild(cardElement);
-                upkeepContainer.appendChild(cardWrapper);
+        this.startPrompt({
+            kind: 'upkeep',
+            tone: 'danger',
+            pickLabel: 'PAY',
+            kicker: 'Fusion upkeep',
+            text: `Pick ${needed} monster card${s} from your field or hand to keep your fusion${s}. An unpaid fusion breaks apart: only its stronger card stays.`,
+            // Upkeep is paid with monster cards, never with a fusion
+            canPick: (c, where) => isMonsterCard(c) && !c.isFusion &&
+                (where.zone === 'hand' || (where.zone === 'field' && where.owner === player)),
+            onPick: (c) => this.toggleUpkeepCard(c.id),
+            picked: () => new Set(this.sacrificeCards.map(c => c.id)),
+            status: () => `${this.sacrificeCards.length} / ${needed}`,
+            actions: () => {
+                const paid = this.sacrificeCards.length;
+                return [
+                    { label: `Break fusion${s}`, run: () => this.skipFusionUpkeep() },
+                    {
+                        label: paid >= needed ? 'Pay upkeep' : `Pay ${paid}, break ${needed - paid}`,
+                        primary: true,
+                        disabled: paid === 0,
+                        run: () => this.confirmFusionUpkeep()
+                    }
+                ];
             }
         });
-        
-    // Add counter
-    const counterElement = document.createElement('div');
-    counterElement.classList.add('sacrifice-total');
-    counterElement.id = 'upkeep-counter';
-    counterElement.textContent = `Selected: 0/${needed}`;
-    upkeepContainer.appendChild(counterElement);
-        
-        // Add Skip button to allow breaking fusions
-        const buttons = document.createElement('div');
-        buttons.classList.add('dialog-buttons');
-        const skipBtn = document.createElement('button');
-        skipBtn.classList.add('dialog-button');
-        skipBtn.textContent = 'Skip Upkeep';
-        skipBtn.addEventListener('click', () => {
-            // Close and signal skip (empty sacrifices)
-            document.getElementById('fusion-upkeep-dialog').classList.remove('visible');
-            this.game.handleFusionUpkeep([], false);
-            this.sacrificeCards = [];
-        });
-
-        buttons.appendChild(skipBtn);
-        dialog.querySelector('.dialog-content').appendChild(buttons);
-
-        dialog.classList.add('visible');
     }
 
     /**
-     * Toggle upkeep card selection
+     * Pay no upkeep: every fusion breaks apart, keeping its stronger card
+     */
+    skipFusionUpkeep() {
+        this.endPrompt();
+        this.sacrificeCards = [];
+        this.game.handleFusionUpkeep([], false);
+    }
+
+    /**
+     * Add or remove a card from the upkeep payment
      * @param {string} cardId - Card ID
      */
     toggleUpkeepCard(cardId) {
-        // Find the card
-        let card = this.game.player.hand.find(c => c.id === cardId);
-        
-        if (!card) {
-            // Check if it's on the field
-            for (const space of this.game.player.monsterSpaces) {
-                if (space.card && !space.card.isFusion && space.card.id === cardId) {
-                    card = space.card;
-                    break;
-                }
-            }
-        }
-        
-        if (!card) return;
-        
-        // Toggle selection
+        const player = this.game.player;
+        const card = player.hand.find(c => c.id === cardId) ||
+            player.monsterSpaces.map(s => s.card).find(c => c && !c.isFusion && c.id === cardId);
+        if (!card || !isMonsterCard(card)) return;
+
+        const fusionCount = this.game.board.countActiveFusions(player);
         const existingIndex = this.sacrificeCards.findIndex(c => c.id === cardId);
         if (existingIndex !== -1) {
             this.sacrificeCards.splice(existingIndex, 1);
-        } else {
+        } else if (this.sacrificeCards.length < fusionCount) {
             this.sacrificeCards.push(card);
         }
-        
-        // Update visual selection
-        document.querySelectorAll('.sacrifice-card-wrapper .card').forEach(element => {
-            if (element.dataset.cardId === cardId) {
-                element.classList.toggle('selected');
-            }
-        });
-        
-        // Update counter
-        const fusionCount = this.game.board.countActiveFusions(this.game.player);
-        document.getElementById('upkeep-counter').textContent = 
-            `Selected: ${this.sacrificeCards.length}/${fusionCount}`;
-        
-        // Enable/disable confirm button
-        document.getElementById('confirm-fusion-upkeep').disabled = 
-            (this.sacrificeCards.length < fusionCount && this.sacrificeCards.length < this.game.player.hand.length);
     }
 
     /**
-     * Confirm fusion upkeep
+     * Pay upkeep with the chosen cards; the game breaks apart any fusion left unpaid
      */
     confirmFusionUpkeep() {
-        document.getElementById('fusion-upkeep-dialog').classList.remove('visible');
-        
-        const fusionCount = this.game.board.countActiveFusions(this.game.player);
-        
-        // If not enough cards were selected, handle breaking fusions automatically
-        this.game.handleFusionUpkeep(this.sacrificeCards);
-        
+        const cards = this.sacrificeCards;
         this.sacrificeCards = [];
+        this.endPrompt();
+        this.game.handleFusionUpkeep(cards);
     }
 
     /**
-     * Show discard dialog when over hand limit
+     * Over the hand limit: pick cards in the hand to discard
      * @param {number} excess - Number of cards to discard
      */
     showDiscardDialog(excess) {
         this.sacrificeCards = []; // Reuse for discard selection
-        
-        const dialog = document.getElementById('discard-dialog');
-        const discardContainer = document.getElementById('discard-cards');
-        
-        discardContainer.innerHTML = '';
-        
-        // Show instructions
-        const titleElement = document.createElement('div');
-        titleElement.textContent = `Select ${excess} cards to discard`;
-        discardContainer.appendChild(titleElement);
-        
-        // Add cards from hand
-        this.game.player.hand.forEach(handCard => {
-            const cardWrapper = document.createElement('div');
-            cardWrapper.classList.add('discard-card-wrapper');
-            
-            const cardElement = handCard.getElement();
-            cardElement.addEventListener('click', () => this.toggleDiscardCard(handCard.id));
-            
-            cardWrapper.appendChild(cardElement);
-            discardContainer.appendChild(cardWrapper);
+        const s = excess === 1 ? '' : 's';
+
+        this.startPrompt({
+            kind: 'discard',
+            tone: 'danger',
+            pickLabel: 'DISCARD',
+            kicker: 'Hand limit',
+            text: `You hold ${this.game.player.hand.length} cards and the limit is ${GAME_SETTINGS.MAX_HAND_SIZE}. Pick ${excess} card${s} in your hand to discard.`,
+            canPick: (c, where) => where.zone === 'hand',
+            onPick: (c) => this.toggleDiscardCard(c.id),
+            picked: () => new Set(this.sacrificeCards.map(c => c.id)),
+            status: () => `${this.sacrificeCards.length} / ${excess}`,
+            actions: () => [{
+                label: `Discard ${excess}`,
+                primary: true,
+                disabled: this.sacrificeCards.length !== excess,
+                run: () => this.confirmDiscard()
+            }]
         });
-        
-        // Add counter
-        const counterElement = document.createElement('div');
-        counterElement.classList.add('sacrifice-total');
-        counterElement.id = 'discard-counter';
-        counterElement.textContent = `Selected: 0/${excess}`;
-        discardContainer.appendChild(counterElement);
-        
-        dialog.classList.add('visible');
     }
 
     /**
-     * Toggle discard card selection
+     * Add or remove a card from the discards
      * @param {string} cardId - Card ID
      */
     toggleDiscardCard(cardId) {
-        // Find the card
         const card = this.game.player.hand.find(c => c.id === cardId);
         if (!card) return;
-        
-        // Toggle selection
+        const excess = Math.max(0, this.game.player.hand.length - GAME_SETTINGS.MAX_HAND_SIZE);
         const existingIndex = this.sacrificeCards.findIndex(c => c.id === cardId);
         if (existingIndex !== -1) {
             this.sacrificeCards.splice(existingIndex, 1);
-        } else {
+        } else if (this.sacrificeCards.length < excess) {
             this.sacrificeCards.push(card);
         }
-        
-        // Update visual selection
-        document.querySelectorAll('.discard-card-wrapper .card').forEach(element => {
-            if (element.dataset.cardId === cardId) {
-                element.classList.toggle('selected');
-            }
-        });
-        
-        // Update counter
-        const excess = Math.max(0, this.game.player.hand.length - GAME_SETTINGS.MAX_HAND_SIZE);
-        document.getElementById('discard-counter').textContent = 
-            `Selected: ${this.sacrificeCards.length}/${excess}`;
-        
-        // Enable/disable confirm button
-        document.getElementById('confirm-discard').disabled = (this.sacrificeCards.length !== excess);
     }
 
     /**
      * Confirm discard
      */
     confirmDiscard() {
-        document.getElementById('discard-dialog').classList.remove('visible');
-        
-        this.game.discardExcessCards(this.sacrificeCards);
-        
+        const cards = this.sacrificeCards;
         this.sacrificeCards = [];
+        this.endPrompt();
+        this.game.discardExcessCards(cards);
+    }
+
+    /**
+     * Ask before playing the Joker, on the board rather than in a browser popup
+     * @param {Card} card - the Joker
+     */
+    promptJoker(card) {
+        const cancel = () => {
+            this.endPrompt();
+            this.selectedCard = null;
+            this.updatePlayerHand();
+            this.updateSidePanels();
+        };
+        this.selectedCard = card;
+        this.updatePlayerHand();
+        this.startPrompt({
+            kind: 'joker',
+            tone: 'you',
+            kicker: 'Play the Joker?',
+            text: 'The whole board and both hands are reset, the Joker leaves the match, and your Battle phase is skipped.',
+            canPick: () => false,
+            onPick: () => {},
+            actions: () => [
+                { label: 'Cancel', run: cancel },
+                {
+                    label: 'Play Joker',
+                    primary: true,
+                    run: () => {
+                        this.endPrompt();
+                        this.selectedCard = null;
+                        this.game.playJoker(card);
+                    }
+                }
+            ],
+            cancel
+        });
     }
 
     /**
@@ -2252,6 +2129,9 @@ class UI {
         if (winner === 'player') {
             resultElement.textContent = 'Victory!';
             messageElement.textContent = 'You have defeated your opponent!';
+        } else if (winner === 'draw') {
+            resultElement.textContent = 'Draw';
+            messageElement.textContent = 'Both players fell at the same time.';
         } else {
             resultElement.textContent = 'Defeat';
             messageElement.textContent = 'Your opponent has defeated you.';
@@ -2265,13 +2145,63 @@ class UI {
      * @param {string} message - Log message
      */
     addLogMessage(message) {
-        const logContent = document.getElementById('log-content');
-        const logEntry = document.createElement('div');
+        const group = this.ensureLogTurn();
+        const logEntry = document.createElement('li');
         logEntry.classList.add('log-entry');
+        // Color the entry's dot by who it is about
+        if (message.startsWith(this.game.player.name)) logEntry.classList.add('log-you');
+        else if (message.startsWith(this.game.bot.name)) logEntry.classList.add('log-bot');
         logEntry.textContent = message;
-        
-        logContent.appendChild(logEntry);
-        logContent.scrollTop = logContent.scrollHeight;
+
+        // Newest first
+        const entries = group.querySelector('.log-entries');
+        entries.prepend(logEntry);
+        const count = entries.children.length;
+        group.querySelector('.log-count').textContent = `${count} action${count === 1 ? '' : 's'}`;
+
+        // A dot on the log button says there is something new to read
+        if (document.getElementById('game-log').hidden) document.getElementById('log-btn').classList.add('has-unread');
+    }
+
+    /**
+     * Get (or start) the battle log section for the current turn
+     * @returns {HTMLElement}
+     */
+    ensureLogTurn() {
+        const content = document.getElementById('log-content');
+        const turn = String(this.game.turnCounter);
+        let group = content.querySelector(`.log-turn[data-turn="${turn}"]`);
+        if (!group) {
+            group = document.createElement('li');
+            group.className = 'log-turn';
+            group.dataset.turn = turn;
+            group.dataset.label = `Turn ${turn} · ${this.game.currentPlayer === this.game.player ? 'You' : this.game.bot.name}`;
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            const title = document.createElement('span');
+            title.className = 'log-turn-title';
+            const count = document.createElement('span');
+            count.className = 'log-count';
+            count.textContent = '0 actions';
+            summary.append(title, count);
+            const entries = document.createElement('ol');
+            entries.className = 'log-entries';
+            details.append(summary, entries);
+            group.appendChild(details);
+            content.prepend(group);
+            // Keep the log bounded
+            while (content.children.length > 40) content.lastElementChild.remove();
+        }
+        if (!group.classList.contains('is-current')) {
+            // The current turn and the one before it start open; older turns collapse
+            [...content.children].forEach((g, i) => {
+                const current = g === group;
+                g.classList.toggle('is-current', current);
+                g.querySelector('details').open = i < 2;
+                g.querySelector('.log-turn-title').textContent = current ? `This turn · ${g.dataset.label}` : g.dataset.label;
+            });
+        }
+        return group;
     }
 
     /**
@@ -2283,47 +2213,147 @@ class UI {
      * @returns {Promise} - Animation completion promise
      */
     async animateAttack(attackerIndex, attackerPlayer, defenderIndex, defenderPlayer) {
-        // Get elements
-        const attackerSelector = attackerPlayer === this.game.player ? 
-            `#player-monster-${attackerIndex}` : 
-            `#bot-monster-${attackerIndex}`;
-            
-        const attackerElement = document.querySelector(attackerSelector);
-        
-        // Add attacking animation
-        attackerElement.classList.add('attacking');
-        
-        // Wait for animation
-        await delay(ANIMATION_DURATION);
-        
-        // Remove animation class
-        attackerElement.classList.remove('attacking');
-        
-        // If direct attack, animate defending player area
-        if (defenderIndex === null) {
-            const defenderAreaSelector = defenderPlayer === this.game.player ?
-                '.player-area-human' : 
-                '.bot-area';
-                
-            const defenderElement = document.querySelector(defenderAreaSelector);
-            defenderElement.classList.add('taking-damage');
-            
-            await delay(ANIMATION_DURATION);
-            
-            defenderElement.classList.remove('taking-damage');
-        } else {
-            // Monster vs monster attack
-            const defenderSelector = defenderPlayer === this.game.player ?
-                `#player-monster-${defenderIndex}` :
-                `#bot-monster-${defenderIndex}`;
-                
-            const defenderElement = document.querySelector(defenderSelector);
-            defenderElement.classList.add('taking-damage');
-            
-            await delay(ANIMATION_DURATION);
-            
-            defenderElement.classList.remove('taking-damage');
+        const { from, to } = this.attackEls(attackerIndex, attackerPlayer, defenderIndex, defenderPlayer);
+        if (!from) return;
+
+        // Attacker lunges at its target, then the target takes the hit
+        await Fx.lunge(from.querySelector('.card') || from, to);
+        const hit = defenderIndex === null ? to : (to && to.querySelector('.card')) || to;
+        await Fx.impact(hit, 'danger');
+    }
+
+    /**
+     * A trap was just sprung: its face flips up on the board (see animateBoardChanges) and a banner names it
+     */
+    async showTrapActivated(owner, trap) {
+        Fx.announce({
+            text: `${owner === this.game.player ? 'You spring' : `${owner.name} springs`} ${describeCard(trap)}: ${getTrapName(trap.value)}`,
+            tone: 'react',
+            cards: [trap],
+            duration: 1500
+        });
+        await delay(900);
+    }
+
+    /**
+     * A Queen cancelled a trap as it activated
+     */
+    async showTrapCancelled(canceller, queen, owner, trap) {
+        const whose = owner === this.game.player ? 'your' : `${owner.name}'s`;
+        Fx.announce({
+            text: `${canceller === this.game.player ? 'Your Queen cancels' : `${canceller.name}'s Queen cancels`} ${whose} ${getTrapName(trap.value)}`,
+            tone: 'react',
+            cards: [queen, '×', trap],
+            duration: 1700
+        });
+        await delay(1000);
+    }
+
+    /**
+     * An Ace stopped the attacker's Battle phase
+     */
+    async showBattleEnded(attacker) {
+        Fx.clearArrows();
+        Fx.announce({
+            text: `Ace: ${attacker === this.game.player ? 'your' : `${attacker.name}'s`} Battle phase is over`,
+            tone: 'danger',
+            duration: 1600
+        });
+        Fx.pulse(document.querySelector('#phase-steps li[data-phase="Battle"]'), 'danger');
+        await delay(900);
+    }
+
+    /**
+     * A King halved the attacker's strength
+     */
+    async showKingHalved(attacker, attackerIndex, card) {
+        this.updateBoard();
+        const halved = applyKingEffect(calculateMonsterStrength(card));
+        const prefix = attacker === this.game.player ? 'player' : 'bot';
+        const space = document.getElementById(`${prefix}-monster-${attackerIndex}`);
+        Fx.floatText(space, `÷2 → ${halved}`, 'react');
+        Fx.impact(space && space.querySelector('.card'), 'react');
+        Fx.announce({
+            text: `King halves ${this.ownerLabel(attacker, card)} to ${halved}`,
+            tone: 'react',
+            cards: [card],
+            duration: 1500
+        });
+        await delay(800);
+    }
+
+    /**
+     * A Jack sent the attack somewhere else: re-aim the arrow and mark the new target
+     */
+    async showRedirect(attacker, attackerIndex, oldDefender, oldIndex, newDefender, newIndex) {
+        Fx.clearArrows();
+        const { from, to } = this.attackEls(attackerIndex, attacker, newIndex, newDefender);
+        const oldTarget = this.attackEls(attackerIndex, attacker, oldIndex, oldDefender).to;
+        document.querySelectorAll('.monster-space.attack-target').forEach(el => el.classList.remove('attack-target'));
+        document.querySelectorAll('.player-area.direct-attack-target').forEach(el => el.classList.remove('direct-attack-target'));
+        to?.classList.add('attack-target');
+
+        if (oldTarget && oldTarget !== to) Fx.arrow(oldTarget, to, 'redirect', { dashed: true });
+        Fx.arrow(from, to, 'redirect');
+        Fx.impact(to && to.querySelector('.card'), 'redirect');
+        const card = newDefender.monsterSpaces[newIndex].card;
+        Fx.announce({
+            text: `Jack redirects the attack to ${this.ownerLabel(newDefender, card)}`,
+            tone: 'redirect',
+            cards: [card],
+            duration: 1600
+        });
+        await delay(800);
+    }
+
+    /**
+     * Banner for how an attack ended; destroyed monsters shatter on the next board render
+     */
+    showAttackResult(attacker, attackingCard, targetPlayer, targetCard, result) {
+        const you = this.game.player;
+        const name = p => (p === you ? 'You' : p.name);
+        const takes = p => `${name(p)} ${p === you ? 'take' : 'takes'} ${result.damage}`;
+
+        if (result.direct) {
+            Fx.announce({ text: `Direct hit: ${takes(targetPlayer)}`, tone: targetPlayer === you ? 'danger' : 'success' });
+            return;
         }
+        if (result.attackerDestroyed) this.fxHint(attackingCard.id, 'destroy');
+        if (result.defenderDestroyed && targetCard) this.fxHint(targetCard.id, 'destroy');
+
+        let text;
+        let hurt = null;
+        if (result.attackerDestroyed && result.defenderDestroyed) {
+            text = 'Both monsters destroyed. No damage';
+        } else if (result.defenderDestroyed) {
+            hurt = targetPlayer;
+            text = `${this.ownerLabel(targetPlayer, targetCard, true)} is destroyed. ${takes(targetPlayer)}`;
+        } else {
+            hurt = attacker;
+            text = `${this.ownerLabel(attacker, attackingCard, true)} is destroyed. ${takes(attacker)}`;
+        }
+        Fx.announce({
+            text,
+            tone: hurt === you ? 'danger' : hurt ? 'success' : 'neutral',
+            cards: [attackingCard, '×', targetCard].filter(Boolean),
+            duration: 1900
+        });
+    }
+
+    /**
+     * Resolves once the action banners on screen have been up long enough to read (see Fx.whenBannersRead)
+     */
+    whenBannersRead() {
+        return Fx.whenBannersRead();
+    }
+
+    /**
+     * Banner for a play. Your own summons and traps get only the card animation, since you just made them.
+     * @param {Player|null} player - who played it; null for events that always show
+     */
+    announcePlay(player, text, cards = [], tone) {
+        if (player === this.game.player) return;
+        Fx.announce({ text, cards, tone: tone || (player ? 'bot' : 'neutral'), duration: player ? 1300 : 1900 });
     }
 
     /**

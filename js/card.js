@@ -31,8 +31,8 @@ class Card {
      */
     static createFusion(card1, card2) {
         // Use higher value card's suit and value for the fusion card
-        const value1 = getCardNumericValue(card1.value);
-        const value2 = getCardNumericValue(card2.value);
+        const value1 = calculateMonsterStrength(card1);
+        const value2 = calculateMonsterStrength(card2);
         
         const higherValueCard = value1 > value2 ? card1 : card2;
         const lowerValueCard = value1 > value2 ? card2 : card1;
@@ -69,6 +69,13 @@ class Card {
         if (!this.faceUp) {
             cardElement.classList.add('face-down');
             return cardElement;
+        }
+
+        // Illustrated faces show their artwork, which already carries the rank and suit
+        const art = getCardArt(this);
+        if (art) {
+            cardElement.classList.add('has-art');
+            cardElement.style.backgroundImage = `url("${art}")`;
         }
         
         // Add card value
@@ -112,7 +119,7 @@ class Card {
 
             const strengthElement = document.createElement('div');
             strengthElement.classList.add(this.isFusion ? 'fusion-value' : 'monster-strength');
-            strengthElement.textContent = this.isFusion ? `STR: ${displayStrength}` : displayStrength;
+            strengthElement.textContent = displayStrength;
             cardElement.appendChild(strengthElement);
 
             if (this.kingWeakened) {
@@ -138,7 +145,7 @@ class Card {
             // Add a small status badge
             const statusBadge = document.createElement('div');
             statusBadge.classList.add('trap-status-badge');
-            statusBadge.textContent = this.active ? 'Active' : 'Disabled';
+            statusBadge.textContent = this.active ? 'Armed' : 'Next turn';
             cardElement.appendChild(statusBadge);
         }
         
@@ -206,12 +213,6 @@ class Card {
      */
     resetForNewTurn() {
         this.attackedThisTurn = false;
-        
-        // Active traps remain active
-        if (this.state === CARD_STATES.ON_FIELD && getCardType(this.value) === CARD_TYPES.TRAP) {
-            this.active = true;
-        }
-        
         this.justPlaced = false;
     }
 
@@ -231,6 +232,7 @@ class Card {
         clone.active = this.active;
         clone.attackedThisTurn = this.attackedThisTurn;
         clone.justPlaced = this.justPlaced;
+        clone.kingWeakened = this.kingWeakened;
         return clone;
     }
 }
